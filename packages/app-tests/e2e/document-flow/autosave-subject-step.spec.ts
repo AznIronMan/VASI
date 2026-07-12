@@ -1,0 +1,217 @@
+import { PDF_VIEWER_PAGE_SELECTOR } from '@documenso/lib/constants/pdf-viewer';
+import { getEnvelopeById } from '@documenso/lib/server-only/envelope/get-envelope-by-id';
+import { seedBlankDocument } from '@documenso/prisma/seed/documents';
+import { seedUser } from '@documenso/prisma/seed/users';
+import type { Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { EnvelopeType } from '@prisma/client';
+
+import { apiSignin } from '../fixtures/authentication';
+
+test.describe.configure({ mode: 'parallel', timeout: 60000 });
+
+export const setupDocumentAndNavigateToSubjectStep = async (page: Page) => {
+  const { user, team } = await seedUser();
+  const document = await seedBlankDocument(user, team.id);
+
+  await apiSignin({
+    page,
+    email: user.email,
+    redirectPath: `/t/${team.url}/documents/${document.id}/edit`,
+  });
+
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  await page.getByPlaceholder('Email').fill('recipient1@documenso.com');
+  await page.getByPlaceholder('Name').fill('Recipient 1');
+
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  await page.getByRole('button', { name: 'Signature' }).click();
+  await page.locator(PDF_VIEWER_PAGE_SELECTOR).click({
+    position: {
+      x: 100,
+      y: 100,
+    },
+  });
+
+  await page.getByRole('button', { name: 'Continue' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Distribute Document' })).toBeVisible();
+
+  return { user, team, document };
+};
+
+export const triggerAutosave = async (page: Page) => {
+  await page.locator('body').click({ position: { x: 0, y: 0 } });
+  await page.locator('#document-flow-form-container').blur();
+
+  await page.waitForTimeout(5000);
+};
+
+test.describe('AutoSave Subject Step', () => {
+  test('should autosave the subject field', async ({ page }) => {
+    const { user, document, team } = await setupDocumentAndNavigateToSubjectStep(page);
+
+    const subject = 'Hello world!';
+
+    await page.getByRole('textbox', { name: 'Subject (Optional)' }).fill(subject);
+
+    await triggerAutosave(page);
+
+    await expect(async () => {
+      const retrievedDocumentData = await getEnvelopeById({
+        id: {
+          type: 'envelopeId',
+          id: document.id,
+        },
+        type: EnvelopeType.DOCUMENT,
+        userId: user.id,
+        teamId: team.id,
+      });
+
+      await expect(page.getByRole('textbox', { name: 'Subject (Optional)' })).toHaveValue(
+        retrievedDocumentData.documentMeta?.subject ?? '',
+      );
+    }).toPass();
+  });
+
+  test('should autosave the message field', async ({ page }) => {
+    const { user, document, team } = await setupDocumentAndNavigateToSubjectStep(page);
+
+    const message = 'Please review and sign this important document. Thank you!';
+
+    await page.getByRole('textbox', { name: 'Message (Optional)' }).fill(message);
+
+    await triggerAutosave(page);
+
+    await expect(async () => {
+      const retrievedDocumentData = await getEnvelopeById({
+        id: {
+          type: 'envelopeId',
+          id: document.id,
+        },
+        type: EnvelopeType.DOCUMENT,
+        userId: user.id,
+        teamId: team.id,
+      });
+
+      await expect(page.getByRole('textbox', { name: 'Message (Optional)' })).toHaveValue(
+        retrievedDocumentData.documentMeta?.message ?? '',
+      );
+    }).toPass();
+  });
+
+  test('should autosave the email settings checkboxes', async ({ page }) => {
+    const { user, document, team } = await setupDocumentAndNavigateToSubjectStep(page);
+
+    // Toggle some email settings checkboxes (randomly - some checked, some unchecked)
+    await page.getByText('Email the owner when a recipient signs').click();
+    await page.getByText("Email recipients when they're removed from a pending document").click();
+    await page.getByText('Email recipients when the document is completed', { exact: true }).click();
+    await page.getByText('Email recipients when a pending document is deleted').click();
+
+    await triggerAutosave(page);
+
+    await expect(async () => {
+      const retrievedDocumentData = await getEnvelopeById({
+        id: {
+          type: 'envelopeId',
+          id: document.id,
+        },
+        type: EnvelopeType.DOCUMENT,
+        userId: user.id,
+        teamId: team.id,
+      });
+
+      const emailSettings = retrievedDocumentData.documentMeta?.emailSettings;
+
+      await expect(page.getByText('Email the owner when a recipient signs')).toBeChecked({
+        checked: emailSettings?.recipientSigned,
+      });
+      await expect(page.getByText("Email recipients when they're removed from a pending document")).toBeChecked({
+        checked: emailSettings?.recipientRemoved,
+      });
+      await expect(page.getByText('Email recipients when the document is completed', { exact: true })).toBeChecked({
+        checked: emailSettings?.documentCompleted,
+      });
+      await expect(page.getByText('Email recipients when a pending document is deleted')).toBeChecked({
+        checked: emailSettings?.documentDeleted,
+      });
+
+      await expect(page.getByText('Email recipients with a signing request')).toBeChecked({
+        checked: emailSettings?.recipientSigningRequest,
+      });
+      await expect(page.getByText('Email the signer if the document is still pending')).toBeChecked({
+        checked: emailSettings?.documentPending,
+      });
+      await expect(page.getByText('Email the owner when the document is completed')).toBeChecked({
+        checked: emailSettings?.ownerDocumentCompleted,
+      });
+    }).toPass();
+  });
+
+  test('should autosave all fields and settings together', async ({ page }) => {
+    const { user, document, team } = await setupDocumentAndNavigateToSubjectStep(page);
+
+    const subject = 'Combined Test Subject - Please Sign';
+    const message =
+      'This is a comprehensive test message for autosave functionality. Please review and sign at your earliest convenience.';
+
+    await page.getByRole('textbox', { name: 'Subject (Optional)' }).fill(subject);
+    await page.getByRole('textbox', { name: 'Message (Optional)' }).fill(message);
+
+    await page.getByText('Email the owner when a recipient signs').click();
+    await page.getByText("Email recipients when they're removed from a pending document").click();
+    await page.getByText('Email recipients when the document is completed', { exact: true }).click();
+    await page.getByText('Email recipients when a pending document is deleted').click();
+
+    await triggerAutosave(page);
+
+    await expect(async () => {
+      const retrievedDocumentData = await getEnvelopeById({
+        id: {
+          type: 'envelopeId',
+          id: document.id,
+        },
+        type: EnvelopeType.DOCUMENT,
+        userId: user.id,
+        teamId: team.id,
+      });
+
+      expect(retrievedDocumentData.documentMeta?.subject).toBe(subject);
+      expect(retrievedDocumentData.documentMeta?.message).toBe(message);
+      expect(retrievedDocumentData.documentMeta?.emailSettings).toBeDefined();
+
+      await expect(page.getByRole('textbox', { name: 'Subject (Optional)' })).toHaveValue(
+        retrievedDocumentData.documentMeta?.subject ?? '',
+      );
+      await expect(page.getByRole('textbox', { name: 'Message (Optional)' })).toHaveValue(
+        retrievedDocumentData.documentMeta?.message ?? '',
+      );
+
+      await expect(page.getByText('Email the owner when a recipient signs')).toBeChecked({
+        checked: retrievedDocumentData.documentMeta?.emailSettings?.recipientSigned,
+      });
+      await expect(page.getByText("Email recipients when they're removed from a pending document")).toBeChecked({
+        checked: retrievedDocumentData.documentMeta?.emailSettings?.recipientRemoved,
+      });
+      await expect(page.getByText('Email recipients when the document is completed', { exact: true })).toBeChecked({
+        checked: retrievedDocumentData.documentMeta?.emailSettings?.documentCompleted,
+      });
+      await expect(page.getByText('Email recipients when a pending document is deleted')).toBeChecked({
+        checked: retrievedDocumentData.documentMeta?.emailSettings?.documentDeleted,
+      });
+
+      await expect(page.getByText('Email recipients with a signing request')).toBeChecked({
+        checked: retrievedDocumentData.documentMeta?.emailSettings?.recipientSigningRequest,
+      });
+      await expect(page.getByText('Email the signer if the document is still pending')).toBeChecked({
+        checked: retrievedDocumentData.documentMeta?.emailSettings?.documentPending,
+      });
+      await expect(page.getByText('Email the owner when the document is completed')).toBeChecked({
+        checked: retrievedDocumentData.documentMeta?.emailSettings?.ownerDocumentCompleted,
+      });
+    }).toPass();
+  });
+});

@@ -5,9 +5,12 @@ operator access details are kept in ignored `.private/` notes.
 
 ## Current Status
 
-VASI does not yet contain Documenso application source, a Dockerfile, or a
-Compose stack. The commands and templates must be added only after an exact
-upstream release is selected and reproduced locally.
+VASI contains the pinned Documenso `v2.14.0` application source, upstream
+Dockerfile, and upstream development/production Compose examples. The upstream
+production example is not the VASI deployment contract: it uses an embedded
+database, floating image tag, and direct port exposure. A VASI-specific generic
+Compose/edge template must be created only after the baseline is reproduced
+locally.
 
 Private production prerequisites have been reserved and verified: PostgreSQL,
 administrator inheritance, encrypted internal service TLS, public and internal

@@ -1,20 +1,22 @@
 # VASI
 
-Version: `0.0.4`
+Version: `0.1.0`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
 self-hosted document-signing portal for Clark & Burke LLC.
 
-The intended application foundation is
+The pinned application foundation is
 [Documenso Community Edition](https://github.com/documenso/documenso), an
-AGPL-3.0 open-source signing platform that supports self-hosting. VASI will keep
-the upstream signing workflow and auditability while applying CNB identity,
-deployment policy, and operational standards.
+open-source signing platform that supports self-hosting. VASI currently tracks
+Documenso `v2.14.0` at commit
+`037170f6253d8b2bdeaf2eb0a08d04f152a41a58` and will keep the upstream signing
+workflow and auditability while applying CNB identity, deployment policy, and
+operational standards.
 
 ## Current Status
 
-`0.0.4` is the implementation-ready planning skeleton. It includes:
+`0.1.0` is the pinned upstream-source baseline. It includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -31,12 +33,14 @@ deployment policy, and operational standards.
   verification, configuration, branding, access control, deployment, mail,
   PDF signing identity, data recovery, policy, security, operations,
   acceptance, and production cutover.
+- The complete Documenso `v2.14.0` monorepo imported through a history-preserving
+  merge with upstream licensing and attribution intact.
 
-Documenso source has **not** been imported and VASI is not yet runnable. The
-reserved infrastructure endpoints report that the application is not deployed;
-they are not a production signing service.
+The imported source has not yet passed VASI's local runtime, migration, test,
+build, or synthetic signing gate. The reserved infrastructure endpoints still
+serve maintenance placeholders; they are not a production signing service.
 
-## Intended Foundation
+## Pinned Foundation
 
 Documenso's current self-hosting documentation identifies PostgreSQL, outbound
 email, a TLS/reverse-proxy path, and an X.509 signing certificate as core
@@ -53,6 +57,7 @@ upgrade/rollback procedures.
 ## Documentation
 
 - [Project overview](docs/project-overview.md)
+- [Pinned upstream baseline](docs/upstream-baseline.md)
 - [Architecture direction](docs/architecture.md)
 - [Security and privacy](docs/security.md)
 - [Roadmap](docs/roadmap.md)
@@ -64,13 +69,23 @@ upgrade/rollback procedures.
 
 ## License
 
-This repository is distributed under the
-[GNU Affero General Public License v3.0](LICENSE). When Documenso source is
-imported, VASI will also preserve applicable upstream attribution, copyright,
-license, and notice files. A tracked import task must establish the exact
-upstream baseline before a runnable build is distributed.
+The Documenso Community Edition core and VASI's AGPL-covered modifications are
+distributed under the [GNU Affero General Public License v3.0](LICENSE).
+The exact upstream source also contains a separately licensed `packages/ee/`
+subtree used by upstream build-time gating. VASI preserves its Commercial
+License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.1.0 - 2026-07-12
+
+- Pinned Documenso `v2.14.0` at commit
+  `037170f6253d8b2bdeaf2eb0a08d04f152a41a58`.
+- Imported the upstream monorepo through a history-preserving merge and retained
+  its licenses, attribution, lockfile, tooling, source structure, and code
+  standards.
+- Documented the Community/Enterprise license boundary and kept enterprise
+  features disabled pending explicit licensing.
 
 ### 0.0.4 - 2026-07-12
 

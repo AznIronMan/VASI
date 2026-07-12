@@ -8,8 +8,8 @@ operated on company-managed infrastructure without per-document platform fees.
 
 ## Product Direction
 
-VASI is planned as a maintained downstream deployment of Documenso Community
-Edition, not a from-scratch signing engine. The project should preserve
+VASI is a maintained downstream of Documenso Community Edition `v2.14.0`, not a
+from-scratch signing engine. The project should preserve
 upstream cryptographic signing and audit behavior while adding only the CNB
 branding, configuration, integrations, and operational controls that are
 actually required.
@@ -43,14 +43,16 @@ Planned capabilities include:
 
 ## Current Milestone
 
-The current milestone establishes only the repository skeleton. The next
-milestone must select an exact Documenso release, verify its license and runtime
-requirements, import it in an upgrade-friendly way, and prove an unbranded local
-development run before VASI branding begins.
+The current milestone pins and imports Documenso `v2.14.0` with history,
+licenses, attribution, runtime requirements, and upgrade strategy intact. The
+next milestone must prove the unbranded local dependency, migration, test,
+build, and synthetic signing workflow before VASI configuration or branding
+begins.
 
 ## Primary References
 
 - [Documenso repository](https://github.com/documenso/documenso)
+- [VASI pinned upstream baseline](upstream-baseline.md)
 - [Documenso self-hosting requirements](https://docs.documenso.com/docs/self-hosting/getting-started/requirements)
 - [Documenso signing certificates](https://docs.documenso.com/docs/concepts/signing-certificates)
 - [Documenso signing workflow and audit trail](https://docs.documenso.com/docs/concepts/signing-workflow)

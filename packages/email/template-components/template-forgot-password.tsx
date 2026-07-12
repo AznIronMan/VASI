@@ -1,0 +1,38 @@
+import { Trans } from '@lingui/react/macro';
+
+import { Button, Section, Text } from '../components';
+import { TemplateDocumentImage } from './template-document-image';
+
+export type TemplateForgotPasswordProps = {
+  resetPasswordLink: string;
+  assetBaseUrl: string;
+};
+
+export const TemplateForgotPassword = ({ resetPasswordLink, assetBaseUrl }: TemplateForgotPasswordProps) => {
+  return (
+    <>
+      <TemplateDocumentImage className="mt-6" assetBaseUrl={assetBaseUrl} />
+
+      <Section className="flex-row items-center justify-center">
+        <Text className="mx-auto mb-0 max-w-[80%] text-center font-semibold text-foreground text-lg">
+          <Trans>Forgot your password?</Trans>
+        </Text>
+
+        <Text className="my-1 text-center text-base text-muted-foreground">
+          <Trans>That's okay, it happens! Click the button below to reset your password.</Trans>
+        </Text>
+
+        <Section className="mt-8 mb-6 text-center">
+          <Button
+            className="inline-flex items-center justify-center rounded-lg bg-primary px-6 py-3 text-center font-medium text-primary-foreground text-sm no-underline"
+            href={resetPasswordLink}
+          >
+            <Trans>Reset Password</Trans>
+          </Button>
+        </Section>
+      </Section>
+    </>
+  );
+};
+
+export default TemplateForgotPassword;

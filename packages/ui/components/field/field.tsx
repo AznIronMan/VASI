@@ -1,0 +1,135 @@
+import { useElementBounds } from '@documenso/lib/client-only/hooks/use-element-bounds';
+import { useFieldPageCoords } from '@documenso/lib/client-only/hooks/use-field-page-coords';
+import { useIsPageInDom } from '@documenso/lib/client-only/hooks/use-is-page-in-dom';
+import { PDF_VIEWER_CONTENT_SELECTOR, PDF_VIEWER_PAGE_SELECTOR } from '@documenso/lib/constants/pdf-viewer';
+import { isFieldUnsignedAndRequired } from '@documenso/lib/utils/advanced-fields-helpers';
+import { type Field, FieldType } from '@prisma/client';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+
+import { FIELD_ROOT_CONTAINER_CLASS_NAME } from '../../lib/field-root-container-classes';
+import type { RecipientColorStyles } from '../../lib/recipient-colors';
+import { cn } from '../../lib/utils';
+
+export type FieldContainerPortalProps = {
+  field: Field;
+  className?: string;
+  children: React.ReactNode;
+};
+
+export function FieldContainerPortal({ field, children, className = '' }: FieldContainerPortalProps) {
+  const alternativePortalRoot = document.getElementById('document-field-portal-root');
+
+  const coords = useFieldPageCoords(field);
+  const $pageBounds = useElementBounds(`${PDF_VIEWER_PAGE_SELECTOR}[data-page-number="${field.page}"]`);
+
+  const maxWidth = $pageBounds?.width ? $pageBounds.width - coords.x : undefined;
+
+  const isCheckboxOrRadioField = field.type === 'CHECKBOX' || field.type === 'RADIO';
+
+  const style = useMemo(() => {
+    const portalBounds = alternativePortalRoot?.getBoundingClientRect();
+
+    const bounds = {
+      top: `${coords.y}px`,
+      left: `${coords.x}px`,
+      ...(!isCheckboxOrRadioField
+        ? {
+            height: `${coords.height}px`,
+            width: `${coords.width}px`,
+          }
+        : {
+            maxWidth: `${maxWidth}px`,
+          }),
+    };
+
+    if (portalBounds) {
+      bounds.top = `${coords.y - portalBounds.top}px`;
+      bounds.left = `${coords.x - portalBounds.left}px`;
+    }
+
+    return bounds;
+  }, [coords, maxWidth, isCheckboxOrRadioField]);
+
+  return createPortal(
+    <div className={cn('absolute', className)} style={style}>
+      {children}
+    </div>,
+    alternativePortalRoot ?? document.body,
+  );
+}
+
+export type FieldRootContainerProps = {
+  field: Field;
+  color?: RecipientColorStyles;
+  children: React.ReactNode;
+  className?: string;
+  readonly?: boolean;
+};
+
+export function FieldRootContainer({ field, children, color, className, readonly }: FieldRootContainerProps) {
+  const [isValidating, setIsValidating] = useState(false);
+  const isPageInDom = useIsPageInDom(field.page);
+
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) {
+      return;
+    }
+
+    // Check the validation signal on the PDF viewer container. When a field
+    // mounts after the virtual list scrolls to its page, the per-element
+    // `data-validate` attribute will not have been set yet. The signal on the
+    // `[data-pdf-content]` container bridges this gap so newly-rendered fields
+    // pick up the validation state immediately.
+    const pdfContent = document.querySelector(PDF_VIEWER_CONTENT_SELECTOR);
+
+    if (pdfContent?.getAttribute('data-validate-fields') === 'true' && isFieldUnsignedAndRequired(field)) {
+      ref.current.setAttribute('data-validate', 'true');
+      setIsValidating(true);
+    }
+
+    const observer = new MutationObserver((_mutations) => {
+      if (ref.current) {
+        setIsValidating(ref.current.getAttribute('data-validate') === 'true');
+      }
+    });
+
+    observer.observe(ref.current, {
+      attributes: true,
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isPageInDom]);
+
+  if (!isPageInDom) {
+    return null;
+  }
+
+  return (
+    <FieldContainerPortal field={field}>
+      <div
+        id={`field-${field.id}`}
+        ref={ref}
+        data-field-type={field.type}
+        data-inserted={field.inserted ? 'true' : 'false'}
+        data-readonly={readonly ? 'true' : 'false'}
+        className={cn(
+          FIELD_ROOT_CONTAINER_CLASS_NAME,
+          color?.base,
+          {
+            'px-2': field.type !== FieldType.SIGNATURE && field.type !== FieldType.FREE_SIGNATURE,
+            'justify-center': !field.inserted,
+            'ring-orange-300': isValidating && isFieldUnsignedAndRequired(field),
+          },
+          className,
+        )}
+      >
+        {children}
+      </div>
+    </FieldContainerPortal>
+  );
+}

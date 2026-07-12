@@ -13,14 +13,18 @@ working on VASI.
 - Company: Clark & Burke LLC
 - Website: https://www.cnb.llc
 - Developer email: streetkings@cnb.llc
-- Current version: `0.0.4`
+- Current version: `0.1.0`
 
 ## Current State
 
-- The repository contains governance, documentation, standards, and deployment
-  direction only.
-- Documenso source has not yet been imported.
-- No runnable VASI application or production deployment exists yet.
+- Documenso `v2.14.0` at commit
+  `037170f6253d8b2bdeaf2eb0a08d04f152a41a58` is the pinned source baseline.
+- The complete upstream monorepo is imported with its history, license, notices,
+  lockfile, and source structure intact.
+- Local runtime reproduction and VASI configuration/branding have not yet been
+  completed.
+- No VASI application has been deployed to the reserved production endpoints;
+  they still serve maintenance placeholders.
 - Keep public status statements honest as these conditions change.
 
 ## Required Workflow
@@ -44,7 +48,9 @@ working on VASI.
 ## GitHub And Upstream Sync
 
 - VASI origin: `https://github.com/AznIronMan/VASI.git`
-- Intended Documenso upstream: `https://github.com/documenso/documenso.git`
+- Documenso upstream: `https://github.com/documenso/documenso.git`
+- Current pinned baseline: `v2.14.0` / commit
+  `037170f6253d8b2bdeaf2eb0a08d04f152a41a58`
 - Work on `main` by default.
 - Use `origin` for VASI and `upstream` for Documenso.
 - Before importing or updating upstream code, record the exact Documenso tag or
@@ -55,11 +61,24 @@ working on VASI.
 
 ## Upstream And License Rules
 
-- Documenso is currently distributed under AGPL-3.0. Treat imported or modified
-  Documenso code as AGPL-covered and preserve upstream copyright, attribution,
-  license, and notice files.
-- Do not import upstream source until a tracked task defines the baseline,
-  integration shape, VASI changes, upgrade strategy, and license verification.
+- Treat the Documenso Community Edition core as AGPL-3.0 and preserve upstream
+  copyright, attribution, license, and notice files.
+- The exact upstream tree includes `packages/ee/` under Documenso's separate
+  Commercial License because the upstream application compiles against gated
+  helpers. Preserve that license and subtree unchanged, but do not configure a
+  Documenso enterprise license key, enable enterprise-gated behavior, modify
+  enterprise code, or claim enterprise rights without explicit authorization
+  and license review.
+- The upstream enterprise feature list currently includes Stripe billing,
+  Organisation Authentication Portal, document-action reauthentication,
+  21 CFR features, email domains, and embed authoring/white-label behavior.
+- VASI staff authentication must remain an external edge control unless a later
+  task verifies a Community-compatible application path or licenses the
+  enterprise Organisation Authentication Portal.
+- Before network use of modified AGPL-covered code, provide users a clear path
+  to the corresponding VASI source, build/install scripts, license, notices, and
+  a statement of modifications through the same network interface or another
+  license-compliant mechanism approved for VASI.
 - Prefer configuration, theme assets, and narrow documented overlays over broad
   rewrites so future upstream security updates remain practical.
 - Do not copy Documenso enterprise-only code, assets, features, or license keys
@@ -132,8 +151,10 @@ working on VASI.
 
 ## Repository Layout Direction
 
-The current skeleton uses:
+The current downstream repository uses:
 
+- `apps/`, `packages/`, `docker/`, `assets/`, `patches/`, and `scripts/` - the
+  pinned Documenso monorepo source and tooling.
 - `docs/` - public project and architecture documentation.
 - `docs/standards/` - engineering, branding, and security standards.
 - `docs/operator/` - public-safe deployment and operations guidance.
@@ -141,9 +162,9 @@ The current skeleton uses:
 - `.tasks/` - ignored local task ledger.
 - `.private/` - ignored operator-only notes and private artifacts.
 
-When Documenso is imported, preserve its upstream monorepo structure unless the
-import task explicitly chooses and documents another strategy. Do not create a
-second speculative application skeleton before that decision.
+Preserve the imported upstream monorepo structure. Keep VASI-specific
+configuration, branding, deployment, and source-availability changes narrow and
+documented so later upstream security releases can be compared and merged.
 
 ## Production Deployment Direction
 
@@ -209,3 +230,66 @@ second speculative application skeleton before that decision.
   redaction.
 - Never claim production readiness or a successful live deployment without
   direct verification from the intended environment.
+
+## Upstream Documenso Code Guidelines
+
+These rules come from the pinned Documenso baseline and apply inside the imported
+application source unless a stricter VASI rule above overrides them.
+
+### Build/Test/Lint Commands
+
+- `npm run build` - Build all packages
+- `npm run lint` - Lint all packages
+- `npm run lint:fix` - Auto-fix linting issues
+- `npm run test:e2e` - Run E2E tests with Playwright
+- `npm run test:dev -w @documenso/app-tests` - Run single E2E test in dev mode
+- `npm run test-ui:dev -w @documenso/app-tests` - Run E2E tests with UI
+- `npm run format` - Format code with Biome
+- `npm run dev` - Start development server for Remix app
+
+**Important:** Do not run `npm run build` to verify changes unless explicitly asked. Builds take a long time (~2 minutes). Use `npx tsc --noEmit` for type checking specific packages if needed.
+
+### Code Style Guidelines
+
+- Use TypeScript for all code; prefer `type` over `interface`
+- Use functional components with `const Component = () => {}`
+- Never use classes; prefer functional/declarative patterns
+- Use descriptive variable names with auxiliary verbs (isLoading, hasError)
+- Directory names: lowercase with dashes (auth-wizard)
+- Use named exports for components
+- Never use 'use client' directive
+- Never use 1-line if statements
+- Structure files: exported component, subcomponents, helpers, static content, types
+
+### Error Handling & Validation
+
+- Use custom AppError class when throwing errors
+- When catching errors on the frontend use `const error = AppError.parse(error)` to get the error code
+- Use early returns and guard clauses
+- Use Zod for form validation and react-hook-form for forms
+- Use error boundaries for unexpected errors
+
+### UI & Styling
+
+- Use Shadcn UI, Radix, and Tailwind CSS with mobile-first approach
+- Use `<Form>` `<FormItem>` elements with fieldset having `:disabled` attribute when loading
+- Use Lucide icons with longhand names (HomeIcon vs Home)
+
+### TRPC Routes
+
+- Each route in own file: `routers/teams/create-team.ts`
+- Associated types file: `routers/teams/create-team.types.ts`
+- Request/response schemas: `Z[RouteName]RequestSchema`, `Z[RouteName]ResponseSchema`
+- Only use GET and POST methods in OpenAPI meta
+- Deconstruct input argument on its own line
+- Prefer route names such as get/getMany/find/create/update/delete
+- "create" routes request schema should have the ID and data in the top level
+- "update" routes request schema should have the ID in the top level and the data in a nested "data" object
+
+### Translations & Remix
+
+- Use `<Trans>string</Trans>` for JSX translations from `@lingui/react/macro`
+- Use `t\`string\`` macro for TypeScript translations
+- Use `(params: Route.Params)` and `(loaderData: Route.LoaderData)` for routes
+- Directly return data from loaders, don't use `json()`
+- Use `superLoaderJson` when sending complex data through loaders such as dates or prisma decimals

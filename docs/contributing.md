@@ -2,8 +2,27 @@
 
 ## Local Workflow
 
-Until the Documenso baseline is imported, VASI has no application build or test
-command. Documentation work should:
+VASI follows the pinned Documenso `v2.14.0` npm workspace and lockfile. The
+baseline commands are:
+
+```sh
+npm ci
+npm run lint
+npm run build
+```
+
+The full development bootstrap additionally requires Docker Compose:
+
+```sh
+npm run dx
+npm run dev
+```
+
+`npm run dx` starts the upstream development PostgreSQL, mail-capture, Redis,
+MinIO, and document-conversion services, then applies migrations and seeds
+synthetic development data. Do not run it against VASI production services.
+
+Application or documentation work should:
 
 1. Create or activate a local ignored `VASI-xxxx` task.
 2. Make the smallest coherent change.
@@ -12,8 +31,9 @@ command. Documentation work should:
    accidental claims of unimplemented behavior.
 5. Commit and push `main` when the tracked task is complete.
 
-After upstream import, this page must be updated with the exact supported
-install, development, lint, typecheck, test, and build commands.
+The VASI-supported local workflow remains provisional until the baseline
+reproduction task records successful dependency, migration, lint, build, test,
+and synthetic signing evidence.
 
 ## Rules
 

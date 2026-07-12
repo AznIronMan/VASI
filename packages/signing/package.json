@@ -1,0 +1,22 @@
+{
+  "name": "@documenso/signing",
+  "version": "0.0.0",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "license": "AGPLv3",
+  "files": [
+    "transports/",
+    "index.ts"
+  ],
+  "scripts": {
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@google-cloud/kms": "^5.2.1",
+    "@google-cloud/secret-manager": "^6.1.1",
+    "ts-pattern": "^5.9.0"
+  },
+  "devDependencies": {
+    "@documenso/tsconfig": "*"
+  }
+}
