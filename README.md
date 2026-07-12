@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.0.2`
+Version: `0.0.3`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -14,7 +14,7 @@ deployment policy, and operational standards.
 
 ## Current Status
 
-`0.0.2` is the repository governance and architecture-planning skeleton. It
+`0.0.3` is the repository governance and architecture-planning skeleton. It
 includes:
 
 - Repository rules and semantic versioning policy.
@@ -25,9 +25,13 @@ includes:
   details.
 - A split public-edge/private-origin access model that avoids direct WAN
   exposure of the signing application.
+- Provisioned private PostgreSQL, internal-CA TLS, public/internal DNS ingress,
+  reserved container endpoints, and verified backup coverage for the future
+  application build.
 
-Documenso source has **not** been imported, VASI is not yet runnable, and no
-production service has been deployed.
+Documenso source has **not** been imported and VASI is not yet runnable. The
+reserved infrastructure endpoints report that the application is not deployed;
+they are not a production signing service.
 
 ## Intended Foundation
 
@@ -64,6 +68,14 @@ license, and notice files. A tracked import task must establish the exact
 upstream baseline before a runnable build is distributed.
 
 ## Changelog
+
+### 0.0.3 - 2026-07-12
+
+- Provisioned the private PostgreSQL and container-host prerequisites, public
+  and internal DNS/TLS ingress, JAZMINE internal-CA identity, administrator
+  access, and verified backup coverage for the future VASI application.
+- Kept the live status explicit: the infrastructure placeholders are healthy,
+  but Documenso/VASI application source and signing workflows are not deployed.
 
 ### 0.0.2 - 2026-07-12
 

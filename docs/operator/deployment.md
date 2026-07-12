@@ -9,6 +9,13 @@ VASI does not yet contain Documenso application source, a Dockerfile, or a
 Compose stack. The commands and templates must be added only after an exact
 upstream release is selected and reproduced locally.
 
+Private production prerequisites have been reserved and verified: PostgreSQL,
+administrator inheritance, encrypted internal service TLS, public and internal
+DNS/TLS ingress, container ports, and backup coverage. The current endpoints are
+maintenance placeholders, not a deployed signing application. Exact hostnames,
+addresses, ports, credentials, certificate material, and replacement steps stay
+in ignored `.private/` notes.
+
 ## Required Services
 
 The current Documenso self-hosting requirements call for:
@@ -38,9 +45,11 @@ is optional and must be deliberately configured and tested if selected.
 
 ## Edge Access Policy
 
-The public edge must proxy enough of the signing application for external
-recipients to open and complete emailed invitations without exposing the origin
-itself. A separate public VASI origin hostname should not be necessary.
+The central public ingress must proxy enough of the signing application for
+external recipients to open and complete emailed invitations without exposing
+the private origin itself. VASI reserves distinct public application and
+recipient-signing hostnames; both terminate at the central TLS ingress, while
+their upstream containers remain private.
 
 Route policies must be explicit:
 
