@@ -1,0 +1,65 @@
+# VASI
+
+Version: `0.0.1`
+Last updated: `2026-07-12`
+
+VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
+self-hosted document-signing portal for Clark & Burke LLC.
+
+The intended application foundation is
+[Documenso Community Edition](https://github.com/documenso/documenso), an
+AGPL-3.0 open-source signing platform that supports self-hosting. VASI will keep
+the upstream signing workflow and auditability while applying CNB identity,
+deployment policy, and operational standards.
+
+## Current Status
+
+`0.0.1` is the repository governance and planning skeleton. It includes:
+
+- Repository rules and semantic versioning policy.
+- Ignored local `.tasks/` and `.private/` structures.
+- Public project, architecture, security, standards, roadmap, and deployment
+  direction.
+- An intended Docker production model recorded without exposing private host
+  details.
+
+Documenso source has **not** been imported, VASI is not yet runnable, and no
+production service has been deployed.
+
+## Intended Foundation
+
+Documenso's current self-hosting documentation identifies PostgreSQL, outbound
+email, a TLS/reverse-proxy path, and an X.509 signing certificate as core
+production inputs. Completed documents can be cryptographically sealed, and an
+RFC 3161 timestamp authority can be configured for trusted timestamps.
+
+VASI's planned production shape is a Docker Compose deployment with persistent
+database/document storage, protected application and signing secrets, SMTP,
+TLS ingress, backups, and operator-verified upgrade/rollback procedures.
+
+## Documentation
+
+- [Project overview](docs/project-overview.md)
+- [Architecture direction](docs/architecture.md)
+- [Security and privacy](docs/security.md)
+- [Roadmap](docs/roadmap.md)
+- [Development standard](docs/standards/development.md)
+- [Branding standard](docs/standards/branding.md)
+- [Security standard](docs/standards/security-and-privacy.md)
+- [Deployment direction](docs/operator/deployment.md)
+- [Contributing](docs/contributing.md)
+
+## License
+
+This repository is distributed under the
+[GNU Affero General Public License v3.0](LICENSE). When Documenso source is
+imported, VASI will also preserve applicable upstream attribution, copyright,
+license, and notice files. A tracked import task must establish the exact
+upstream baseline before a runnable build is distributed.
+
+## Changelog
+
+### 0.0.1 - 2026-07-12
+
+- Established the VASI identity, repository governance, local task/private
+  structures, public documentation, standards, and Docker production direction.

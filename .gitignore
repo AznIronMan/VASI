@@ -1,0 +1,84 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Local settings and secrets
+*.env
+.env
+.env.*
+!.env.example
+*.settings
+!*.settings.example
+.private/
+.mcp*.json
+!.mcp.example.json
+
+# Internal project tracking
+.tasks/
+
+# Sensitive signing and TLS material
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.key
+*.pem
+*.crt
+*.cer
+*.csr
+*.der
+
+# Runtime data, documents, and backups
+data/
+storage/
+uploads/
+documents/
+backups/
+docker-data/
+postgres-data/
+redis-data/
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.backup
+
+# Logs and runtime output
+logs/
+*.log
+*.pid
+*.sock
+
+# Node and frontend tooling
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.turbo/
+.next/
+.vite/
+coverage/
+
+# Python tooling used by operator scripts
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build and packaging output
+dist/
+build/
+release/
+artifacts/
+*.zip
+*.tar.gz
