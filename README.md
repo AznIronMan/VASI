@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.0.3`
+Version: `0.0.4`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -14,8 +14,7 @@ deployment policy, and operational standards.
 
 ## Current Status
 
-`0.0.3` is the repository governance and architecture-planning skeleton. It
-includes:
+`0.0.4` is the implementation-ready planning skeleton. It includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -28,6 +27,10 @@ includes:
 - Provisioned private PostgreSQL, internal-CA TLS, public/internal DNS ingress,
   reserved container endpoints, and verified backup coverage for the future
   application build.
+- A dependency-ordered implementation roadmap covering upstream import, local
+  verification, configuration, branding, access control, deployment, mail,
+  PDF signing identity, data recovery, policy, security, operations,
+  acceptance, and production cutover.
 
 Documenso source has **not** been imported and VASI is not yet runnable. The
 reserved infrastructure endpoints report that the application is not deployed;
@@ -68,6 +71,13 @@ license, and notice files. A tracked import task must establish the exact
 upstream baseline before a runnable build is distributed.
 
 ## Changelog
+
+### 0.0.4 - 2026-07-12
+
+- Expanded the project roadmap into implementation, product/access,
+  production-service, hardening/operations, acceptance, and go-live gates.
+- Established explicit separation between TLS and PDF signing certificates,
+  staff and recipient authentication, and database versus full-system recovery.
 
 ### 0.0.3 - 2026-07-12
 
