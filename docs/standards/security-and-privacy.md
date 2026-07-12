@@ -22,10 +22,19 @@
   and recoverable where policy requires.
 - Treat webhooks and integrations as authenticated, replay-aware trust
   boundaries.
+- Keep the application origin off the WAN and allow ingress only from the
+  approved edge and management sources.
+- Define route-level edge policy. Staff/admin authentication, recipient signing
+  invitations, APIs, webhooks, callbacks, static assets, and health endpoints
+  must not inherit one blanket policy by accident.
+- Trust forwarded client metadata only from the known edge; reject or overwrite
+  client-supplied forwarding headers at the public boundary.
 
 ## Production Release Evidence
 
 Before production, retain secret-free evidence that TLS, access control, signing,
-certificate validation, audit generation, SMTP delivery, health checks,
-backup/restore, upgrades, rollback, and tamper detection were tested. Evidence
-must use synthetic identifiers and must not expose live secrets or documents.
+certificate validation, audit generation, SMTP delivery, staff authentication,
+recipient-link access, direct-origin isolation, forwarding-header handling,
+health checks, backup/restore, upgrades, rollback, and tamper detection were
+tested. Evidence must use synthetic identifiers and must not expose live secrets
+or documents.

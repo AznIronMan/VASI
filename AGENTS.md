@@ -13,7 +13,7 @@ working on VASI.
 - Company: Clark & Burke LLC
 - Website: https://www.cnb.llc
 - Developer email: streetkings@cnb.llc
-- Current version: `0.0.1`
+- Current version: `0.0.2`
 
 ## Current State
 
@@ -147,8 +147,28 @@ second speculative application skeleton before that decision.
 
 ## Production Deployment Direction
 
-- Production will run as a Docker deployment on the privately designated VASI
-  host documented in `.private/deployment-VASI.md`.
+- Production will use a split Docker deployment: a public edge/auth gateway on
+  the privately designated edge host and an internal-only VASI application
+  origin on the privately designated application host. Exact host and DNS
+  details are documented in `.private/deployment-VASI.md`.
+- The public edge is the only intended WAN ingress. Do not expose the VASI
+  application origin, PostgreSQL, document storage, or supporting services
+  directly to the WAN.
+- Staff/admin routes may require the edge portal's CNB authentication policy.
+  Recipient signing routes must use a separate policy that preserves
+  Documenso's token-bound invite and configured recipient-authentication flow.
+  Do not place a blanket staff login requirement in front of recipient links.
+- Proxy edge-to-origin traffic over an approved private route, preferably with
+  TLS or mTLS, and restrict origin ingress to the edge source and approved
+  management paths.
+- Configure the application's public/base URL for the edge hostname so emails,
+  redirects, cookies, callbacks, and document links do not reveal or depend on
+  the internal origin hostname.
+- Preserve forwarding metadata required for security and audit events, but
+  configure the origin to trust forwarded headers only from the known edge.
+- A fallback public application hostname must remain inactive unless an
+  explicit task documents why edge proxying is insufficient and approves the
+  additional WAN exposure.
 - Keep tracked Docker/Compose templates generic. They must not contain live
   hostnames, IP addresses, usernames, credentials, certificate contents,
   database URLs, or production documents.
@@ -184,6 +204,8 @@ second speculative application skeleton before that decision.
   tamper detection using synthetic data.
 - Deployment changes: validate Compose configuration, container health,
   database persistence, SMTP delivery, TLS routing, signing certificate access,
-  backup/restore, upgrade/rollback, and secret redaction.
+  edge authentication, recipient-link routing, direct-origin isolation,
+  forwarding-header trust, backup/restore, upgrade/rollback, and secret
+  redaction.
 - Never claim production readiness or a successful live deployment without
   direct verification from the intended environment.

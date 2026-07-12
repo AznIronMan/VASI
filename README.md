@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.0.1`
+Version: `0.0.2`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -14,7 +14,8 @@ deployment policy, and operational standards.
 
 ## Current Status
 
-`0.0.1` is the repository governance and planning skeleton. It includes:
+`0.0.2` is the repository governance and architecture-planning skeleton. It
+includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -22,6 +23,8 @@ deployment policy, and operational standards.
   direction.
 - An intended Docker production model recorded without exposing private host
   details.
+- A split public-edge/private-origin access model that avoids direct WAN
+  exposure of the signing application.
 
 Documenso source has **not** been imported, VASI is not yet runnable, and no
 production service has been deployed.
@@ -33,9 +36,12 @@ email, a TLS/reverse-proxy path, and an X.509 signing certificate as core
 production inputs. Completed documents can be cryptographically sealed, and an
 RFC 3161 timestamp authority can be configured for trusted timestamps.
 
-VASI's planned production shape is a Docker Compose deployment with persistent
-database/document storage, protected application and signing secrets, SMTP,
-TLS ingress, backups, and operator-verified upgrade/rollback procedures.
+VASI's planned production shape uses a public CNB authentication/edge gateway
+as the only WAN ingress. That edge proxies explicitly approved staff and
+recipient-signing traffic to an internal-only VASI application origin. The
+origin owns persistent database/document storage, protected application and
+signing secrets, SMTP integration, backups, and operator-verified
+upgrade/rollback procedures.
 
 ## Documentation
 
@@ -58,6 +64,11 @@ license, and notice files. A tracked import task must establish the exact
 upstream baseline before a runnable build is distributed.
 
 ## Changelog
+
+### 0.0.2 - 2026-07-12
+
+- Defined the preferred public authentication edge and internal-only VASI
+  origin architecture, including distinct staff and recipient route policies.
 
 ### 0.0.1 - 2026-07-12
 

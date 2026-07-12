@@ -16,17 +16,23 @@
 
 ## Phase 3 - Deployment Engineering
 
-1. Create generic Docker Compose and reverse-proxy templates.
-2. Configure persistent PostgreSQL and document storage.
-3. Configure SMTP, protected application secrets, and an X.509 certificate.
-4. Decide whether to enable an RFC 3161 timestamp authority.
-5. Implement health checks, monitoring, backup/restore, upgrade, and rollback.
+1. Create generic Docker Compose templates for the public edge/auth gateway and
+   internal-only VASI origin.
+2. Inventory public staff, recipient, API, webhook, callback, static, and health
+   routes; assign an explicit edge policy to each.
+3. Restrict private-origin ingress to the edge and approved management paths.
+4. Configure persistent PostgreSQL and document storage.
+5. Configure SMTP, protected application secrets, and an X.509 certificate.
+6. Decide whether to enable an RFC 3161 timestamp authority.
+7. Implement health checks, monitoring, backup/restore, upgrade, and rollback.
 
 ## Phase 4 - Acceptance And Production
 
 1. Complete synthetic end-to-end signing and audit tests.
 2. Verify certificate validation and post-signing tamper detection.
 3. Verify email delivery, TLS, authorization, retention, and secret hygiene.
-4. Restore a backup into an isolated environment.
-5. Deploy to the privately designated production Docker host only after the
+4. Verify staff portal login, external recipient invitation access, forwarded
+   client metadata, and failed direct-origin WAN access.
+5. Restore a backup into an isolated environment.
+6. Deploy to the privately designated production Docker hosts only after the
    acceptance checklist passes.

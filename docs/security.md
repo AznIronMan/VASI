@@ -7,7 +7,14 @@ requirements, not optional production cleanup.
 ## Required Posture
 
 - Serve all public traffic through HTTPS.
+- Expose only the edge/auth gateway to the WAN; keep the VASI application
+  origin private and firewall it to approved edge/management sources.
 - Keep PostgreSQL and supporting services on private Docker/internal networks.
+- Separate staff portal authentication from recipient signing-link policy.
+  Recipient links must retain upstream token and configured recipient
+  authentication without requiring a CNB staff account.
+- Trust `Forwarded`/`X-Forwarded-*` metadata only from the known edge and use it
+  consistently for secure redirects, cookies, rate limits, and audit events.
 - Mount secrets at runtime; never bake them into images or commit them.
 - Encrypt and access-control backups, then test restoration on a schedule.
 - Restrict administrative access and use least-privilege database/service

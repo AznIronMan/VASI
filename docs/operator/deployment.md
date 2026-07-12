@@ -24,9 +24,10 @@ is optional and must be deliberately configured and tested if selected.
 
 ## Intended Container Shape
 
-- One Compose project per VASI environment.
-- Public traffic reaches only a TLS reverse proxy or explicitly approved app
-  port.
+- Separate edge and origin Compose projects for each VASI environment.
+- Public traffic reaches only the TLS edge/auth gateway.
+- The VASI application origin binds only to a private interface or network and
+  accepts ingress from the edge plus explicitly approved management sources.
 - Application and worker/job processes use private networks for PostgreSQL and
   supporting services.
 - PostgreSQL and document storage use host-managed or named persistent volumes.
@@ -34,6 +35,30 @@ is optional and must be deliberately configured and tested if selected.
   paths, never copied into an image.
 - Container images and upstream releases are pinned; `latest` is not a
   production version policy.
+
+## Edge Access Policy
+
+The public edge must proxy enough of the signing application for external
+recipients to open and complete emailed invitations without exposing the origin
+itself. A separate public VASI origin hostname should not be necessary.
+
+Route policies must be explicit:
+
+- Staff/admin application routes require the CNB portal authentication policy.
+- Recipient signing routes preserve upstream invitation tokens and configured
+  recipient authentication; they do not require a CNB staff portal account.
+- APIs, webhooks, callbacks, health checks, static assets, uploads/downloads,
+  and any long-lived connections receive narrowly defined policies based on the
+  selected upstream release.
+- Unknown or unreviewed routes fail closed.
+
+Configure the application canonical/base URL to the public edge URL. The edge
+must normalize the public scheme/host, replace untrusted client-supplied
+forwarding headers, and pass accurate client metadata to the origin. The origin
+must trust those headers only from the edge.
+
+Use an encrypted private edge-to-origin hop when practical. Firewall and bind
+rules remain required even when that hop uses TLS.
 
 ## Production Gate
 
@@ -44,11 +69,14 @@ Before first production use:
 3. Apply and visually verify VASI branding.
 4. Validate database migrations and persistent storage.
 5. Validate SMTP delivery and sender alignment.
-6. Validate TLS, secure headers, public route exposure, and admin access.
-7. Complete a synthetic send/view/authenticate/sign/complete flow.
-8. Verify audit output, X.509 signature validation, and tamper detection.
-9. Exercise backup and isolated restore.
-10. Document and test upgrade and rollback procedures.
+6. Validate TLS, secure headers, public route exposure, and staff portal access.
+7. Complete a synthetic external recipient
+   send/view/authenticate/sign/complete flow through the edge.
+8. Verify forwarding metadata, audit output, X.509 signature validation, and
+   tamper detection.
+9. Verify the application origin cannot be reached directly from the WAN.
+10. Exercise backup and isolated restore.
+11. Document and test upgrade and rollback procedures.
 
 Do not claim the service is production ready until every applicable gate has
 target-environment evidence.

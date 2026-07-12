@@ -24,6 +24,8 @@ Planned capabilities include:
 - Optionally attach trusted RFC 3161 timestamps.
 - Operate through CNB-controlled Docker infrastructure, storage, SMTP, TLS,
   backup, and recovery procedures.
+- Keep the signing application on an internal-only origin while a dedicated
+  public CNB edge authenticates staff and proxies approved recipient traffic.
 
 ## Boundaries
 
@@ -33,6 +35,9 @@ Planned capabilities include:
   certificate, or tamper-evidence behavior.
 - Upstream enterprise-only features are out of scope unless separately licensed
   and explicitly approved.
+- External recipients must be able to follow signing invitations without CNB
+  staff accounts. Edge authentication policy must distinguish staff/admin
+  access from token-bound recipient signing access.
 - Real signing documents, recipient data, credentials, and private host details
   are never repository fixtures or public documentation examples.
 
