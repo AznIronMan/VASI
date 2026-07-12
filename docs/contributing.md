@@ -21,6 +21,8 @@ npm run dev
 `npm run dx` starts the upstream development PostgreSQL, mail-capture, Redis,
 MinIO, and document-conversion services, then applies migrations and seeds
 synthetic development data. Do not run it against VASI production services.
+The complete, verified setup and signing check is in
+[Local development](operator/local-development.md).
 
 Application or documentation work should:
 
@@ -31,9 +33,11 @@ Application or documentation work should:
    accidental claims of unimplemented behavior.
 5. Commit and push `main` when the tracked task is complete.
 
-The VASI-supported local workflow remains provisional until the baseline
-reproduction task records successful dependency, migration, lint, build, test,
-and synthetic signing evidence.
+The VASI-supported baseline has been reproduced through clean install,
+migration, seed, lint, typecheck, library tests, production build, captured
+mail, synthetic browser signing, valid PDF sealing, and tamper detection. The
+documented baseline exceptions remain release blockers rather than hidden
+failures.
 
 ## Rules
 

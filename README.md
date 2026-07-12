@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.1.0`
+Version: `0.1.1`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,7 +16,7 @@ operational standards.
 
 ## Current Status
 
-`0.1.0` is the pinned upstream-source baseline. It includes:
+`0.1.1` is the locally reproduced upstream-source baseline. It includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -35,10 +35,16 @@ operational standards.
   acceptance, and production cutover.
 - The complete Documenso `v2.14.0` monorepo imported through a history-preserving
   merge with upstream licensing and attribution intact.
+- A verified clean install, all 163 database migrations, synthetic seed,
+  lint, Remix typecheck, 129 library tests, and production build.
+- A completed synthetic recipient-signing flow with captured mail, expected
+  audit events, a valid whole-document SHA-256 CAdES seal, and detected
+  post-signing tampering.
 
-The imported source has not yet passed VASI's local runtime, migration, test,
-build, or synthetic signing gate. The reserved infrastructure endpoints still
-serve maintenance placeholders; they are not a production signing service.
+The local proof uses an untrusted example certificate and synthetic data. It
+also records inherited dependency advisories and known endpoint/proxy gaps for
+hardening. The reserved infrastructure endpoints still serve maintenance
+placeholders; they are not a production signing service.
 
 ## Pinned Foundation
 
@@ -65,6 +71,7 @@ upgrade/rollback procedures.
 - [Branding standard](docs/standards/branding.md)
 - [Security standard](docs/standards/security-and-privacy.md)
 - [Deployment direction](docs/operator/deployment.md)
+- [Local development](docs/operator/local-development.md)
 - [Contributing](docs/contributing.md)
 
 ## License
@@ -76,6 +83,21 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.1.1 - 2026-07-12
+
+- Reproduced the pinned baseline from a clean lockfile install and stabilized
+  the upstream-generated lockfile and translation catalogs.
+- Applied the upstream formatter's four mechanical source corrections so lint
+  completes successfully.
+- Verified all database migrations, synthetic seed, Remix typecheck, 129
+  library tests, two clean production builds, health endpoints, and local mail.
+- Completed and independently checked a synthetic signed PDF: the whole-file
+  SHA-256 CAdES signature is valid and a one-byte mutation causes a digest
+  mismatch.
+- Documented inherited audit advisories, the missing signing-package tests, the
+  unauthenticated limits-route error, local unknown audit IPs, and build
+  warnings as explicit follow-up work.
 
 ### 0.1.0 - 2026-07-12
 
