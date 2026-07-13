@@ -54,8 +54,18 @@ printf "🔐 Checking certificate configuration...\n"
 CERT_PATH="${NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH:-/opt/documenso/cert.p12}"
 
 if [ -f "$CERT_PATH" ] && [ -r "$CERT_PATH" ]; then
-    printf "✅ Certificate file found and readable - document signing is ready!\n"
+    if [ "${VASI_CONFIG_PROFILE:-}" = "production" ]; then
+        sh ./verify-signing-certificate.sh
+        printf "✅ Signing certificate integrity and validity checks passed.\n"
+    else
+        printf "✅ Certificate file found and readable - document signing is ready!\n"
+    fi
 else
+    if [ "${VASI_CONFIG_PROFILE:-}" = "production" ]; then
+        printf "The production signing certificate is not readable.\n" >&2
+        exit 1
+    fi
+
     printf "⚠️ Certificate not found or not readable\n"
     printf "💡 VASI will start, but document signing will be unavailable\n"
 fi

@@ -20,6 +20,11 @@ require the intended TLS mode. Source/completed PDFs are stored in PostgreSQL
 for this profile, so database backup and capacity are also document-storage
 concerns.
 
+The supported mail endpoint is Azure Communication Services SMTP on port 587
+with mandatory STARTTLS. Its SMTP username and Entra client secret use the two
+SMTP secret files. The signing bundle and passphrase remain separate from those
+credentials and from both TLS identities.
+
 ## Validate And Migrate
 
 From this directory, supply the protected environment file to every command:
@@ -27,7 +32,14 @@ From this directory, supply the protected environment file to every command:
 ```sh
 docker compose --env-file /protected/vasi-origin.env config --quiet
 docker compose --env-file /protected/vasi-origin.env --profile tools run --rm migrate
+docker compose --env-file /protected/vasi-origin.env --profile tools run --rm signing-check
+docker compose --env-file /protected/vasi-origin.env --profile tools run --rm smtp-probe
 ```
+
+`signing-check` validates PKCS#12 integrity, key matching, and a minimum 30-day
+validity window. `smtp-probe` verifies provider authentication and mandatory
+STARTTLS without sending a message. Set `VASI_SMTP_PROBE_TO` only for an
+approved synthetic delivery test. Neither probe prints secret values.
 
 Migration-only mode reads the database `_FILE` secret in a subprocess. It does
 not copy the value into Compose output or the long-running application

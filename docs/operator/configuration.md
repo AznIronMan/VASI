@@ -55,9 +55,10 @@ domains and must be replaced in the protected deployment configuration.
 | `NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT` | Integer from 1 through 25; VASI default `10` |
 | `NEXT_PRIVATE_JOBS_PROVIDER` | `local` |
 | `NEXT_PRIVATE_SMTP_TRANSPORT` | `smtp-auth` |
-| `NEXT_PRIVATE_SMTP_HOST` | Approved SMTP hostname |
-| `NEXT_PRIVATE_SMTP_PORT` | TLS listener, normally `465` |
-| `NEXT_PRIVATE_SMTP_SECURE` | `true` |
+| `NEXT_PRIVATE_SMTP_HOST` | `smtp.azurecomm.net` |
+| `NEXT_PRIVATE_SMTP_PORT` | `587` |
+| `NEXT_PRIVATE_SMTP_SECURE` | `false` for STARTTLS |
+| `NEXT_PRIVATE_SMTP_REQUIRE_TLS` | `true` |
 | `NEXT_PRIVATE_SMTP_UNSAFE_IGNORE_TLS` | `false` or unset |
 | `NEXT_PRIVATE_SMTP_FROM_NAME` | Approved VASI/CNB sender name |
 | `NEXT_PRIVATE_SMTP_FROM_ADDRESS` | Approved aligned sender address |
@@ -115,6 +116,11 @@ The certificate itself is mounted at
 `NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH`. Do not use
 `NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS` in production because it turns the
 private key bundle into an environment value.
+
+The selected mail provider and its TLS semantics are documented in
+[Transactional Email Delivery](email-delivery.md). The signing trust and
+timestamp decision gate is documented in [PDF Signing Identity And
+Timestamping](pdf-signing.md).
 
 Secret files must be supplied by the protected host/container secret store,
 readable only by the container identity and authorized operators, excluded

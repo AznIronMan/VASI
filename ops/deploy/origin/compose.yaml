@@ -24,10 +24,11 @@ services:
       NEXT_PRIVATE_JOBS_PROVIDER: local
       NEXT_PRIVATE_SMTP_TRANSPORT: smtp-auth
       NEXT_PRIVATE_SMTP_HOST: ${NEXT_PRIVATE_SMTP_HOST:?Set the SMTP host}
-      NEXT_PRIVATE_SMTP_PORT: ${NEXT_PRIVATE_SMTP_PORT:-465}
+      NEXT_PRIVATE_SMTP_PORT: ${NEXT_PRIVATE_SMTP_PORT:-587}
       NEXT_PRIVATE_SMTP_USERNAME_FILE: /run/secrets/vasi-smtp-username
       NEXT_PRIVATE_SMTP_PASSWORD_FILE: /run/secrets/vasi-smtp-password
-      NEXT_PRIVATE_SMTP_SECURE: ${NEXT_PRIVATE_SMTP_SECURE:-true}
+      NEXT_PRIVATE_SMTP_SECURE: "false"
+      NEXT_PRIVATE_SMTP_REQUIRE_TLS: "true"
       NEXT_PRIVATE_SMTP_UNSAFE_IGNORE_TLS: "false"
       NEXT_PRIVATE_SMTP_FROM_NAME: ${NEXT_PRIVATE_SMTP_FROM_NAME:-VASI}
       NEXT_PRIVATE_SMTP_FROM_ADDRESS: ${NEXT_PRIVATE_SMTP_FROM_ADDRESS:?Set the approved sender address}
@@ -121,6 +122,56 @@ services:
     read_only: true
     tmpfs:
       - /tmp:mode=1777,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    profiles:
+      - tools
+
+  smtp-probe:
+    image: ${VASI_IMAGE:?Set VASI_IMAGE to an immutable VASI image reference}
+    restart: "no"
+    entrypoint: ["node", "smtp-probe.mjs"]
+    environment:
+      NEXT_PRIVATE_SMTP_HOST: ${NEXT_PRIVATE_SMTP_HOST:?Set the SMTP host}
+      NEXT_PRIVATE_SMTP_PORT: ${NEXT_PRIVATE_SMTP_PORT:-587}
+      NEXT_PRIVATE_SMTP_USERNAME_FILE: /run/secrets/vasi-smtp-username
+      NEXT_PRIVATE_SMTP_PASSWORD_FILE: /run/secrets/vasi-smtp-password
+      NEXT_PRIVATE_SMTP_SECURE: "false"
+      NEXT_PRIVATE_SMTP_REQUIRE_TLS: "true"
+      NEXT_PRIVATE_SMTP_FROM_NAME: ${NEXT_PRIVATE_SMTP_FROM_NAME:-VASI}
+      NEXT_PRIVATE_SMTP_FROM_ADDRESS: ${NEXT_PRIVATE_SMTP_FROM_ADDRESS:?Set the approved sender address}
+      VASI_SMTP_PROBE_TO: ${VASI_SMTP_PROBE_TO:-}
+    secrets:
+      - vasi-smtp-username
+      - vasi-smtp-password
+    networks:
+      - egress
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=8m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    profiles:
+      - tools
+
+  signing-check:
+    image: ${VASI_IMAGE:?Set VASI_IMAGE to an immutable VASI image reference}
+    restart: "no"
+    entrypoint: ["sh", "verify-signing-certificate.sh"]
+    environment:
+      NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH: /run/secrets/vasi-signing.p12
+      NEXT_PRIVATE_SIGNING_PASSPHRASE_FILE: /run/secrets/vasi-signing-passphrase
+    secrets:
+      - source: vasi-signing-p12
+        target: vasi-signing.p12
+      - vasi-signing-passphrase
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=8m
     security_opt:
       - no-new-privileges:true
     cap_drop:

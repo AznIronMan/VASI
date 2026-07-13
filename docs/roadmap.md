@@ -4,11 +4,12 @@
 
 Repository governance, the pinned/verified application, VASI identity,
 production configuration, private PostgreSQL, internal TLS, DNS/TLS ingress,
-origin Compose, staff OIDC, and deny-by-default recipient gateway contracts are
-established and their images are staged. The endpoints still serve maintenance
-placeholders: no Documenso/VASI application or production signing workflow is
-live. Provider credentials, signing identity, mail, recovery, acceptance, and
-cutover gates remain.
+origin Compose, staff OIDC, deny-by-default recipient gateway, mandatory
+STARTTLS mail, PDF identity validation, and application-owned restore contracts
+are established. The endpoints still serve maintenance placeholders: no
+Documenso/VASI application or production signing workflow is live. Provider
+credentials, production signing trust/timestamp approval, policy, integrated
+acceptance, and cutover gates remain.
 
 ## Phase 1 - Upstream Baseline
 

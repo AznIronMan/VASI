@@ -285,8 +285,20 @@ export const getVasiProductionConfigErrors = (environment: Environment): string[
     }
   }
 
-  if (environment.NEXT_PRIVATE_SMTP_SECURE !== 'true') {
-    errors.push('NEXT_PRIVATE_SMTP_SECURE must be true.');
+  if (smtpHost !== 'smtp.azurecomm.net') {
+    errors.push('NEXT_PRIVATE_SMTP_HOST must use the approved Azure Communication Services endpoint.');
+  }
+
+  if (smtpPort !== 587) {
+    errors.push('NEXT_PRIVATE_SMTP_PORT must be 587 for the approved Azure Communication Services profile.');
+  }
+
+  if (environment.NEXT_PRIVATE_SMTP_SECURE !== 'false') {
+    errors.push('NEXT_PRIVATE_SMTP_SECURE must be false for STARTTLS on port 587.');
+  }
+
+  if (environment.NEXT_PRIVATE_SMTP_REQUIRE_TLS !== 'true') {
+    errors.push('NEXT_PRIVATE_SMTP_REQUIRE_TLS must be true.');
   }
 
   if (environment.NEXT_PRIVATE_SMTP_UNSAFE_IGNORE_TLS === 'true') {

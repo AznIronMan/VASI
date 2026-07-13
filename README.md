@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.6.0`
+Version: `0.7.0`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,10 +16,10 @@ operational standards.
 
 ## Current Status
 
-`0.6.0` adds the executable staff/recipient edge and first-administrator
-contracts to the private-origin container model, VASI/CNB identity, supported
-production configuration, and locally reproduced upstream baseline. It
-includes:
+`0.7.0` adds fail-closed mail, PDF-signing identity, and application-owned
+recovery gates to the executable staff/recipient edge, private-origin container
+model, VASI/CNB identity, supported production configuration, and locally
+reproduced upstream baseline. It includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -85,6 +85,12 @@ includes:
 - Host-only `SameSite=Lax` VASI cookies, combined portal/application logout,
   and a one-time first-administrator bootstrap that refuses existing admins,
   inline database credentials, and duplicate users.
+- An Azure Communication Services SMTP profile using port 587 with mandatory
+  STARTTLS, protected credential mounts, and a redacted auth/delivery probe.
+- Fail-closed PKCS#12 integrity, key-match, and minimum-validity checks plus a
+  separate production trust and RFC 3161 decision gate.
+- A complete data/recovery inventory, a safe aggregate restore verifier, and an
+  application-role-owned isolated restore workflow for database-held documents.
 
 The local proof uses an untrusted example certificate and synthetic data. It
 also records inherited dependency advisories and known endpoint/proxy gaps for
@@ -120,6 +126,9 @@ upgrade/rollback procedures.
 - [Edge route and exposure policy](docs/operator/edge-route-policy.md)
 - [Staff authentication](docs/operator/staff-authentication.md)
 - [Production configuration](docs/operator/configuration.md)
+- [Transactional email delivery](docs/operator/email-delivery.md)
+- [PDF signing and timestamping](docs/operator/pdf-signing.md)
+- [Data lifecycle and recovery](docs/operator/data-lifecycle-and-recovery.md)
 - [Local development](docs/operator/local-development.md)
 - [Contributing](docs/contributing.md)
 
@@ -132,6 +141,26 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.7.0 - 2026-07-12
+
+- Selected Azure Communication Services Email SMTP, added Nodemailer mandatory
+  STARTTLS support, and locked production to the verified port 587 endpoint
+  without relying on retired Exchange Online basic SMTP submission.
+- Added a secret-file-only SMTP auth/delivery probe and documented sender-domain
+  alignment, delivery evidence, credential rotation, and redacted failures.
+- Branded the PDF signature reason as VASI and made production startup validate
+  PKCS#12 decryption, certificate/private-key matching, and at least 30 days of
+  remaining certificate validity.
+- Documented the PDF reader trust boundary, certificate custody and rotation,
+  and deliberate RFC 3161 decision; staged a separate untrusted identity for
+  isolated validation without installing it as a production secret.
+- Inventoried database documents, identity/audit/job data, application/edge
+  secrets, signing material, TLS, configuration, and logs as one recovery
+  boundary with explicit retention and legal-hold gates.
+- Added fixed-target application-owned restore tooling and safe schema/data
+  verification; passed a fresh checksum-validated off-host backup, generic
+  restore drill, 163-migration assertion, and VASI-role access check.
 
 ### 0.6.0 - 2026-07-12
 

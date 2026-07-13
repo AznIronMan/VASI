@@ -117,6 +117,8 @@ RUN npx prisma generate --schema ./packages/prisma/schema.prisma
 COPY --chown=nodejs:nodejs ./docker/start.sh /app/apps/remix/start.sh
 COPY --chown=nodejs:nodejs ./docker/bootstrap-admin.mjs /app/apps/remix/bootstrap-admin.mjs
 COPY --chown=nodejs:nodejs ./docker/bootstrap-admin-lib.mjs /app/apps/remix/bootstrap-admin-lib.mjs
+COPY --chown=nodejs:nodejs ./docker/smtp-probe.mjs /app/apps/remix/smtp-probe.mjs
+COPY --chown=nodejs:nodejs ./docker/verify-signing-certificate.sh /app/apps/remix/verify-signing-certificate.sh
 
 WORKDIR /app/apps/remix
 

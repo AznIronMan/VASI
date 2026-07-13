@@ -57,6 +57,7 @@ Use this for standard SMTP servers that authenticate with username and password.
 | `NEXT_PRIVATE_SMTP_USERNAME`          | Authentication username                   |             |
 | `NEXT_PRIVATE_SMTP_PASSWORD`          | Authentication password                   |             |
 | `NEXT_PRIVATE_SMTP_SECURE`            | Use TLS on connection (`true` or `false`) | `false`     |
+| `NEXT_PRIVATE_SMTP_REQUIRE_TLS`       | Require STARTTLS (`true` or `false`)      | `false`     |
 | `NEXT_PRIVATE_SMTP_UNSAFE_IGNORE_TLS` | Disable TLS entirely (not recommended)    | `false`     |
 | `NEXT_PRIVATE_SMTP_SERVICE`           | Nodemailer service preset (e.g., `gmail`) |             |
 
@@ -66,6 +67,8 @@ Use this for standard SMTP servers that authenticate with username and password.
 NEXT_PRIVATE_SMTP_TRANSPORT="smtp-auth"
 NEXT_PRIVATE_SMTP_HOST="smtp.example.com"
 NEXT_PRIVATE_SMTP_PORT="587"
+NEXT_PRIVATE_SMTP_SECURE="false"
+NEXT_PRIVATE_SMTP_REQUIRE_TLS="true"
 NEXT_PRIVATE_SMTP_USERNAME="your-username"
 NEXT_PRIVATE_SMTP_PASSWORD="your-password"
 NEXT_PRIVATE_SMTP_FROM_ADDRESS="noreply@example.com"

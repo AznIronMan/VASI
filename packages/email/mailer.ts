@@ -28,6 +28,7 @@ import { MailChannelsTransport } from './transports/mailchannels';
  *   - `NEXT_PRIVATE_SMTP_HOST`: The SMTP server host (default: 'localhost:2500')
  *   - `NEXT_PRIVATE_SMTP_PORT`: The port to connect to (default: 587)
  *   - `NEXT_PRIVATE_SMTP_SECURE`: Whether to use SSL/TLS (default: false)
+ *   - `NEXT_PRIVATE_SMTP_REQUIRE_TLS`: Whether STARTTLS is mandatory (default: false)
  *   - `NEXT_PRIVATE_SMTP_UNSAFE_IGNORE_TLS`: Whether to ignore TLS (default: false)
  *   - `NEXT_PRIVATE_SMTP_USERNAME`: The username for SMTP authentication
  *   - `NEXT_PRIVATE_SMTP_PASSWORD`: The password for SMTP authentication
@@ -94,6 +95,7 @@ const getTransport = (): Transporter => {
     host: env('NEXT_PRIVATE_SMTP_HOST') ?? '127.0.0.1:2500',
     port: Number(env('NEXT_PRIVATE_SMTP_PORT')) || 587,
     secure: env('NEXT_PRIVATE_SMTP_SECURE') === 'true',
+    requireTLS: env('NEXT_PRIVATE_SMTP_REQUIRE_TLS') === 'true',
     ignoreTLS: env('NEXT_PRIVATE_SMTP_UNSAFE_IGNORE_TLS') === 'true',
     auth: env('NEXT_PRIVATE_SMTP_USERNAME')
       ? {

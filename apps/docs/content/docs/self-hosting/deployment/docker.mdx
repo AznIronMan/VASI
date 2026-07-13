@@ -93,7 +93,8 @@ For `smtp-auth` transport:
 | `NEXT_PRIVATE_SMTP_PORT`     | Yes      | `587`       | SMTP server port (usually 587 or 465) |
 | `NEXT_PRIVATE_SMTP_USERNAME` | Yes      | -           | SMTP username                         |
 | `NEXT_PRIVATE_SMTP_PASSWORD` | Yes      | -           | SMTP password                         |
-| `NEXT_PRIVATE_SMTP_SECURE`   | No       | `false`     | Set to `true` to force TLS            |
+| `NEXT_PRIVATE_SMTP_SECURE`   | No       | `false`     | Use implicit TLS (normally port 465)  |
+| `NEXT_PRIVATE_SMTP_REQUIRE_TLS` | No    | `false`     | Require STARTTLS (normally port 587)  |
 
 See [Email Configuration](/docs/self-hosting/configuration/email) for other transport options.
 
@@ -307,7 +308,8 @@ By default, documents are also stored in the database. For high-volume deploymen
   <Accordion title="Emails not sending">
     Verify SMTP configuration: check `NEXT_PRIVATE_SMTP_TRANSPORT` matches your configuration, for
     `smtp-auth` ensure host, port, username, and password are correct, check if your SMTP provider
-    requires TLS (`NEXT_PRIVATE_SMTP_SECURE=true`).
+    requires implicit TLS (`NEXT_PRIVATE_SMTP_SECURE=true`) or mandatory STARTTLS
+    (`NEXT_PRIVATE_SMTP_REQUIRE_TLS=true`).
   </Accordion>
   <Accordion title="Container runs but application is inaccessible">
     Verify port mapping `-p 3000:3000`, check if `NEXT_PUBLIC_WEBAPP_URL` matches how you're

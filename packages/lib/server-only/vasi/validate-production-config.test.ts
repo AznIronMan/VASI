@@ -17,11 +17,12 @@ const validProductionEnvironment = (): Record<string, string> => ({
   NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT: '10',
   NEXT_PRIVATE_JOBS_PROVIDER: 'local',
   NEXT_PRIVATE_SMTP_TRANSPORT: 'smtp-auth',
-  NEXT_PRIVATE_SMTP_HOST: 'smtp.company.tld',
-  NEXT_PRIVATE_SMTP_PORT: '465',
+  NEXT_PRIVATE_SMTP_HOST: 'smtp.azurecomm.net',
+  NEXT_PRIVATE_SMTP_PORT: '587',
   NEXT_PRIVATE_SMTP_USERNAME: 'vasi-smtp-user',
   NEXT_PRIVATE_SMTP_PASSWORD: 'strong-smtp-value-01',
-  NEXT_PRIVATE_SMTP_SECURE: 'true',
+  NEXT_PRIVATE_SMTP_SECURE: 'false',
+  NEXT_PRIVATE_SMTP_REQUIRE_TLS: 'true',
   NEXT_PRIVATE_SMTP_FROM_NAME: 'VASI',
   NEXT_PRIVATE_SMTP_FROM_ADDRESS: 'signing@company.tld',
   NEXT_PUBLIC_SUPPORT_EMAIL: 'support@company.tld',
@@ -81,5 +82,23 @@ describe('VASI production configuration validation', () => {
     } catch (error) {
       expect(String(error)).not.toContain(sensitiveValue);
     }
+  });
+
+  it('requires the approved STARTTLS SMTP profile', () => {
+    const environment = validProductionEnvironment();
+
+    environment.NEXT_PRIVATE_SMTP_HOST = 'smtp.company.tld';
+    environment.NEXT_PRIVATE_SMTP_PORT = '465';
+    environment.NEXT_PRIVATE_SMTP_SECURE = 'true';
+    environment.NEXT_PRIVATE_SMTP_REQUIRE_TLS = 'false';
+
+    const errors = getVasiProductionConfigErrors(environment);
+
+    expect(errors).toContain('NEXT_PRIVATE_SMTP_HOST must use the approved Azure Communication Services endpoint.');
+    expect(errors).toContain(
+      'NEXT_PRIVATE_SMTP_PORT must be 587 for the approved Azure Communication Services profile.',
+    );
+    expect(errors).toContain('NEXT_PRIVATE_SMTP_SECURE must be false for STARTTLS on port 587.');
+    expect(errors).toContain('NEXT_PRIVATE_SMTP_REQUIRE_TLS must be true.');
   });
 });
