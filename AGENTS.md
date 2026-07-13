@@ -13,7 +13,7 @@ working on VASI.
 - Company: Clark & Burke LLC
 - Website: https://www.cnb.llc
 - Developer email: streetkings@cnb.llc
-- Current version: `0.8.1`
+- Current version: `0.9.0`
 
 ## Current State
 
@@ -43,8 +43,8 @@ working on VASI.
   metadata, and fails unknown traffic closed. It has passed isolated
   target-host smoke tests but is not connected to production OIDC credentials
   or the live listener.
-- Inherited audit advisories and recorded baseline exceptions remain open
-  hardening work.
+- Exact runtime images have zero high or critical scan findings; remaining
+  low/moderate dependencies and disabled-path reachability stay documented.
 - No VASI application has been deployed to the reserved production endpoints;
   they still serve maintenance placeholders.
 - Keep public status statements honest as these conditions change.

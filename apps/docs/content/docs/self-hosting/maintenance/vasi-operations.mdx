@@ -1,0 +1,106 @@
+---
+title: VASI Production Operations
+description: Monitor, upgrade, roll back, and recover the hardened VASI edge and private-origin deployment.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Step, Steps } from 'fumadocs-ui/components/steps';
+
+VASI uses separate public-edge and private-origin Compose projects. Monitor both
+layers because the public liveness route does not prove that the identity
+provider, application, database, or signing certificate is ready.
+
+<Callout type="warn">
+  Keep deployment addresses, credentials, provider identifiers, and protected file paths outside
+  Git. The examples below use reserved names.
+</Callout>
+
+## Health Checks
+
+| Check | Healthy result |
+| --- | --- |
+| Canonical public `/healthz` | HTTP 200 with a generic status |
+| Edge loopback `/readyz` | HTTP 200 after OIDC and verified-origin probes |
+| Private origin `/healthz` | Database and signing certificate both report `ok` |
+| Maintenance fallback `/healthz` | `application_deployed` remains `false` |
+| Origin and edge containers | Healthy without restart loops |
+
+Run the repository health check from an approved management source:
+
+```bash
+VASI_PUBLIC_ORIGIN=https://sign.example.test \
+VASI_FALLBACK_ORIGIN=https://fallback.example.test \
+VASI_INTERNAL_ORIGIN=https://origin.internal.example.test:443 \
+VASI_INTERNAL_CA_FILE=/protected/origin-ca.pem \
+VASI_EXPECT_APPLICATION_DEPLOYED=true \
+ops/monitor/check-vasi-health.sh
+```
+
+The check verifies HTTPS health documents and a 30-day TLS validity window by
+default. It does not print health response bodies or credentials.
+
+## Upgrade Safely
+
+{/* prettier-ignore */}
+<Steps>
+  <Step>
+    ### Capture the current release
+
+    Record the Git revision, immutable image IDs, migration state, configuration revision, and last
+    successful backup and restore drill.
+
+  </Step>
+  <Step>
+    ### Build and scan the candidate
+
+    Build from a clean Git archive with a unique commit tag. Validate route policy, configuration,
+    mail, certificate, and signing tests. High or critical image findings block release.
+
+  </Step>
+  <Step>
+    ### Rehearse against a restore
+
+    Restore the latest checksum-verified database into an isolated application-owned database. Run
+    migration-only mode and start the exact candidate without public ports or outbound effects.
+
+  </Step>
+  <Step>
+    ### Stage both layers
+
+    Use unused private listeners and production-like OIDC, SMTP, signing, CA, and proxy-source
+    controls. Complete staff and recipient acceptance before changing live listeners.
+
+  </Step>
+  <Step>
+    ### Enter maintenance and deploy
+
+    Take a fresh backup, activate the content-free maintenance service, migrate, start the origin,
+    then start the edge. Leave maintenance only after health and synthetic signing checks pass.
+
+  </Step>
+</Steps>
+
+## Roll Back
+
+Return to the prior immutable images only when the older code supports the
+migrated schema. Otherwise keep maintenance active and validate a pre-upgrade
+database restore in isolation before any production replacement. Never run the
+maintenance and application projects on the same listener.
+
+## Alerting
+
+Alert immediately on edge/origin unavailability, failed database or signing
+health, stale or invalid backups, repeated signing failures, and unexpected
+application service on the fallback. Warn at 90, 60, and 30 days before TLS or
+PDF-signing certificate expiry, then escalate at 14 and 7 days.
+
+Keep edge logs path/query-free and redact cookies, authorization headers,
+recipient tokens, email addresses, database URLs, and provider diagnostics.
+
+---
+
+## See Also
+
+- [Upgrades](/docs/self-hosting/maintenance/upgrades)
+- [Backups](/docs/self-hosting/maintenance/backups)
+- [Troubleshooting](/docs/self-hosting/maintenance/troubleshooting)

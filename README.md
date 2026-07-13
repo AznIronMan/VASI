@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.8.1`
+Version: `0.9.0`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,10 +16,10 @@ operational standards.
 
 ## Current Status
 
-`0.8.1` removes the known high/critical dependency and runtime-image findings,
-and adds explicit signing-policy and security-audit gates to the fail-closed
-mail, PDF identity, application-owned recovery, executable staff/recipient
-edge, and private-origin contracts. It includes:
+`0.9.0` adds public-safe health, TLS-expiry, maintenance, upgrade, rollback, and
+incident operations to the hardened signing-policy, mail, PDF identity,
+application-owned recovery, staff/recipient edge, and private-origin contracts.
+It includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -137,6 +137,7 @@ upgrade/rollback procedures.
 - [Data lifecycle and recovery](docs/operator/data-lifecycle-and-recovery.md)
 - [Signing policy approval draft](docs/operator/signing-policy-draft.md)
 - [Security audit baseline](docs/operator/security-audit.md)
+- [Operations, monitoring, and upgrades](docs/operator/operations-and-upgrades.md)
 - [Local development](docs/operator/local-development.md)
 - [Contributing](docs/contributing.md)
 
@@ -149,6 +150,15 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.9.0 - 2026-07-12
+
+- Added a secret-safe health command that verifies canonical, fallback, and
+  private-origin health states plus public/internal TLS expiry.
+- Added operator and self-hosting runbooks for layered monitoring, maintenance,
+  upgrade staging, migration, rollback, incident response, and maintenance
+  cadence.
+- Corrected deployment status to reflect the implemented, staged edge contract.
 
 ### 0.8.1 - 2026-07-12
 

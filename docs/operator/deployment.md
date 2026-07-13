@@ -12,7 +12,9 @@ the upstream production example uses an embedded database, floating image tag,
 and direct port exposure. The VASI template uses the verified
 [production configuration contract](configuration.md), protected secret files,
 an external PostgreSQL service, and a private-bind TLS listener. The separate
-public edge is not implemented yet.
+public edge is implemented as a pinned OAuth2 Proxy plus a deny-by-default
+gateway, but it is not connected to production OIDC credentials or the live
+listener yet.
 
 Private production prerequisites have been reserved and verified: PostgreSQL,
 administrator inheritance, encrypted internal service TLS, public and internal
@@ -104,6 +106,9 @@ Before first production use:
 9. Verify the application origin cannot be reached directly from the WAN.
 10. Exercise backup and isolated restore.
 11. Document and test upgrade and rollback procedures.
+
+Use the [operations, monitoring, and upgrades](operations-and-upgrades.md)
+runbook for the health, maintenance, migration, staging, and rollback sequence.
 
 Do not claim the service is production ready until every applicable gate has
 target-environment evidence.
