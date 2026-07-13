@@ -2,20 +2,21 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.1.1`
+Version: `0.1.2`
 
 A CNB project maintained by Street Kings Productions.
 
 ## Current milestone
 
 The authentication portal is deployed and responding at
-`https://vsign.cnb.llc`. It is ready for Microsoft, Google, Apple, Yahoo, and
-username/password sign-in. The production container workflow includes a
+`https://vsign.cnb.llc`. Microsoft and username/password sign-in are enabled in
+production. Transactional verification and password-recovery messages use a
+mailbox-scoped Microsoft Graph application, with SMTP retained as a fallback.
+Google, Apple, and Yahoo sign-in remain visible but disabled until their
+credentials are configured. The production container workflow includes a
 one-shot database migrator, restart policy, liveness monitoring, a read-only
 filesystem, and a configurable loopback or private-network bind for a trusted
-HTTPS gateway. Social sign-in and transactional email remain disabled until
-their credentials are configured; account verification and password recovery
-therefore cannot be completed yet.
+HTTPS gateway.
 
 Authentication is not yet authorization. The next application milestone should
 add CNB roles, external signer invitations, access policy, and the signing
@@ -30,6 +31,8 @@ workspace on top of the verified user session.
 - Yahoo OpenID Connect through the generic OAuth authorization-code flow.
 - Username or email sign-in, registration, required email verification,
   password recovery, and session revocation after password reset.
+- Microsoft Graph transactional delivery restricted to its configured sender
+  mailbox, with SMTP available as an explicit fallback.
 - Twelve-hour sessions, throttled authentication endpoints, secure cookie and
   origin defaults, encrypted provider tokens, security response headers, and
   generic account errors.
@@ -51,8 +54,8 @@ npm run dev
 Open `http://localhost:3000`. Without provider credentials, the four social
 buttons remain visible and identify that configuration is required. In
 development, verification and reset URLs are written to the server console when
-SMTP is not configured. Production intentionally rejects email delivery when
-SMTP is missing.
+transactional email is not configured. Production intentionally rejects email
+delivery when the selected Graph or SMTP provider is incomplete.
 
 Useful checks:
 
@@ -70,7 +73,8 @@ configure:
 - `BETTER_AUTH_URL=https://vsign.cnb.llc`
 - `BETTER_AUTH_SECRET` with at least 32 random characters
 - `DATABASE_URL` for durable PostgreSQL
-- `AUTH_EMAIL_FROM`, `SMTP_HOST`, and any SMTP credentials required by the relay
+- A complete Microsoft Graph mailer configuration, or `AUTH_EMAIL_FROM`,
+  `SMTP_HOST`, and any credentials required by an SMTP fallback
 - One complete client ID/client secret set for each social provider to enable
 
 Generate the auth secret with `openssl rand -base64 48`. Never store production

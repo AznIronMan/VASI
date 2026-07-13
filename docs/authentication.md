@@ -68,12 +68,33 @@ reduce account enumeration.
 
 ## Transactional email
 
-Configure `AUTH_EMAIL_FROM` and `SMTP_HOST`. Add `SMTP_USER` and `SMTP_PASSWORD`
+Microsoft Graph is the preferred transport for Microsoft 365. Create a
+dedicated, single-tenant app registration for the mailer and configure:
+
+- `AUTH_EMAIL_PROVIDER=graph`
+- `GRAPH_TENANT_ID`
+- `GRAPH_CLIENT_ID`
+- `GRAPH_CLIENT_SECRET`
+- `GRAPH_SENDER_EMAIL`
+
+Use [Exchange Online RBAC for Applications](https://learn.microsoft.com/exchange/permissions-exo/application-rbac)
+to assign the `Application Mail.Send` role to that service principal with a
+management scope that matches only the sender mailbox. Do not also grant an
+unscoped `Mail.Send` application permission in Entra; Entra permissions and
+Exchange RBAC assignments are additive, so that would defeat the mailbox scope.
+Validate both an in-scope and an out-of-scope mailbox with
+`Test-ServicePrincipalAuthorization`.
+
+SMTP remains available as a fallback. Set `AUTH_EMAIL_PROVIDER=smtp`, then
+configure `AUTH_EMAIL_FROM` and `SMTP_HOST`. Add `SMTP_USER` and `SMTP_PASSWORD`
 when the relay requires authentication; both must be set together. Use
-`SMTP_SECURE=true` for implicit TLS, normally on port 465. The default is required
-STARTTLS on port 587. Set `SMTP_REQUIRE_TLS=false` only for a trusted local relay.
+`SMTP_SECURE=true` for implicit TLS, normally on port 465. The default is
+required STARTTLS on port 587. Set `SMTP_REQUIRE_TLS=false` only for a trusted
+local relay.
+
 Production must not launch until verification and reset delivery has been
-exercised against the real sender domain.
+exercised against the real sender domain. Graph secrets and SMTP credentials
+belong only in the deployment secret store.
 
 ## Security and release checklist
 
@@ -91,6 +112,8 @@ exercised against the real sender domain.
 6. Back up the auth encryption secret before rollout; provider tokens are
    encrypted at rest and depend on this key.
 7. Exercise registration, verification, recovery, sign-out, and session expiry.
-8. Run `npm run check`, `npm run build`, and `npm audit` in CI.
-9. Add MFA or passkeys before enabling high-impact staff administration or
+8. For Graph email, confirm the mailer is authorized for the sender mailbox and
+   denied for a second mailbox outside its Exchange management scope.
+9. Run `npm run check`, `npm run build`, and `npm audit` in CI.
+10. Add MFA or passkeys before enabling high-impact staff administration or
    signing-policy changes.
