@@ -60,11 +60,11 @@ Nothing should be exposed merely because it exists upstream.
 
 ## Repository Integration Shape
 
-The exact source integration shape is intentionally deferred until the upstream
-baseline task. The default is to preserve Documenso's monorepo at the repository
-root, keep its lockfiles and tooling, and add VASI-specific assets and operations
-in clearly documented paths. Any alternative must explain how upstream security
-and maintenance releases will be merged.
+The Documenso monorepo is preserved at the repository root with its lockfiles
+and tooling. VASI-specific configuration lives under `ops/config/`, public
+operator guidance under `docs/operator/`, and narrow startup checks under the
+existing application/library packages. This keeps downstream changes visible
+while preserving a practical path for upstream security merges.
 
 ## Trust Boundaries
 

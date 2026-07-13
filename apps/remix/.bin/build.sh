@@ -25,6 +25,10 @@ npm run build:app
 echo "[Build]: Building server"
 npm run build:server
 
+# The copied runtime entrypoint imports this preflight module before the router
+# so unsafe production settings fail before application side effects.
+test -f build/server/hono/packages/lib/server-only/vasi/validate-production-config.js
+
 # Copy over the entry point for the server.
 cp server/main.js build/server/main.js
 

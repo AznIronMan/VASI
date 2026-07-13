@@ -14,6 +14,7 @@ import {
 import { TelemetryClient } from '@documenso/lib/server-only/telemetry/telemetry-client';
 import { migrateDeletedAccountServiceAccount } from '@documenso/lib/server-only/user/service-accounts/deleted-account';
 import { migrateLegacyServiceAccount } from '@documenso/lib/server-only/user/service-accounts/legacy-service-account';
+import { validateVasiProductionConfig } from '@documenso/lib/server-only/vasi/validate-production-config';
 import { env } from '@documenso/lib/utils/env';
 import { logger } from '@documenso/lib/utils/logger';
 import { openApiDocument } from '@documenso/trpc/server/open-api';
@@ -32,6 +33,8 @@ import { appMiddleware } from './middleware';
 import { securityHeadersMiddleware } from './security-headers';
 import { openApiTrpcServerHandler } from './trpc/hono-trpc-open-api';
 import { reactRouterTrpcServer } from './trpc/hono-trpc-remix';
+
+validateVasiProductionConfig();
 
 // Re-export so the rollup build (entry: server/router.ts) bundles
 // load-context.ts. server/main.js imports getLoadContext from the rolled-up

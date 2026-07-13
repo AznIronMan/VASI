@@ -13,7 +13,7 @@ working on VASI.
 - Company: Clark & Burke LLC
 - Website: https://www.cnb.llc
 - Developer email: streetkings@cnb.llc
-- Current version: `0.1.1`
+- Current version: `0.2.0`
 
 ## Current State
 
@@ -24,9 +24,12 @@ working on VASI.
 - The local runtime baseline has passed clean install, migration, seed, lint,
   typecheck, library tests, production build, captured mail, synthetic browser
   signing, PDF signature validation, and tamper detection.
-- VASI production configuration, branding, edge access, and deployment have not
-  yet been completed. Inherited audit advisories and recorded baseline
-  exceptions remain open hardening work.
+- The supported Community Edition production configuration, database-storage
+  boundary, disabled-feature defaults, `_FILE` secret mounts, and fail-closed
+  startup validation are implemented and documented.
+- VASI branding, edge access, and deployment have not yet been completed.
+  Inherited audit advisories and recorded baseline exceptions remain open
+  hardening work.
 - No VASI application has been deployed to the reserved production endpoints;
   they still serve maintenance placeholders.
 - Keep public status statements honest as these conditions change.
@@ -162,6 +165,7 @@ The current downstream repository uses:
 - `docs/` - public project and architecture documentation.
 - `docs/standards/` - engineering, branding, and security standards.
 - `docs/operator/` - public-safe deployment and operations guidance.
+- `ops/config/` - generic tracked non-secret production configuration examples.
 - `ops/deploy/` - future generic tracked Docker deployment templates.
 - `.tasks/` - ignored local task ledger.
 - `.private/` - ignored operator-only notes and private artifacts.

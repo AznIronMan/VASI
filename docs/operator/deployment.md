@@ -9,8 +9,9 @@ VASI contains the pinned Documenso `v2.14.0` application source, upstream
 Dockerfile, and upstream development/production Compose examples. The upstream
 production example is not the VASI deployment contract: it uses an embedded
 database, floating image tag, and direct port exposure. A VASI-specific generic
-Compose/edge template must be created only after the baseline is reproduced
-locally.
+Compose/edge template must use the verified
+[production configuration contract](configuration.md) and its fail-closed
+startup checks.
 
 Private production prerequisites have been reserved and verified: PostgreSQL,
 administrator inheritance, encrypted internal service TLS, public and internal
@@ -43,6 +44,9 @@ is optional and must be deliberately configured and tested if selected.
 - PostgreSQL and document storage use host-managed or named persistent volumes.
 - Secrets and signing material are mounted from protected host/container secret
   paths, never copied into an image.
+- Runtime values use the tracked public-safe VASI environment example; supported
+  credentials are loaded from one-value `_FILE` mounts before application code
+  starts.
 - Container images and upstream releases are pinned; `latest` is not a
   production version policy.
 

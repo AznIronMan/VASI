@@ -16,6 +16,8 @@ requirements, not optional production cleanup.
 - Trust `Forwarded`/`X-Forwarded-*` metadata only from the known edge and use it
   consistently for secure redirects, cookies, rate limits, and audit events.
 - Mount secrets at runtime; never bake them into images or commit them.
+- Use the supported `_FILE` mounts and fail-closed production configuration
+  validation; do not duplicate mounted values as inline environment variables.
 - Encrypt and access-control backups, then test restoration on a schedule.
 - Restrict administrative access and use least-privilege database/service
   accounts.
@@ -24,6 +26,10 @@ requirements, not optional production cleanup.
 - Define retention and deletion policy for documents, audit records, mail data,
   logs, and backups before production use.
 - Apply supported upstream security updates promptly after testing.
+
+The [production configuration contract](operator/configuration.md) defines the
+current secret boundary, disabled integrations, encryption-key recovery limits,
+and rotation requirements.
 
 ## Signing Certificate
 

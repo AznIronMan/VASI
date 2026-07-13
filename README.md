@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.1.1`
+Version: `0.2.0`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,7 +16,8 @@ operational standards.
 
 ## Current Status
 
-`0.1.1` is the locally reproduced upstream-source baseline. It includes:
+`0.2.0` adds the supported production configuration and secret boundary to the
+locally reproduced upstream baseline. It includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -40,6 +41,12 @@ operational standards.
 - A completed synthetic recipient-signing flow with captured mail, expected
   audit events, a valid whole-document SHA-256 CAdES seal, and detected
   post-signing tampering.
+- A deliberate Community Edition production profile with database document
+  storage, local jobs, TLS SMTP, mounted PDF-signing material, closed signup,
+  disabled billing/telemetry/optional integrations, and explicit feature
+  boundaries.
+- Startup validation that rejects unsafe production defaults, plus `_FILE`
+  loading for application, database, SMTP, and signing secrets.
 
 The local proof uses an untrusted example certificate and synthetic data. It
 also records inherited dependency advisories and known endpoint/proxy gaps for
@@ -71,6 +78,7 @@ upgrade/rollback procedures.
 - [Branding standard](docs/standards/branding.md)
 - [Security standard](docs/standards/security-and-privacy.md)
 - [Deployment direction](docs/operator/deployment.md)
+- [Production configuration](docs/operator/configuration.md)
 - [Local development](docs/operator/local-development.md)
 - [Contributing](docs/contributing.md)
 
@@ -83,6 +91,21 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.2.0 - 2026-07-12
+
+- Defined the supported VASI Community Edition feature, storage, mail, jobs,
+  authentication, integration, telemetry, and secret profile.
+- Added a public-safe production environment example whose tracked values are
+  reserved examples or protected secret-file paths.
+- Added runtime `_FILE` loading for session, encryption, database, SMTP, and
+  signing-passphrase secrets; conflicting inline values fail startup.
+- Added fail-closed production validation for required values, HTTPS origins,
+  strong/non-placeholder secrets, private signing mounts, closed signup, and
+  disabled unsupported integrations.
+- Documented application-key recovery limits, coordinated credential and
+  certificate rotation, database document persistence, and the full upstream
+  option boundary.
 
 ### 0.1.1 - 2026-07-12
 
