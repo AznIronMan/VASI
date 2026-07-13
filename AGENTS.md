@@ -13,38 +13,17 @@ working on VASI.
 - Company: Clark & Burke LLC
 - Website: https://www.cnb.llc
 - Developer email: streetkings@cnb.llc
-- Current version: `0.10.0`
+- Current version: `0.10.1`
 
 ## Current State
 
-- Documenso `v2.14.0` at commit
-  `037170f6253d8b2bdeaf2eb0a08d04f152a41a58` is the pinned source baseline.
-- The complete upstream monorepo is imported with its history, license, notices,
-  lockfile, and source structure intact.
-- The local runtime baseline has passed clean install, migration, seed, lint,
-  typecheck, library tests, production build, captured mail, synthetic browser
-  signing, PDF signature validation, and tamper detection.
-- The supported Community Edition production configuration, database-storage
-  boundary, disabled-feature defaults, `_FILE` secret mounts, and fail-closed
-  startup validation are implemented and documented.
-- VASI/CNB branding is applied across application, authentication, signing,
-  email, browser/PWA, support, and signed-PDF surfaces with upstream
-  attribution and audit/certificate facts preserved.
-- The canonical public edge, maintenance-only fallback, staff/recipient route
-  split, exact public TRPC procedures, internal paths, proxy metadata, and
-  exposure limits are documented for the pinned baseline.
-- A generic private-origin Compose contract now provides migration-only mode,
-  mounted runtime secrets, an external PostgreSQL boundary, an unexposed app
-  network, and a private-bind internal TLS listener. Its target-architecture
-  container build has been validated without replacing the maintenance origin.
-- A generic edge Compose contract now pins OAuth2 Proxy, classifies the complete
-  route/TRPC surface, requires OIDC plus native VASI authorization for staff,
-  preserves recipient token flows, verifies origin TLS, normalizes proxy
-  metadata, and fails unknown traffic closed. It has passed isolated
-  target-host smoke tests but is not connected to production OIDC credentials
-  or the live listener.
-- Exact runtime images have zero high or critical scan findings; remaining
-  low/moderate dependencies and disabled-path reachability stay documented.
+- The repository working tree was intentionally cleared on `2026-07-12`.
+- Only `README.md`, `AGENTS.md`, untracked `.private/` operator context, and
+  `.git/` repository metadata remain at the repository root.
+- The prior Documenso `v2.14.0` application baseline, license and notice files,
+  dependencies, documentation, and deployment configuration are available only
+  through Git history.
+- The current working tree is not buildable, deployable, or production ready.
 - No VASI application has been deployed to the reserved production endpoints;
   they still serve maintenance placeholders.
 - Keep public status statements honest as these conditions change.
@@ -57,12 +36,14 @@ working on VASI.
   LLM or automation agent.
 - Use `.tasks/active/`, `.tasks/pending/`, `.tasks/completed/`, and
   `.tasks/cancelled/` for local tracking.
-- `.tasks/` is intentionally gitignored. Do not reference VASI task IDs in
-  public docs, release notes, README content, commit messages, or pull requests.
+- Keep `.tasks/` local and untracked. The cleared repository no longer includes
+  a tracked ignore file. Do not reference VASI task IDs in public docs, release
+  notes, README content, commit messages, or pull requests.
 - Increment the VASI version for every completed tracked change according to
   semantic versioning.
-- Keep `VERSION`, the version in this file, and the root README aligned.
-- Update `README.md` and relevant files in `docs/` when behavior, setup,
+- Keep the version in this file and the root README aligned. If `VERSION` is
+  restored, keep it aligned as well.
+- Update `README.md` and relevant files in `docs/`, when present, if behavior, setup,
   architecture, configuration, deployment, security, or support policy changes.
 - At the end of completed changes, commit the work and push `main` to the
   configured `origin` unless the operator explicitly says not to push.
@@ -173,7 +154,7 @@ working on VASI.
 
 ## Repository Layout Direction
 
-The current downstream repository uses:
+If the application source tree is restored, use:
 
 - `apps/`, `packages/`, `docker/`, `assets/`, `patches/`, and `scripts/` - the
   pinned Documenso monorepo source and tooling.
@@ -182,7 +163,7 @@ The current downstream repository uses:
 - `docs/operator/` - public-safe deployment and operations guidance.
 - `ops/config/` - generic tracked non-secret production configuration examples.
 - `ops/deploy/` - future generic tracked Docker deployment templates.
-- `.tasks/` - ignored local task ledger.
+- `.tasks/` - local, untracked task ledger.
 - `.private/` - ignored operator-only notes and private artifacts.
 
 Preserve the imported upstream monorepo structure. Keep VASI-specific
