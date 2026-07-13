@@ -1,0 +1,8 @@
+.git
+.next
+.private
+.tasks
+coverage
+node_modules
+.env*
+*.log
