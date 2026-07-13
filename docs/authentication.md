@@ -1,19 +1,25 @@
 # Authentication setup
 
 The VASI portal uses Better Auth with a PostgreSQL datastore. The canonical
-production origin is `https://vsign.cnb.llc`; all provider applications and
-email links must use that origin exactly.
+public production origin is `https://vsign.cnb.llc`. A separately configured
+private HTTPS origin serves the internal administration console. Sessions are
+host-only and are not shared between the public and internal hosts.
 
 ## Identity provider callbacks
 
 Register these HTTPS redirect URIs with the corresponding provider:
 
-| Provider | Production callback |
-| --- | --- |
-| Microsoft Entra ID | `https://vsign.cnb.llc/api/auth/callback/microsoft` |
-| Google | `https://vsign.cnb.llc/api/auth/callback/google` |
-| Apple | `https://vsign.cnb.llc/api/auth/callback/apple` |
-| Yahoo | `https://vsign.cnb.llc/api/auth/oauth2/callback/yahoo` |
+| Provider | Public callback | Internal callback path |
+| --- | --- | --- |
+| Microsoft Entra ID | `https://vsign.cnb.llc/api/auth/callback/microsoft` | `/api/auth/callback/microsoft` |
+| Google | `https://vsign.cnb.llc/api/auth/callback/google` | `/api/auth/callback/google` |
+| Apple | `https://vsign.cnb.llc/api/auth/callback/apple` | `/api/auth/callback/apple` |
+| Yahoo | `https://vsign.cnb.llc/api/auth/oauth2/callback/yahoo` | `/api/auth/oauth2/callback/yahoo` |
+
+Prefix each internal callback path with the exact `VASI_ADMIN_ORIGIN` and
+register it with the provider before enabling that provider for internal admin
+sign-in. Better Auth validates both allowed hosts and trusted origins before
+constructing a host-specific callback.
 
 Local callbacks use the same paths on `http://localhost:3000`.
 
@@ -55,16 +61,62 @@ database-backed OAuth state, and client-secret Basic authentication.
 
 ## Username and password
 
-Registration collects a name, a public username, an email address, and a password
-of 12 to 128 characters. Usernames allow letters, numbers, dots, underscores, and
+Registration starts with an email address. Common consumer domains map directly
+to Microsoft, Google, Apple, or Yahoo. For custom domains, VASI performs a
+bounded DNS MX lookup and recognizes Microsoft 365 and Google Workspace mail
+infrastructure. This lookup describes a domain's likely identity provider and
+never checks whether a user account exists.
+
+When a configured provider is found, its SSO action is the primary choice. The
+manual-password action remains keyboard-accessible but visually secondary. If
+selected, registration collects a name, a public username, and a password of 12
+to 128 characters. Usernames allow letters, numbers, dots, underscores, and
 hyphens. The public username-availability endpoint is disabled. Passwords are
-stored only through Better Auth's scrypt password hashing; VASI never stores or
-logs plaintext credentials.
+stored only through Better Auth's password hashing; VASI never stores or logs
+plaintext credentials.
 
 Email verification is required before password sign-in. Verification and reset
 links expire after one hour, and a completed password reset revokes the user's
 other active sessions. Sign-in and recovery responses use generic language to
 reduce account enumeration.
+
+## Internal identity administration
+
+Configure the private console with:
+
+- `VASI_ADMIN_ORIGIN`, an exact HTTPS origin with no path; and
+- `VASI_ADMIN_EMAILS`, a comma-separated allowlist of operator email addresses.
+
+The `/admin` page, custom admin APIs, and Better Auth admin endpoints return 404
+on every other hostname. On the internal hostname they additionally require an
+authenticated `admin` role and an allowlisted email. State-changing routes also
+require an exact `Origin` header. The public and internal hosts retain separate
+host-only sessions.
+
+For each user, the console shows Microsoft, Google, Apple, and Yahoo connectors:
+
+- green: connected, configured, and authenticated within 90 days;
+- yellow: connected but not authenticated for more than 90 days;
+- red: a stored connection whose provider is unavailable or whose link is
+  invalid; and
+- gray: not connected.
+
+Provider account updates refresh the last-authenticated timestamp. Force
+disconnect removes the local V·Sign account link and revokes every V·Sign
+session for that user; it does not delete the external provider account. V·Sign
+refuses to remove the user's final working sign-in method.
+
+The username/password checkbox controls the credential account. Enabling it
+creates a random, unknown bootstrap credential and immediately emails the user
+a one-hour password setup link. Disabling it removes the credential and revokes
+sessions, but only when a configured SSO connector remains. Reset password is
+available only while the credential account is enabled.
+
+Disabling a user uses Better Auth's administrative ban operation, prevents new
+sign-in, and revokes existing sessions. Invitations expire after seven days,
+store only a SHA-256 token digest, and are single-use. Administrative changes
+are recorded in `vasi_admin_audit`; audit metadata never contains invitation
+tokens, provider tokens, credentials, or message bodies.
 
 ## Transactional email
 
@@ -115,5 +167,7 @@ belong only in the deployment secret store.
 8. For Graph email, confirm the mailer is authorized for the sender mailbox and
    denied for a second mailbox outside its Exchange management scope.
 9. Run `npm run check`, `npm run build`, and `npm audit` in CI.
-10. Add MFA or passkeys before enabling high-impact staff administration or
-   signing-policy changes.
+10. Require MFA at the operator's identity provider before granting internal
+    administration access, and keep the internal hostname off public ingress.
+11. Confirm `/admin` and `/api/admin/*` return 404 on the public hostname and
+    require an allowlisted administrator on the private hostname.

@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.1.2`
+Version: `0.2.0`
 
 A CNB project maintained by Street Kings Productions.
 
@@ -13,14 +13,23 @@ The authentication portal is deployed and responding at
 production. Transactional verification and password-recovery messages use a
 mailbox-scoped Microsoft Graph application, with SMTP retained as a fallback.
 Google, Apple, and Yahoo sign-in remain visible but disabled until their
-credentials are configured. The production container workflow includes a
-one-shot database migrator, restart policy, liveness monitoring, a read-only
-filesystem, and a configurable loopback or private-network bind for a trusted
-HTTPS gateway.
+credentials are configured.
 
-Authentication is not yet authorization. The next application milestone should
-add CNB roles, external signer invitations, access policy, and the signing
-workspace on top of the verified user session.
+The internal identity administration console is available at the configured
+private origin under `/admin`. It lists connector health, manual-password
+availability, and account state; supports invitations, password setup/reset,
+account enable/disable, and forced connector disconnection; and records each
+administrative change. Public account creation and invitation acceptance start
+with an email-domain check that recommends Microsoft, Google, Apple, or Yahoo
+before exposing the secondary manual-password path.
+
+The production container workflow includes a one-shot database migrator,
+restart policy, liveness monitoring, a read-only filesystem, and a configurable
+loopback or private-network bind for trusted HTTPS gateways.
+
+Administration has a narrow operator role, but document authorization is still
+the next application milestone. CNB signer roles, document access policy, and
+the signing workspace must be added on top of the verified user session.
 
 ## Included
 
@@ -31,6 +40,11 @@ workspace on top of the verified user session.
 - Yahoo OpenID Connect through the generic OAuth authorization-code flow.
 - Username or email sign-in, registration, required email verification,
   password recovery, and session revocation after password reset.
+- SSO-first registration and invitation acceptance with common-domain mapping
+  plus Microsoft 365 and Google Workspace MX discovery.
+- Internal-host-only identity administration with operator allowlisting,
+  account disablement, session revocation, connector status and disconnection,
+  manual-password controls, invitations, and audit records.
 - Microsoft Graph transactional delivery restricted to its configured sender
   mailbox, with SMTP available as an explicit fallback.
 - Twelve-hour sessions, throttled authentication endpoints, secure cookie and
@@ -57,6 +71,10 @@ development, verification and reset URLs are written to the server console when
 transactional email is not configured. Production intentionally rejects email
 delivery when the selected Graph or SMTP provider is incomplete.
 
+For local administration, set `VASI_ADMIN_ORIGIN` to the local origin and add
+your test account to `VASI_ADMIN_EMAILS`. The admin plugin promotes an
+allowlisted account to the `admin` role when a new session is created.
+
 Useful checks:
 
 ```bash
@@ -72,6 +90,8 @@ configure:
 
 - `BETTER_AUTH_URL=https://vsign.cnb.llc`
 - `BETTER_AUTH_SECRET` with at least 32 random characters
+- `VASI_ADMIN_ORIGIN` for the private HTTPS admin hostname
+- `VASI_ADMIN_EMAILS` as a comma-separated operator allowlist
 - `DATABASE_URL` for durable PostgreSQL
 - A complete Microsoft Graph mailer configuration, or `AUTH_EMAIL_FROM`,
   `SMTP_HOST`, and any credentials required by an SMTP fallback
@@ -84,8 +104,9 @@ Apply `npm run auth:migrate` as a release step before starting the new app. Buil
 with `npm run build`, start with `npm start`, and terminate TLS at a trusted proxy
 that forwards the original HTTPS host. The liveness endpoint is `GET /api/health`.
 
-See [Authentication setup](docs/authentication.md) for provider callbacks,
-Apple key handling, email behavior, and the production checklist.
+See [Authentication setup](docs/authentication.md) for public and internal
+provider callbacks, admin controls, onboarding behavior, Apple key handling,
+email behavior, and the production checklist.
 
 ## Container image
 

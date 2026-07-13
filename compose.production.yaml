@@ -21,7 +21,7 @@ services:
     build:
       context: .
       target: runner
-    image: ${VASI_IMAGE:-vasi:0.1.2}
+    image: ${VASI_IMAGE:-vasi:0.2.0}
     env_file:
       - ${VASI_ENV_FILE:?Set VASI_ENV_FILE to the absolute runtime environment path}
     restart: unless-stopped

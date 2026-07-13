@@ -1,5 +1,5 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
-import { genericOAuth, username } from "better-auth/plugins";
+import { admin as adminPlugin, genericOAuth, username } from "better-auth/plugins";
 
 import { generateAppleClientSecret } from "@/lib/apple-secret";
 import { database } from "@/lib/database";
@@ -7,7 +7,9 @@ import { sendAuthEmail } from "@/lib/email";
 import { isProviderConfigured } from "@/lib/auth-providers";
 import { resolveServerEnvironment } from "@/lib/server-environment";
 
-const { authSecret, baseURL } = resolveServerEnvironment();
+const { adminEmails, adminOrigin, authSecret, baseURL } = resolveServerEnvironment();
+const authenticationOrigins = [baseURL, adminOrigin];
+const allowedHosts = [...new Set(authenticationOrigins.map((origin) => new URL(origin).host))];
 
 const socialProviders: NonNullable<BetterAuthOptions["socialProviders"]> = {};
 
@@ -43,17 +45,8 @@ if (isProviderConfigured("apple")) {
   });
 }
 
-const plugins: NonNullable<BetterAuthOptions["plugins"]> = [
-  username({
-    minUsernameLength: 3,
-    maxUsernameLength: 32,
-    usernameValidator: (value) => /^[a-zA-Z0-9._-]+$/.test(value),
-  }),
-];
-
-if (isProviderConfigured("yahoo")) {
-  plugins.push(
-    genericOAuth({
+const yahooPlugin = isProviderConfigured("yahoo")
+  ? genericOAuth({
       config: [
         {
           providerId: "yahoo",
@@ -65,22 +58,52 @@ if (isProviderConfigured("yahoo")) {
           authentication: "basic",
         },
       ],
-    }),
-  );
-}
+    })
+  : undefined;
 
 export const auth = betterAuth({
   appName: "CNB V·Sign",
-  baseURL,
+  baseURL: {
+    allowedHosts,
+    protocol: new URL(baseURL).protocol === "https:" ? "https" : "http",
+    fallback: baseURL,
+  },
   secret: authSecret,
   database,
   disabledPaths: ["/is-username-available"],
-  trustedOrigins: [baseURL, "https://appleid.apple.com"],
+  trustedOrigins: [...authenticationOrigins, "https://appleid.apple.com"],
   socialProviders,
-  plugins,
+  plugins: [
+    username({
+      minUsernameLength: 3,
+      maxUsernameLength: 32,
+      usernameValidator: (value) => /^[a-zA-Z0-9._-]+$/.test(value),
+    }),
+    adminPlugin({
+      defaultRole: "user",
+      bannedUserMessage: "This V·Sign account is disabled. Contact CNB support for help.",
+    }),
+    ...(yahooPlugin ? [yahooPlugin] : []),
+  ],
+  databaseHooks: {
+    session: {
+      create: {
+        before: async (session) => {
+          await database.query(
+            `update "user"
+             set "role" = 'admin', "updatedAt" = CURRENT_TIMESTAMP
+             where "id" = $1 and lower("email") = any($2::text[])`,
+            [session.userId, adminEmails],
+          );
+          return { data: session };
+        },
+      },
+    },
+  },
   account: {
     encryptOAuthTokens: true,
     storeStateStrategy: "database",
+    updateAccountOnSignIn: true,
     accountLinking: {
       enabled: true,
       allowDifferentEmails: false,
@@ -93,6 +116,15 @@ export const auth = betterAuth({
     minPasswordLength: 12,
     maxPasswordLength: 128,
     revokeSessionsOnPasswordReset: true,
+    customSyntheticUser: ({ coreFields, additionalFields, id }) => ({
+      ...coreFields,
+      role: "user",
+      banned: false,
+      banReason: null,
+      banExpires: null,
+      ...additionalFields,
+      id,
+    }),
     resetPasswordTokenExpiresIn: 60 * 60,
     sendResetPassword: async ({ user, url }) => {
       await sendAuthEmail({

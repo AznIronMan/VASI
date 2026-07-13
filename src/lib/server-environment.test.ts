@@ -4,9 +4,11 @@ import { resolveServerEnvironment } from "@/lib/server-environment";
 
 describe("server environment", () => {
   it("provides local-only development defaults", () => {
-    expect(resolveServerEnvironment({ NODE_ENV: "development" }).baseURL).toBe(
-      "http://localhost:3000",
-    );
+    const environment = resolveServerEnvironment({ NODE_ENV: "development" });
+
+    expect(environment.baseURL).toBe("http://localhost:3000");
+    expect(environment.adminOrigin).toBe("http://localhost:3000");
+    expect(environment.adminEmails).toEqual(["admin@localhost"]);
   });
 
   it("requires core secrets and services in production", () => {
@@ -40,7 +42,18 @@ describe("server environment", () => {
         BETTER_AUTH_SECRET: "a-secure-production-secret-that-is-long-enough",
         BETTER_AUTH_URL: "http://vsign.cnb.llc",
         DATABASE_URL: "postgresql://database/vasi",
+        VASI_ADMIN_ORIGIN: "https://admin.internal.example",
+        VASI_ADMIN_EMAILS: "admin@example.com",
       }),
     ).toThrow("BETTER_AUTH_URL must use HTTPS in production.");
+  });
+
+  it("normalizes and validates the operator allowlist", () => {
+    expect(
+      resolveServerEnvironment({
+        NODE_ENV: "development",
+        VASI_ADMIN_EMAILS: " One@Example.com,one@example.com,two@example.com ",
+      }).adminEmails,
+    ).toEqual(["one@example.com", "two@example.com"]);
   });
 });
