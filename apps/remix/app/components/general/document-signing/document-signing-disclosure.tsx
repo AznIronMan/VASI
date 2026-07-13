@@ -10,9 +10,9 @@ export const DocumentSigningDisclosure = ({ className, ...props }: DocumentSigni
   return (
     <p className={cn('text-muted-foreground text-xs', className)} {...props}>
       <Trans>
-        By proceeding with your electronic signature, you acknowledge and consent that it will be used to sign the given
-        document and holds the same legal validity as a handwritten signature. By completing the electronic signing
-        process, you affirm your understanding and acceptance of these conditions.
+        By proceeding, you intend for your electronic signature to be applied to this document and acknowledge that VASI
+        will record this action as your consent to sign. The legal effect of an electronic signature depends on the
+        document, the parties, and applicable law.
       </Trans>
       <span className="mt-2 block">
         <Trans>

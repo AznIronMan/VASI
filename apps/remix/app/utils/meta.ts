@@ -3,11 +3,11 @@ import { i18n, type MessageDescriptor } from '@lingui/core';
 
 export const appMetaTags = (title?: MessageDescriptor) => {
   const description =
-    'Join Documenso, the open signing infrastructure, and get a 10x better signing experience. Pricing starts at $30/mo. forever! Sign in now and enjoy a faster, smarter, and more beautiful document signing process. Integrates with your favorite tools, customizable, and expandable. Support our mission and become a part of our open-source community.';
+    "VASI is Clark & Burke's verified, authorized document-signing infrastructure for staff and invited recipients.";
 
   return [
     {
-      title: title ? `${i18n._(title)} - Documenso` : 'Documenso',
+      title: title ? `${i18n._(title)} - VASI` : 'VASI',
     },
     {
       name: 'description',
@@ -15,20 +15,19 @@ export const appMetaTags = (title?: MessageDescriptor) => {
     },
     {
       name: 'keywords',
-      content:
-        'Documenso, open source, DocuSign alternative, document signing, open signing infrastructure, open-source community, fast signing, beautiful signing, smart templates',
+      content: 'VASI, Clark and Burke, CNB, verified signing, authorized signing, document signing',
     },
     {
       name: 'author',
-      content: 'Documenso, Inc.',
+      content: 'Clark & Burke LLC',
     },
     {
       name: 'robots',
-      content: 'index, follow',
+      content: 'noindex, nofollow, noarchive',
     },
     {
       property: 'og:title',
-      content: 'Documenso - The Open Source DocuSign Alternative',
+      content: 'VASI - Verified Authorized Signing Infrastructure',
     },
     {
       property: 'og:description',
@@ -36,7 +35,7 @@ export const appMetaTags = (title?: MessageDescriptor) => {
     },
     {
       property: 'og:image',
-      content: `${NEXT_PUBLIC_WEBAPP_URL()}/opengraph-image.jpg`,
+      content: `${NEXT_PUBLIC_WEBAPP_URL()}/static/vasi-logo.png`,
     },
     {
       property: 'og:type',
@@ -47,16 +46,12 @@ export const appMetaTags = (title?: MessageDescriptor) => {
       content: 'summary_large_image',
     },
     {
-      name: 'twitter:site',
-      content: '@documenso',
-    },
-    {
       name: 'twitter:description',
       content: description,
     },
     {
       name: 'twitter:image',
-      content: `${NEXT_PUBLIC_WEBAPP_URL()}/opengraph-image.jpg`,
+      content: `${NEXT_PUBLIC_WEBAPP_URL()}/static/vasi-logo.png`,
     },
   ];
 };

@@ -578,17 +578,27 @@ const renderBranding = async ({ qrToken, i18n }: { qrToken: string | null; i18n:
     height: brandingHeight,
   });
 
-  const logoPath = path.join(process.cwd(), 'public/static/logo.png');
+  const logoPath = path.join(process.cwd(), 'public/static/vasi-logo.png');
   const logo = fs.readFileSync(logoPath);
 
   // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
   const img = new SkiaImage(logo) as unknown as HTMLImageElement;
 
-  const documensoImage = new Konva.Image({
+  const vasiImage = new Konva.Image({
     image: img,
     height: brandingHeight,
     width: brandingHeight * (img.width / img.height),
     x: text.width() + 16,
+  });
+
+  const vasiText = new Konva.Text({
+    x: vasiImage.x() + vasiImage.width() + 6,
+    text: 'VASI',
+    fontStyle: fontMedium,
+    fontFamily: 'Inter',
+    fontSize: textSm,
+    height: brandingHeight,
+    verticalAlign: 'middle',
   });
 
   const qrSize = qrToken ? 72 : 0;
@@ -597,7 +607,8 @@ const renderBranding = async ({ qrToken, i18n }: { qrToken: string | null; i18n:
     y: qrSize + 16,
   });
   logoGroup.add(text);
-  logoGroup.add(documensoImage);
+  logoGroup.add(vasiImage);
+  logoGroup.add(vasiText);
 
   branding.add(logoGroup);
 

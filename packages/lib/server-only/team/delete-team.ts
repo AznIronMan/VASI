@@ -137,7 +137,7 @@ export const sendTeamDeleteEmail = async ({ email, team, organisationId }: SendT
   await emailTransport.sendMail({
     to: email,
     from: senderEmail,
-    subject: i18n._(msg`Team "${team.name}" has been deleted on Documenso`),
+    subject: i18n._(msg`Team "${team.name}" has been deleted on VASI`),
     html,
     text,
   });

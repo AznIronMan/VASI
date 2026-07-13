@@ -440,7 +440,7 @@ const renderBranding = () => {
 
   const brandingHeight = 16;
 
-  const logoPath = path.join(process.cwd(), 'public/static/logo.png');
+  const logoPath = path.join(process.cwd(), 'public/static/vasi-logo.png');
   const logo = fs.readFileSync(logoPath);
 
   // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
@@ -452,7 +452,18 @@ const renderBranding = () => {
     width: brandingHeight * (img.width / img.height),
   });
 
+  const brandingText = new Konva.Text({
+    x: brandingImage.width() + 6,
+    text: 'VASI',
+    fontStyle: fontMedium,
+    fontFamily: 'Inter',
+    fontSize: textSm,
+    height: brandingHeight,
+    verticalAlign: 'middle',
+  });
+
   branding.add(brandingImage);
+  branding.add(brandingText);
   return branding;
 };
 

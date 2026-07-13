@@ -16,8 +16,8 @@ export default function SignatureDisclosure() {
         </h2>
         <p>
           <Trans>
-            Thank you for using Documenso to perform your electronic document signing. The purpose of this disclosure is
-            to inform you about the process, legality, and your rights regarding the use of electronic signatures on our
+            Thank you for using VASI to perform your electronic document signing. The purpose of this disclosure is to
+            inform you about the process, legality, and your rights regarding the use of electronic signatures on our
             platform. By opting to use an electronic signature, you are agreeing to the terms and conditions outlined
             below.
           </Trans>
@@ -39,9 +39,10 @@ export default function SignatureDisclosure() {
         </h2>
         <p>
           <Trans>
-            An electronic signature provided by you on our platform, achieved through clicking through to a document and
-            entering your name, or any other electronic signing method we provide, is legally binding. It carries the
-            same weight and enforceability as a manual signature written with ink on paper.
+            Electronic signatures can have legal effect, but enforceability depends on the document, the parties,
+            consent, identity evidence, applicable law, and the surrounding transaction. VASI does not provide legal
+            advice. Contact the document sender or qualified counsel if you are unsure whether electronic signing is
+            appropriate for this document.
           </Trans>
         </p>
 
@@ -83,8 +84,8 @@ export default function SignatureDisclosure() {
         <p>
           <Trans>
             By using the electronic signature feature, you are consenting to conduct transactions and receive
-            disclosures electronically. You acknowledge that your electronic signature on documents is binding and that
-            you accept the terms outlined in the documents you are signing.
+            disclosures electronically. You acknowledge that completing the signing action records your intent and that
+            the legal effect of that action depends on the document and applicable law.
           </Trans>
         </p>
 
@@ -127,8 +128,8 @@ export default function SignatureDisclosure() {
         </h2>
         <p>
           <Trans>
-            By proceeding to use the electronic signature service provided by Documenso, you affirm that you have read
-            and understood this disclosure. You agree to all terms and conditions related to the use of electronic
+            By proceeding to use the electronic signature service provided by VASI, you affirm that you have read and
+            understood this disclosure. You agree to all terms and conditions related to the use of electronic
             signatures and electronic transactions as outlined herein.
           </Trans>
         </p>

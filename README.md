@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.2.0`
+Version: `0.3.0`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,8 +16,9 @@ operational standards.
 
 ## Current Status
 
-`0.2.0` adds the supported production configuration and secret boundary to the
-locally reproduced upstream baseline. It includes:
+`0.3.0` adds the VASI/CNB product and transactional identity to the supported
+production configuration and locally reproduced upstream baseline. It
+includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -37,7 +38,7 @@ locally reproduced upstream baseline. It includes:
 - The complete Documenso `v2.14.0` monorepo imported through a history-preserving
   merge with upstream licensing and attribution intact.
 - A verified clean install, all 163 database migrations, synthetic seed,
-  lint, Remix typecheck, 129 library tests, and production build.
+  lint, Remix typecheck, 133 library tests, and production build.
 - A completed synthetic recipient-signing flow with captured mail, expected
   audit events, a valid whole-document SHA-256 CAdES seal, and detected
   post-signing tampering.
@@ -47,6 +48,16 @@ locally reproduced upstream baseline. It includes:
   boundaries.
 - Startup validation that rejects unsafe production defaults, plus `_FILE`
   loading for application, database, SMTP, and signing secrets.
+- VASI/CNB identity across staff, authentication, recipient signing, browser,
+  PWA, support, email, and signed-PDF surfaces.
+- A documented CNB palette with accessible action colors, repository-owned
+  assets, and an upstream-update checklist.
+- Signer disclosures that preserve clear intent without promising legal effect,
+  plus visible Documenso Community Edition attribution and corresponding-source
+  access in transactional email.
+- Browser checks of light and dark application/signing states, a captured
+  branded password-recovery email, and a freshly completed synthetic PDF whose
+  whole-document SHA-256 CAdES signature validates.
 
 The local proof uses an untrusted example certificate and synthetic data. It
 also records inherited dependency advisories and known endpoint/proxy gaps for
@@ -75,6 +86,7 @@ upgrade/rollback procedures.
 - [Security and privacy](docs/security.md)
 - [Roadmap](docs/roadmap.md)
 - [Development standard](docs/standards/development.md)
+- [Brand implementation](docs/branding.md)
 - [Branding standard](docs/standards/branding.md)
 - [Security standard](docs/standards/security-and-privacy.md)
 - [Deployment direction](docs/operator/deployment.md)
@@ -91,6 +103,22 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.3.0 - 2026-07-12
+
+- Applied VASI and Clark & Burke identity to staff, authentication, recipient,
+  metadata, favicon/PWA, support, email, and signed-PDF surfaces.
+- Added the documented CNB palette, accessible foreground pairings,
+  repository-owned logo assets, surface inventory, and upstream-update
+  checklist.
+- Replaced unsafe legal-effect guarantees with clear signer-intent language
+  while preserving role, requested action, document state, authentication,
+  certificate identity, and audit facts.
+- Added a Clark & Burke transactional footer with Documenso Community Edition
+  attribution and a link to the corresponding VASI source.
+- Verified type checking, 133 library tests, the production build, light/dark
+  browser flows, captured branded email, a complete synthetic signing flow, and
+  a valid whole-document SHA-256 CAdES signature.
 
 ### 0.2.0 - 2026-07-12
 

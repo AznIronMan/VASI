@@ -1,5 +1,4 @@
 import { useCurrentOrganisation } from '@documenso/lib/client-only/providers/organisation';
-import { useSession } from '@documenso/lib/client-only/providers/session';
 import { IS_BILLING_ENABLED } from '@documenso/lib/constants/app';
 import { Button } from '@documenso/ui/primitives/button';
 import { msg } from '@lingui/core/macro';
@@ -17,7 +16,6 @@ export function meta() {
 
 export default function SupportPage() {
   const [showForm, setShowForm] = useState(false);
-  const { user } = useSession();
   const organisation = useCurrentOrganisation();
 
   const [searchParams] = useSearchParams();
@@ -51,42 +49,37 @@ export default function SupportPage() {
             <h2 className="flex items-center gap-2 font-bold text-lg">
               <BookIcon className="h-5 w-5 text-muted-foreground" />
               <Link
-                to="https://docs.documenso.com"
+                to="https://github.com/AznIronMan/VASI"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:underline"
               >
-                <Trans>Documentation</Trans>
+                <Trans>VASI source and documentation</Trans>
               </Link>
             </h2>
             <p className="mt-1 text-muted-foreground">
-              <Trans>Read our documentation to get started with Documenso.</Trans>
+              <Trans>Read our documentation to get started with VASI.</Trans>
             </p>
           </div>
           <div className="rounded-lg border p-4">
             <h2 className="flex items-center gap-2 font-bold text-lg">
               <Link2Icon className="h-5 w-5 text-muted-foreground" />
               <Link
-                to="https://documen.so/discord"
+                to="mailto:streetkings@cnb.llc"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:underline"
               >
-                <Trans>Discord</Trans>
+                <Trans>Email support</Trans>
               </Link>
             </h2>
             <p className="mt-1 text-muted-foreground">
               <Trans>
-                Join our community on{' '}
-                <Link
-                  to="https://documen.so/discord"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:underline"
-                >
-                  Discord
+                Contact{' '}
+                <Link to="mailto:streetkings@cnb.llc" className="hover:underline">
+                  streetkings@cnb.llc
                 </Link>{' '}
-                for community support and discussion.
+                for VASI support.
               </Trans>
             </p>
           </div>

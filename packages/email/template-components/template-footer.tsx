@@ -33,10 +33,10 @@ export const TemplateFooter = ({ isDocument = true, reportUrl }: TemplateFooterP
         <Text className="my-4 text-base text-muted-foreground">
           <Trans>
             This document was sent using{' '}
-            <Link className="text-primary" href="https://documen.so/mail-footer">
-              Documenso
+            <Link className="text-primary" href="https://www.cnb.llc">
+              VASI
             </Link>
-            .
+            , Clark &amp; Burke's verified signing infrastructure.
           </Trans>
         </Text>
       )}
@@ -64,9 +64,22 @@ export const TemplateFooter = ({ isDocument = true, reportUrl }: TemplateFooterP
 
       {!branding.brandingEnabled && (
         <Text className="my-8 text-muted-foreground text-sm">
-          Documenso, Inc.
+          Clark &amp; Burke LLC
           <br />
-          2261 Market Street, #5211, San Francisco, CA 94114, USA
+          <Link className="text-primary" href="https://www.cnb.llc">
+            www.cnb.llc
+          </Link>
+          <br />
+          <Trans>
+            VASI is based on{' '}
+            <Link className="text-primary" href="https://github.com/documenso/documenso">
+              Documenso Community Edition
+            </Link>
+            .{' '}
+            <Link className="text-primary" href="https://github.com/AznIronMan/VASI">
+              Corresponding source
+            </Link>
+          </Trans>
         </Text>
       )}
     </Section>

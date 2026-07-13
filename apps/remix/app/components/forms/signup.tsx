@@ -408,23 +408,11 @@ export const SignUpForm = ({
         </Form>
         <p className="mt-6 text-muted-foreground text-xs">
           <Trans>
-            By proceeding, you agree to our{' '}
-            <Link
-              to="https://documen.so/terms"
-              target="_blank"
-              className="text-documenso-700 duration-200 hover:opacity-70"
-            >
-              Terms of Service
+            VASI accounts are managed by Clark &amp; Burke. Contact{' '}
+            <Link to="mailto:streetkings@cnb.llc" className="text-primary duration-200 hover:opacity-70">
+              streetkings@cnb.llc
             </Link>{' '}
-            and{' '}
-            <Link
-              to="https://documen.so/privacy"
-              target="_blank"
-              className="text-documenso-700 duration-200 hover:opacity-70"
-            >
-              Privacy Policy
-            </Link>
-            .
+            for current service terms and privacy information.
           </Trans>
         </p>
       </div>

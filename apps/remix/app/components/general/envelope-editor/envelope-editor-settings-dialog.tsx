@@ -775,7 +775,7 @@ export const EnvelopeEditorSettingsDialog = ({ trigger, ...props }: EnvelopeEdit
                                       </SelectItem>
                                     ))}
 
-                                    <SelectItem value={'-1'}>Documenso</SelectItem>
+                                    <SelectItem value={'-1'}>VASI</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </FormControl>

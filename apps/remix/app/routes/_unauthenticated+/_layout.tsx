@@ -1,5 +1,7 @@
 import backgroundPattern from '@documenso/assets/images/background-pattern.png';
-import { Outlet } from 'react-router';
+import { Link, Outlet } from 'react-router';
+
+import { BrandingLogo } from '~/components/general/branding-logo';
 
 export default function Layout() {
   return (
@@ -18,6 +20,13 @@ export default function Layout() {
         </div>
 
         <div className="relative w-full">
+          <Link
+            to="/"
+            aria-label="VASI home"
+            className="mx-auto mb-6 block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <BrandingLogo className="h-12 w-auto max-w-[min(82vw,300px)]" />
+          </Link>
           <Outlet />
         </div>
       </div>

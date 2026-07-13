@@ -94,7 +94,7 @@ export const templates: Record<string, TemplateDefinition> = {
     component: DocumentInviteEmailTemplate,
     fields: {
       inviterName: { type: 'text', label: 'Inviter name', default: 'Lucas Smith' },
-      inviterEmail: { type: 'text', label: 'Inviter email', default: 'lucas@documenso.com' },
+      inviterEmail: { type: 'text', label: 'Inviter email', default: 'lucas@example.com' },
       documentName: documentNameField,
       role: roleField,
       customBody: {
@@ -163,7 +163,7 @@ export const templates: Record<string, TemplateDefinition> = {
     fields: {
       recipientName: recipientNameField,
       documentName: documentNameField,
-      documentUrl: { type: 'text', label: 'Document URL', default: 'https://documenso.com' },
+      documentUrl: { type: 'text', label: 'Document URL', default: 'https://sign.example.com' },
       rejectionReason: {
         type: 'textarea',
         label: 'Rejection reason',
@@ -258,7 +258,7 @@ export const templates: Record<string, TemplateDefinition> = {
     component: OrganisationInviteEmailTemplate,
     fields: {
       senderName: { type: 'text', label: 'Sender name', default: 'Lucas Smith' },
-      organisationName: { type: 'text', label: 'Organisation name', default: 'Documenso' },
+      organisationName: { type: 'text', label: 'Organisation name', default: 'VASI' },
     },
   },
   'organisation-join': {
@@ -267,7 +267,7 @@ export const templates: Record<string, TemplateDefinition> = {
     component: OrganisationJoinEmailTemplate,
     fields: {
       memberName: { type: 'text', label: 'Member name', default: 'Lucas Smith' },
-      organisationName: { type: 'text', label: 'Organisation name', default: 'Documenso' },
+      organisationName: { type: 'text', label: 'Organisation name', default: 'VASI' },
     },
   },
   'organisation-leave': {
@@ -276,7 +276,7 @@ export const templates: Record<string, TemplateDefinition> = {
     component: OrganisationLeaveEmailTemplate,
     fields: {
       memberName: { type: 'text', label: 'Member name', default: 'Lucas Smith' },
-      organisationName: { type: 'text', label: 'Organisation name', default: 'Documenso' },
+      organisationName: { type: 'text', label: 'Organisation name', default: 'VASI' },
     },
   },
   'organisation-delete': {
@@ -284,7 +284,7 @@ export const templates: Record<string, TemplateDefinition> = {
     group: 'Organisations',
     component: OrganisationDeleteEmailTemplate,
     fields: {
-      organisationName: { type: 'text', label: 'Organisation name', default: 'Documenso' },
+      organisationName: { type: 'text', label: 'Organisation name', default: 'VASI' },
     },
   },
   'organisation-limit-alert': {
@@ -292,7 +292,7 @@ export const templates: Record<string, TemplateDefinition> = {
     group: 'Organisations',
     component: OrganisationLimitAlertEmailTemplate,
     fields: {
-      organisationName: { type: 'text', label: 'Organisation name', default: 'Documenso' },
+      organisationName: { type: 'text', label: 'Organisation name', default: 'VASI' },
     },
   },
   'organisation-account-link-confirmation': {
@@ -300,7 +300,7 @@ export const templates: Record<string, TemplateDefinition> = {
     group: 'Organisations',
     component: OrganisationAccountLinkConfirmationTemplate,
     fields: {
-      organisationName: { type: 'text', label: 'Organisation name', default: 'Documenso' },
+      organisationName: { type: 'text', label: 'Organisation name', default: 'VASI' },
     },
   },
 
@@ -310,7 +310,7 @@ export const templates: Record<string, TemplateDefinition> = {
     group: 'Teams',
     component: ConfirmTeamEmailTemplate,
     fields: {
-      teamName: { type: 'text', label: 'Team name', default: 'Documenso' },
+      teamName: { type: 'text', label: 'Team name', default: 'VASI' },
     },
   },
   'team-delete': {
@@ -324,8 +324,8 @@ export const templates: Record<string, TemplateDefinition> = {
     group: 'Teams',
     component: TeamEmailRemovedTemplate,
     fields: {
-      teamName: { type: 'text', label: 'Team name', default: 'Documenso' },
-      teamEmail: { type: 'text', label: 'Team email', default: 'team@documenso.com' },
+      teamName: { type: 'text', label: 'Team name', default: 'VASI' },
+      teamEmail: { type: 'text', label: 'Team email', default: 'team@example.com' },
     },
   },
 
@@ -338,7 +338,7 @@ export const templates: Record<string, TemplateDefinition> = {
       confirmationLink: {
         type: 'text',
         label: 'Confirmation link',
-        default: 'https://documenso.com/confirm',
+        default: 'https://sign.example.com/confirm',
       },
     },
   },
@@ -350,7 +350,7 @@ export const templates: Record<string, TemplateDefinition> = {
       resetPasswordLink: {
         type: 'text',
         label: 'Reset link',
-        default: 'https://documenso.com/reset',
+        default: 'https://sign.example.com/reset',
       },
     },
   },
@@ -360,7 +360,7 @@ export const templates: Record<string, TemplateDefinition> = {
     component: ResetPasswordTemplate,
     fields: {
       userName: { type: 'text', label: 'User name', default: 'Lucas Smith' },
-      userEmail: { type: 'text', label: 'User email', default: 'lucas@documenso.com' },
+      userEmail: { type: 'text', label: 'User email', default: 'lucas@example.com' },
     },
   },
   'access-auth-2fa': {
@@ -370,7 +370,7 @@ export const templates: Record<string, TemplateDefinition> = {
     fields: {
       documentTitle: { type: 'text', label: 'Document title', default: 'Open Source Pledge.pdf' },
       code: { type: 'text', label: 'Code', default: '123456' },
-      userEmail: { type: 'text', label: 'User email', default: 'lucas@documenso.com' },
+      userEmail: { type: 'text', label: 'User email', default: 'lucas@example.com' },
       userName: { type: 'text', label: 'User name', default: 'Lucas Smith' },
       expiresInMinutes: { type: 'number', label: 'Expires in (min)', default: 10 },
     },
@@ -385,7 +385,7 @@ export const templates: Record<string, TemplateDefinition> = {
       resetPasswordLink: {
         type: 'text',
         label: 'Reset link',
-        default: 'https://documenso.com/reset',
+        default: 'https://sign.example.com/reset',
       },
     },
   },

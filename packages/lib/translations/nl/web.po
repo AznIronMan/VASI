@@ -694,8 +694,8 @@ msgid "<0>{organisationName}</0> has requested to create an account on your beha
 msgstr "<0>{organisationName}</0> heeft verzocht om een account voor je aan te maken."
 
 #: packages/email/templates/organisation-account-link-confirmation.tsx
-msgid "<0>{organisationName}</0> has requested to link your current Documenso account to their organisation."
-msgstr "<0>{organisationName}</0> heeft verzocht om je huidige Documenso-account aan hun organisatie te koppelen."
+msgid "<0>{organisationName}</0> has requested to link your current VASI account to their organisation."
+msgstr ""
 
 #: apps/remix/app/components/general/document-signing/document-signing-page-view-v1.tsx
 msgid "<0>{senderName} {senderEmail}</0> has invited you to approve this document"
@@ -734,8 +734,8 @@ msgid "<0>{senderName} {senderEmail}</0> on behalf of \"{0}\" has invited you to
 msgstr "<0>{senderName} {senderEmail}</0> namens \"{0}\" heeft je uitgenodigd om dit document te bekijken"
 
 #: packages/email/templates/confirm-team-email.tsx
-msgid "<0>{teamName}</0> has requested to use your email address for their team on Documenso."
-msgstr "<0>{teamName}</0> heeft verzocht om je e-mailadres te gebruiken voor hun team op Documenso."
+msgid "<0>{teamName}</0> has requested to use your email address for their team on VASI."
+msgstr ""
 
 #: apps/remix/app/routes/_unauthenticated+/organisation.sso.confirmation.$token.tsx
 msgid "<0>Account management:</0> Modify your account settings, permissions, and preferences"
@@ -993,8 +993,8 @@ msgid "A means to print or download documents for your records"
 msgstr "Een manier om documenten voor je administratie te printen of te downloaden"
 
 #: packages/email/templates/organisation-join.tsx
-msgid "A member has joined your organisation on Documenso"
-msgstr "Een lid is toegetreden tot je organisatie op Documenso"
+msgid "A member has joined your organisation on VASI"
+msgstr ""
 
 #: packages/lib/jobs/definitions/emails/send-organisation-member-left-email.handler.ts
 msgid "A member has left your organisation"
@@ -1005,8 +1005,8 @@ msgid "A member has left your organisation {organisationName}"
 msgstr "Een lid heeft je organisatie {organisationName} verlaten"
 
 #: packages/email/templates/organisation-leave.tsx
-msgid "A member has left your organisation on Documenso"
-msgstr "Een lid heeft je organisatie op Documenso verlaten"
+msgid "A member has left your organisation on VASI"
+msgstr ""
 
 #: packages/lib/jobs/definitions/emails/send-organisation-member-joined-email.handler.ts
 msgid "A new member has joined your organisation"
@@ -1045,18 +1045,18 @@ msgid "A request has been made to create an account for you"
 msgstr "Er is een verzoek ingediend om een account voor je aan te maken"
 
 #: packages/email/templates/organisation-account-link-confirmation.tsx
-msgid "A request has been made to link your Documenso account"
-msgstr "Er is een verzoek ingediend om je Documenso-account te koppelen"
+msgid "A request has been made to link your VASI account"
+msgstr ""
 
 #. placeholder {0}: team.name
 #: packages/lib/server-only/team/create-team-email-verification.ts
-msgid "A request to use your email has been initiated by {0} on Documenso"
-msgstr "Er is een verzoek ingediend door {0} op Documenso om je e-mailadres te gebruiken."
+msgid "A request to use your email has been initiated by {0} on VASI"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/webhook-create-dialog.tsx
 #: apps/remix/app/components/dialogs/webhook-edit-dialog.tsx
-msgid "A secret that will be sent to your URL so you can verify that the request has been sent by Documenso."
-msgstr "Een geheim dat naar je URL wordt verzonden, zodat je kunt verifiëren dat het verzoek door Documenso is verzonden."
+msgid "A secret that will be sent to your URL so you can verify that the request has been sent by VASI."
+msgstr ""
 
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 msgid "A stable internet connection"
@@ -1103,12 +1103,12 @@ msgid "Accept & Link Account"
 msgstr "Accepteren & account koppelen"
 
 #: packages/email/templates/organisation-invite.tsx
-msgid "Accept invitation to join an organisation on Documenso"
-msgstr "Uitnodiging accepteren om toe te treden tot een organisatie op Documenso"
+msgid "Accept invitation to join an organisation on VASI"
+msgstr ""
 
 #: packages/email/templates/confirm-team-email.tsx
-msgid "Accept team email request for {teamName} on Documenso"
-msgstr "Team-e-mailverzoek voor {teamName} op Documenso accepteren"
+msgid "Accept team email request for {teamName} on VASI"
+msgstr ""
 
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 msgid "Acceptance and Consent"
@@ -1684,12 +1684,8 @@ msgid "An admin has deleted your document \"{documentName}\"."
 msgstr "Een beheerder heeft je document \"{documentName}\" verwijderd."
 
 #: packages/email/template-components/template-admin-user-created.tsx
-msgid "An administrator has created a Documenso account for you."
-msgstr "Een beheerder heeft een Documenso-account voor je aangemaakt."
-
-#: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
-msgid "An electronic signature provided by you on our platform, achieved through clicking through to a document and entering your name, or any other electronic signing method we provide, is legally binding. It carries the same weight and enforceability as a manual signature written with ink on paper."
-msgstr "Een elektronische handtekening die je via ons platform zet, door door te klikken naar een document en je naam in te voeren of via een andere elektronische ondertekeningsmethode die wij aanbieden, is juridisch bindend. Deze heeft dezelfde rechtsgeldigheid en afdwingbaarheid als een met pen op papier geschreven handtekening."
+msgid "An administrator has created a VASI account for you."
+msgstr ""
 
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 msgid "An email account"
@@ -2512,20 +2508,16 @@ msgid "By enabling 2FA, you will be required to enter a code from your authentic
 msgstr "Door 2FA in te schakelen, moet je elke keer dat je inlogt met e-mail en wachtwoord een code uit je authenticator-app invoeren."
 
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
-msgid "By proceeding to use the electronic signature service provided by Documenso, you affirm that you have read and understood this disclosure. You agree to all terms and conditions related to the use of electronic signatures and electronic transactions as outlined herein."
-msgstr "Door gebruik te maken van de elektronische ondertekeningsdienst van Documenso bevestig je dat je deze kennisgeving hebt gelezen en begrepen. Je gaat akkoord met alle voorwaarden die hier zijn uiteengezet met betrekking tot het gebruik van elektronische handtekeningen en elektronische transacties."
+msgid "By proceeding to use the electronic signature service provided by VASI, you affirm that you have read and understood this disclosure. You agree to all terms and conditions related to the use of electronic signatures and electronic transactions as outlined herein."
+msgstr ""
 
 #: apps/remix/app/components/general/document-signing/document-signing-disclosure.tsx
-msgid "By proceeding with your electronic signature, you acknowledge and consent that it will be used to sign the given document and holds the same legal validity as a handwritten signature. By completing the electronic signing process, you affirm your understanding and acceptance of these conditions."
-msgstr "Door verder te gaan met je elektronische handtekening erken en stem je ermee in dat deze wordt gebruikt om het betreffende document te ondertekenen en dat deze dezelfde juridische geldigheid heeft als een handgeschreven handtekening. Door het elektronische ondertekeningsproces te voltooien, bevestig je dat je deze voorwaarden begrijpt en accepteert."
-
-#: apps/remix/app/components/forms/signup.tsx
-msgid "By proceeding, you agree to our <0>Terms of Service</0> and <1>Privacy Policy</1>."
-msgstr "Door verder te gaan ga je akkoord met onze <0>Servicevoorwaarden</0> en <1>Privacyverklaring</1>."
+msgid "By proceeding, you intend for your electronic signature to be applied to this document and acknowledge that VASI will record this action as your consent to sign. The legal effect of an electronic signature depends on the document, the parties, and applicable law."
+msgstr ""
 
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
-msgid "By using the electronic signature feature, you are consenting to conduct transactions and receive disclosures electronically. You acknowledge that your electronic signature on documents is binding and that you accept the terms outlined in the documents you are signing."
-msgstr "Door de functie voor elektronische handtekeningen te gebruiken, stem je ermee in transacties uit te voeren en kennisgevingen elektronisch te ontvangen. Je erkent dat je elektronische handtekening onder documenten bindend is en dat je de voorwaarden van de te ondertekenen documenten accepteert."
+msgid "By using the electronic signature feature, you are consenting to conduct transactions and receive disclosures electronically. You acknowledge that completing the signing action records your intent and that the legal effect of that action depends on the document and applicable law."
+msgstr ""
 
 #: packages/ui/components/recipient/recipient-role-select.tsx
 msgid "Can prepare"
@@ -3088,6 +3080,10 @@ msgstr "Bevestigingsmail verzonden"
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 msgid "Consent to Electronic Transactions"
 msgstr "Toestemming voor elektronische transacties"
+
+#: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
+msgid "Contact <0>streetkings@cnb.llc</0> for VASI support."
+msgstr ""
 
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
 msgid "Contact Information"
@@ -4107,10 +4103,6 @@ msgstr "Door ondertekenen via directe link uit te schakelen, voorkom je dat iema
 msgid "Disabling the user results in the user not being able to use the account. It also disables all the related contents such as subscription, webhooks, teams, and API keys."
 msgstr "Als je de gebruiker uitschakelt, kan deze het account niet meer gebruiken. Dit schakelt ook alle gerelateerde inhoud uit, zoals abonnement, webhooks, teams en API-sleutels."
 
-#: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
-msgid "Discord"
-msgstr "Discord"
-
 #: apps/remix/app/components/dialogs/organisation-email-create-dialog.tsx
 #: apps/remix/app/components/dialogs/organisation-email-update-dialog.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/email-domains.$id.tsx
@@ -4145,10 +4137,6 @@ msgstr "DNS-records"
 #: apps/remix/app/components/general/admin-license-card.tsx
 msgid "Documenso License"
 msgstr "Documenso-licentie"
-
-#: apps/remix/app/components/dialogs/account-delete-dialog.tsx
-msgid "Documenso will delete <0>all of your documents</0>, along with all of your completed documents, signatures, and all other resources belonging to your Account."
-msgstr "Documenso verwijdert <0>al je documenten</0>, samen met al je voltooide documenten, handtekeningen en alle andere bronnen die bij je account horen."
 
 #: apps/remix/app/components/general/settings-nav-desktop.tsx
 #: apps/remix/app/components/general/template/template-page-view-documents-table.tsx
@@ -4537,10 +4525,6 @@ msgstr "Documentvolume"
 msgid "Document will be permanently deleted"
 msgstr "Document wordt permanent verwijderd"
 
-#: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
-msgid "Documentation"
-msgstr "Documentatie"
-
 #: apps/remix/app/components/general/app-command-menu.tsx
 #: apps/remix/app/components/general/app-nav-desktop.tsx
 #: apps/remix/app/components/general/app-nav-mobile.tsx
@@ -4855,6 +4839,10 @@ msgstr "Elektronische levering van documenten"
 msgid "Electronic Signature Disclosure"
 msgstr "Kennisgeving elektronische handtekening"
 
+#: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
+msgid "Electronic signatures can have legal effect, but enforceability depends on the document, the parties, consent, identity evidence, applicable law, and the surrounding transaction. VASI does not provide legal advice. Contact the document sender or qualified counsel if you are unsure whether electronic signing is appropriate for this document."
+msgstr ""
+
 #: apps/remix/app/components/dialogs/admin-user-create-dialog.tsx
 #: apps/remix/app/components/dialogs/ai-field-detection-dialog.tsx
 #: apps/remix/app/components/dialogs/assistant-confirmation-dialog.tsx
@@ -5045,6 +5033,10 @@ msgstr "E‑mail verzonden!"
 #: apps/remix/app/components/general/envelope-editor/envelope-editor-fields-page.tsx
 msgid "Email Settings"
 msgstr "E-mailinstellingen"
+
+#: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
+msgid "Email support"
+msgstr ""
 
 #: apps/remix/app/components/dialogs/admin-organisation-delete-dialog.tsx
 msgid "Email the organisation owner to notify them of the deletion."
@@ -6580,12 +6572,8 @@ msgid "Japanese"
 msgstr "Japans"
 
 #: packages/email/templates/organisation-invite.tsx
-msgid "Join {organisationName} on Documenso"
-msgstr "Word lid van {organisationName} op Documenso"
-
-#: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
-msgid "Join our community on <0>Discord</0> for community support and discussion."
-msgstr "Word lid van onze community op <0>Discord</0> voor ondersteuning en discussie."
+msgid "Join {organisationName} on VASI"
+msgstr ""
 
 #: apps/remix/app/components/tables/organisation-insights-table.tsx
 #: apps/remix/app/routes/_authenticated+/admin+/organisations.$id.tsx
@@ -6789,8 +6777,8 @@ msgid "Link template"
 msgstr "Sjabloon koppelen"
 
 #: packages/email/templates/organisation-account-link-confirmation.tsx
-msgid "Link your Documenso account"
-msgstr "Koppel uw Documenso-account"
+msgid "Link your VASI account"
+msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/settings+/security._index.tsx
 #: apps/remix/app/routes/_authenticated+/settings+/security.linked-accounts.tsx
@@ -8649,8 +8637,8 @@ msgid "Read Only"
 msgstr "Alleen-lezen"
 
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
-msgid "Read our documentation to get started with Documenso."
-msgstr "Lees onze documentatie om aan de slag te gaan met Documenso."
+msgid "Read our documentation to get started with VASI."
+msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/admin+/documents.$id.tsx
 msgid "Read Status"
@@ -9288,10 +9276,6 @@ msgstr "Terugkeren"
 msgid "Return Home"
 msgstr "Terug naar startpagina"
 
-#: apps/remix/app/routes/_unauthenticated+/o.$orgUrl.signin.tsx
-msgid "Return to Documenso sign in page here"
-msgstr "Ga hier terug naar de Documenso-aanmeldpagina"
-
 #: apps/remix/app/components/general/envelope-editor/envelope-editor.tsx
 msgid "Return to documents"
 msgstr "Terug naar documenten"
@@ -9308,6 +9292,10 @@ msgstr "Terug naar inloggen"
 #: apps/remix/app/components/general/envelope-editor/envelope-editor.tsx
 msgid "Return to templates"
 msgstr "Terug naar sjablonen"
+
+#: apps/remix/app/routes/_unauthenticated+/o.$orgUrl.signin.tsx
+msgid "Return to VASI sign in page here"
+msgstr ""
 
 #: packages/email/templates/organisation-account-link-confirmation.tsx
 msgid "Review request"
@@ -9842,8 +9830,8 @@ msgid "Set up your template properties and recipient information"
 msgstr "Stel je sjablooneigenschappen en ontvangerinformatie in"
 
 #: packages/email/templates/admin-user-created.tsx
-msgid "Set your password for Documenso"
-msgstr "Stel uw wachtwoord voor Documenso in"
+msgid "Set your password for VASI"
+msgstr ""
 
 #: apps/remix/app/components/general/app-command-menu.tsx
 #: apps/remix/app/components/general/app-command-menu.tsx
@@ -9963,8 +9951,8 @@ msgid "Sign Document"
 msgstr "Document ondertekenen"
 
 #: apps/remix/app/routes/_recipient+/_layout.tsx
-msgid "Sign Document - Documenso"
-msgstr "Document ondertekenen - Documenso"
+msgid "Sign Document - VASI"
+msgstr ""
 
 #: apps/remix/app/components/embed/multisign/multi-sign-document-list.tsx
 msgid "Sign Documents"
@@ -10649,8 +10637,8 @@ msgstr "Team"
 
 #. placeholder {0}: team.name
 #: packages/lib/server-only/team/delete-team.ts
-msgid "Team \"{0}\" has been deleted on Documenso"
-msgstr "Team \"{0}\" is verwijderd op Documenso"
+msgid "Team \"{0}\" has been deleted on VASI"
+msgstr ""
 
 #: packages/lib/constants/teams-translations.ts
 msgid "Team Admin"
@@ -10701,8 +10689,8 @@ msgid "Team email removed"
 msgstr "Teame-mailadres verwijderd"
 
 #: packages/email/templates/team-email-removed.tsx
-msgid "Team email removed for {teamName} on Documenso"
-msgstr "Teame-mailadres verwijderd voor {teamName} op Documenso"
+msgid "Team email removed for {teamName} on VASI"
+msgstr ""
 
 #: apps/remix/app/routes/_unauthenticated+/team.verify.email.$token.tsx
 msgid "Team email verification"
@@ -11008,8 +10996,8 @@ msgid "Thank you for letting us know, we have flagged this sender for review. If
 msgstr "Bedankt dat je het ons hebt laten weten, we hebben deze afzender gemarkeerd voor beoordeling. Als je vragen of zorgen hebt, neem dan gerust contact op met ons <0>supportteam</0>."
 
 #: apps/remix/app/routes/_unauthenticated+/articles.signature-disclosure.tsx
-msgid "Thank you for using Documenso to perform your electronic document signing. The purpose of this disclosure is to inform you about the process, legality, and your rights regarding the use of electronic signatures on our platform. By opting to use an electronic signature, you are agreeing to the terms and conditions outlined below."
-msgstr "Bedankt dat je Documenso gebruikt om je documenten elektronisch te ondertekenen. Het doel van deze kennisgeving is je te informeren over het proces, de rechtsgeldigheid en je rechten met betrekking tot het gebruik van elektronische handtekeningen op ons platform. Door te kiezen voor een elektronische handtekening ga je akkoord met de onderstaande voorwaarden."
+msgid "Thank you for using VASI to perform your electronic document signing. The purpose of this disclosure is to inform you about the process, legality, and your rights regarding the use of electronic signatures on our platform. By opting to use an electronic signature, you are agreeing to the terms and conditions outlined below."
+msgstr ""
 
 #: packages/email/template-components/template-forgot-password.tsx
 msgid "That's okay, it happens! Click the button below to reset your password."
@@ -11422,8 +11410,8 @@ msgstr "De typen handtekeningen die ontvangers mogen gebruiken bij het onderteke
 
 #: apps/remix/app/components/dialogs/webhook-create-dialog.tsx
 #: apps/remix/app/components/dialogs/webhook-edit-dialog.tsx
-msgid "The URL for Documenso to send webhook events to."
-msgstr "De URL waarnaar Documenso webhook‑gebeurtenissen stuurt."
+msgid "The URL for VASI to send webhook events to."
+msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/admin+/users.$id.tsx
 msgid "The user you are looking for may have been removed, renamed or may have never existed."
@@ -11581,8 +11569,8 @@ msgid "This document has too many recipients. Please remove some recipients or c
 msgstr "Dit document heeft te veel ontvangers. Verwijder enkele ontvangers of neem contact op met support als u er meer nodig heeft."
 
 #: apps/remix/app/components/general/document/document-certificate-qr-view.tsx
-msgid "This document is available in your Documenso account. You can view more details, recipients, and audit logs there."
-msgstr "Dit document is beschikbaar in je Documenso-account. Je kunt daar meer details, ontvangers en auditlogs bekijken."
+msgid "This document is available in your VASI account. You can view more details, recipients, and audit logs there."
+msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/t.$teamUrl+/documents.$id._index.tsx
 msgid "This document is currently a draft and has not been sent"
@@ -11601,8 +11589,8 @@ msgid "This document was created using a direct link."
 msgstr "Dit document is aangemaakt met een directe link."
 
 #: packages/email/template-components/template-footer.tsx
-msgid "This document was sent using <0>Documenso</0>."
-msgstr "Dit document is verzonden met <0>Documenso</0>."
+msgid "This document was sent using <0>VASI</0>, Clark & Burke's verified signing infrastructure."
+msgstr ""
 
 #: apps/remix/app/components/dialogs/envelope-duplicate-dialog.tsx
 msgid "This document will be duplicated."
@@ -12703,6 +12691,22 @@ msgstr "Validatie mislukt"
 msgid "Value"
 msgstr "Waarde"
 
+#: apps/remix/app/components/forms/signup.tsx
+msgid "VASI accounts are managed by Clark & Burke. Contact <0>streetkings@cnb.llc</0> for current service terms and privacy information."
+msgstr ""
+
+#: packages/email/template-components/template-footer.tsx
+msgid "VASI is based on <0>Documenso Community Edition</0>. <1>Corresponding source</1>"
+msgstr ""
+
+#: apps/remix/app/routes/_authenticated+/o.$orgUrl.support.tsx
+msgid "VASI source and documentation"
+msgstr ""
+
+#: apps/remix/app/components/dialogs/account-delete-dialog.tsx
+msgid "VASI will delete <0>all of your documents</0>, along with all of your completed documents, signatures, and all other resources belonging to your Account."
+msgstr ""
+
 #: packages/email/template-components/template-access-auth-2fa.tsx
 msgid "Verification Code Required"
 msgstr "Verificatiecode vereist"
@@ -12967,8 +12971,8 @@ msgstr "Wachten op jouw beurt"
 
 #: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
 #: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
-msgid "Want to send slick signing links like this one? <0>Check out Documenso</0>."
-msgstr "Wil je ook van die strakke ondertekenlinks versturen zoals deze? <0>Bekijk Documenso</0>."
+msgid "Want to send slick signing links like this one? <0>Learn about VASI</0>."
+msgstr ""
 
 #: apps/remix/app/routes/_profile+/_layout.tsx
 msgid "Want your own public profile?"
@@ -13427,10 +13431,6 @@ msgstr "Webhooks"
 msgid "Welcome"
 msgstr "Welkom"
 
-#: apps/remix/app/routes/_unauthenticated+/signin.tsx
-msgid "Welcome back, we are lucky to have you."
-msgstr "Welkom terug, we boffen met je."
-
 #: apps/remix/app/routes/_authenticated+/dashboard.tsx
 msgid "Welcome back! Here's an overview of your account."
 msgstr "Welkom terug! Hier is een overzicht van je account."
@@ -13440,13 +13440,17 @@ msgid "Welcome to {organisationName}"
 msgstr "Welkom bij {organisationName}"
 
 #: packages/lib/jobs/definitions/emails/send-admin-user-created-email.handler.ts
-msgid "Welcome to Documenso"
-msgstr "Welkom bij Documenso"
+msgid "Welcome to VASI"
+msgstr ""
+
+#: apps/remix/app/routes/_unauthenticated+/signin.tsx
+msgid "Welcome to VASI, Clark & Burke's verified signing portal."
+msgstr ""
 
 #: packages/email/template-components/template-admin-user-created.tsx
 #: packages/email/template-components/template-confirmation-email.tsx
-msgid "Welcome to Documenso!"
-msgstr "Welkom bij Documenso!"
+msgid "Welcome to VASI!"
+msgstr ""
 
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.sso.tsx
 msgid "Well-known URL is required"
@@ -13488,8 +13492,8 @@ msgid "Whether to enable the SSO portal for your organisation"
 msgstr "Of het SSO-portaal voor uw organisatie moet worden ingeschakeld"
 
 #: apps/remix/app/routes/_profile+/p.$url.tsx
-msgid "While waiting for them to do so you can create your own Documenso account and get started with document signing right away."
-msgstr "Terwijl je daarop wacht, kun je je eigen Documenso‑account aanmaken en direct beginnen met documenten ondertekenen."
+msgid "While waiting for them to do so you can create your own VASI account and get started with document signing right away."
+msgstr ""
 
 #: apps/remix/app/components/dialogs/organisation-create-dialog.tsx
 msgid "Whitelabeling, unlimited members and more"
@@ -13764,8 +13768,8 @@ msgid "You can only detect fields in draft envelopes"
 msgstr "U kunt alleen velden detecteren in concept-enveloppen"
 
 #: packages/email/templates/confirm-team-email.tsx
-msgid "You can revoke access at any time in your team settings on Documenso <0>here</0>."
-msgstr "Je kunt de toegang op elk moment intrekken in je teaminstellingen op Documenso, <0>hier</0>."
+msgid "You can revoke access at any time in your team settings on VASI <0>here</0>."
+msgstr ""
 
 #: apps/remix/app/components/forms/public-profile-form.tsx
 msgid "You can update the profile URL by updating the team URL in the general settings page."
@@ -13919,8 +13923,8 @@ msgstr "Je bent door <0>{0}</0> uitgenodigd om lid te worden van hun organisatie
 
 #. placeholder {0}: organisation.name
 #: packages/lib/server-only/organisation/create-organisation-member-invites.ts
-msgid "You have been invited to join {0} on Documenso"
-msgstr "Je bent uitgenodigd om {0} op Documenso te joinen"
+msgid "You have been invited to join {0} on VASI"
+msgstr ""
 
 #: packages/email/templates/organisation-invite.tsx
 msgid "You have been invited to join the following organisation"
@@ -14474,12 +14478,12 @@ msgid "Your Email"
 msgstr "Uw e-mailadres"
 
 #: apps/remix/app/routes/_unauthenticated+/verify-email.$token.tsx
-msgid "Your email has already been confirmed. You can now use all features of Documenso."
-msgstr "Je e-mailadres is al bevestigd. Je kunt nu alle functies van Documenso gebruiken."
+msgid "Your email has already been confirmed. You can now use all features of VASI."
+msgstr ""
 
 #: apps/remix/app/routes/_unauthenticated+/verify-email.$token.tsx
-msgid "Your email has been successfully confirmed! You can now use all features of Documenso."
-msgstr "Je e‑mail is succesvol bevestigd! Je kunt nu alle functies van Documenso gebruiken."
+msgid "Your email has been successfully confirmed! You can now use all features of VASI."
+msgstr ""
 
 #. placeholder {0}: teamEmail.team.name
 #. placeholder {1}: teamEmail.team.url
@@ -14596,8 +14600,8 @@ msgid "Your plan does not support inviting members. Please upgrade or your plan 
 msgstr "Je abonnement ondersteunt geen uitnodigingen van leden. Upgrade je abonnement of neem contact op met sales via <0>{SUPPORT_EMAIL}</0> om je opties te bespreken."
 
 #: apps/remix/app/components/general/organisations/organisation-billing-banner.tsx
-msgid "Your plan is no longer valid. Please subscribe to a new plan to continue using Documenso."
-msgstr "Je abonnement is niet langer geldig. Neem een nieuw abonnement om Documenso te blijven gebruiken."
+msgid "Your plan is no longer valid. Please contact a VASI administrator to continue."
+msgstr ""
 
 #: apps/remix/app/components/forms/profile.tsx
 msgid "Your profile has been updated successfully."

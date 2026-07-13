@@ -113,8 +113,8 @@ export default function PublicProfilePage({ loaderData }: Route.ComponentProps) 
             {!user?.id && (
               <span className="mt-2 inline-block">
                 <Trans>
-                  While waiting for them to do so you can create your own Documenso account and get started with
-                  document signing right away.
+                  While waiting for them to do so you can create your own VASI account and get started with document
+                  signing right away.
                 </Trans>
               </span>
             )}

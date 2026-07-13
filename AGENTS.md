@@ -13,7 +13,7 @@ working on VASI.
 - Company: Clark & Burke LLC
 - Website: https://www.cnb.llc
 - Developer email: streetkings@cnb.llc
-- Current version: `0.2.0`
+- Current version: `0.3.0`
 
 ## Current State
 
@@ -27,9 +27,11 @@ working on VASI.
 - The supported Community Edition production configuration, database-storage
   boundary, disabled-feature defaults, `_FILE` secret mounts, and fail-closed
   startup validation are implemented and documented.
-- VASI branding, edge access, and deployment have not yet been completed.
-  Inherited audit advisories and recorded baseline exceptions remain open
-  hardening work.
+- VASI/CNB branding is applied across application, authentication, signing,
+  email, browser/PWA, support, and signed-PDF surfaces with upstream
+  attribution and audit/certificate facts preserved.
+- Edge access and deployment have not yet been completed. Inherited audit
+  advisories and recorded baseline exceptions remain open hardening work.
 - No VASI application has been deployed to the reserved production endpoints;
   they still serve maintenance placeholders.
 - Keep public status statements honest as these conditions change.

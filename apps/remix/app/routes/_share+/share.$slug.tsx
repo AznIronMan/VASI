@@ -12,15 +12,15 @@ export function meta({ params: { slug } }: Route.MetaArgs) {
   }
 
   return [
-    { title: 'Documenso - Share' },
-    { description: 'I just signed a document in style with Documenso!' },
+    { title: 'VASI - Signed Document' },
+    { description: 'A document was completed through VASI.' },
     {
       property: 'og:title',
-      content: 'Documenso - Join the open source signing revolution',
+      content: 'VASI - Verified Authorized Signing Infrastructure',
     },
     {
       property: 'og:description',
-      content: 'I just signed with Documenso!',
+      content: 'A document was completed through VASI.',
     },
     {
       property: 'og:type',
@@ -28,11 +28,7 @@ export function meta({ params: { slug } }: Route.MetaArgs) {
     },
     {
       property: 'og:image',
-      content: `${NEXT_PUBLIC_WEBAPP_URL()}/share/${slug}/opengraph`,
-    },
-    {
-      name: 'twitter:site',
-      content: '@documenso',
+      content: `${NEXT_PUBLIC_WEBAPP_URL()}/static/vasi-logo.png`,
     },
     {
       name: 'twitter:card',
@@ -40,11 +36,11 @@ export function meta({ params: { slug } }: Route.MetaArgs) {
     },
     {
       name: 'twitter:image',
-      content: `${NEXT_PUBLIC_WEBAPP_URL()}/share/${slug}/opengraph`,
+      content: `${NEXT_PUBLIC_WEBAPP_URL()}/static/vasi-logo.png`,
     },
     {
       name: 'twitter:description',
-      content: 'I just signed with Documenso!',
+      content: 'A document was completed through VASI.',
     },
   ];
 }
@@ -69,8 +65,7 @@ export const loader = async ({ request, params: { slug } }: Route.LoaderArgs) =>
     return {};
   }
 
-  // Is hardcoded because this whole meta is hardcoded anyway for Documenso.
-  throw redirect('https://documenso.com');
+  throw redirect('https://www.cnb.llc');
 };
 
 export default function SharePage() {

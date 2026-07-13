@@ -10,6 +10,9 @@ by Street Kings Productions.
   labels after the relevant upstream surface is approved for customization.
 - Use approved CNB logos, colors, typography, domains, legal entity names, and
   support contacts from owned source assets or configuration.
+- Use the implementation and provenance recorded in
+  [VASI brand implementation](../branding.md); do not recolor or replace the
+  owned monogram without updating its digest and visual QA evidence.
 - Keep transactional email, browser UI, completed-document appearance, and
   support links consistent.
 - Maintain usable contrast, keyboard access, responsive layouts, and readable

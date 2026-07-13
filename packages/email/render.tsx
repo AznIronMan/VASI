@@ -23,8 +23,12 @@ export type RenderOptions = ReactEmail.Options & {
  * and the default + tenant paths can't drift. Used when a tenant has no
  * (entitled) brand colours.
  */
-const DEFAULT_EMAIL_BRANDING_COLORS: EmailBrandingColors =
-  resolveEmailBrandingColors(DEFAULT_BRAND_COLORS) ?? DEFAULT_BRAND_COLORS;
+const DEFAULT_EMAIL_BRANDING_COLORS: EmailBrandingColors = {
+  ...(resolveEmailBrandingColors(DEFAULT_BRAND_COLORS) ?? DEFAULT_BRAND_COLORS),
+  // CNB's darker cyan supports both link text on white and white button text.
+  primary: '#007fa6',
+  primaryForeground: '#ffffff',
+};
 
 /**
  * Map the resolved colour set to flat semantic Tailwind tokens. Templates use
