@@ -38,6 +38,11 @@ API, webhook, callback, health, static-asset, and background-job paths require
 their own explicit route inventory after the upstream baseline is selected.
 Nothing should be exposed merely because it exists upstream.
 
+The selected baseline's concrete allowlist and deny rules are recorded in the
+[edge route and exposure policy](operator/edge-route-policy.md). It treats
+recipient and staff TRPC calls separately even though the upstream application
+mounts both under one URL prefix.
+
 ## Design Principles
 
 - Keep upstream source layout and behavior recognizable.

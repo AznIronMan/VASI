@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.3.0`
+Version: `0.4.0`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,9 +16,9 @@ operational standards.
 
 ## Current Status
 
-`0.3.0` adds the VASI/CNB product and transactional identity to the supported
-production configuration and locally reproduced upstream baseline. It
-includes:
+`0.4.0` adds the exact public-edge route and exposure contract to the VASI/CNB
+identity, supported production configuration, and locally reproduced upstream
+baseline. It includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -58,6 +58,13 @@ includes:
 - Browser checks of light and dark application/signing states, a captured
   branded password-recovery email, and a freshly completed synthetic PDF whose
   whole-document SHA-256 CAdES signature validates.
+- A route inventory covering all 143 React Router manifest entries and the
+  separate auth, file, REST, TRPC, jobs, and HTML-to-PDF server mounts.
+- A fail-closed edge policy that separates staff from token-bound recipient
+  traffic, parses TRPC batches, blocks unsupported integrations, and keeps
+  health/jobs/rendering paths private.
+- Canonical-origin, fallback-host, forwarded-header, client-IP, cookie,
+  request-size, timeout, rate-limit, logging, and unknown-route requirements.
 
 The local proof uses an untrusted example certificate and synthetic data. It
 also records inherited dependency advisories and known endpoint/proxy gaps for
@@ -90,6 +97,7 @@ upgrade/rollback procedures.
 - [Branding standard](docs/standards/branding.md)
 - [Security standard](docs/standards/security-and-privacy.md)
 - [Deployment direction](docs/operator/deployment.md)
+- [Edge route and exposure policy](docs/operator/edge-route-policy.md)
 - [Production configuration](docs/operator/configuration.md)
 - [Local development](docs/operator/local-development.md)
 - [Contributing](docs/contributing.md)
@@ -103,6 +111,20 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.4.0 - 2026-07-12
+
+- Selected one canonical public VASI edge and kept the reserved fallback public
+  hostname maintenance-only rather than creating a second application entrance.
+- Classified every pinned React Router route and separate server mount as
+  public asset, token-public, public-auth, staff, service, internal, or blocked.
+- Defined the exact recipient TRPC procedure allowlist, including whole-batch
+  enforcement so a public signing call cannot carry a staff procedure.
+- Defined token file access, staff uploads/downloads, blocked Community profile
+  features, private health/jobs/PDF rendering, and initial no-public-REST posture.
+- Defined path normalization, origin/method checks, upload and body limits,
+  timeouts, rate limits, forwarding-header replacement, cookie/redirect
+  containment, sensitive-log redaction, and fail-closed behavior.
 
 ### 0.3.0 - 2026-07-12
 
