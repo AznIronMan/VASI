@@ -74,6 +74,11 @@ recipient TRPC procedures, file routes, blocked integrations, forwarding
 headers, limits, and failure behavior, is defined in the
 [edge route and exposure policy](edge-route-policy.md).
 
+The supported two-layer staff identity/session behavior and first-admin
+bootstrap are defined in the [staff authentication guide](staff-authentication.md).
+The matching generic Compose and gateway implementation is under
+`ops/deploy/edge/`.
+
 Configure the application canonical/base URL to the public edge URL. The edge
 must normalize the public scheme/host, replace untrusted client-supplied
 forwarding headers, and pass accurate client metadata to the origin. The origin

@@ -1,4 +1,4 @@
-import { formatSecureCookieName, getCookieDomain, useSecureCookies } from '@documenso/lib/constants/auth';
+import { formatSecureCookieName, useSecureCookies } from '@documenso/lib/constants/auth';
 import { appLog } from '@documenso/lib/utils/debugger';
 import { env } from '@documenso/lib/utils/env';
 import type { Context } from 'hono';
@@ -27,9 +27,8 @@ const getAuthSecret = () => {
 export const sessionCookieOptions = {
   httpOnly: true,
   path: '/',
-  sameSite: useSecureCookies ? 'none' : 'lax',
+  sameSite: 'lax',
   secure: useSecureCookies,
-  domain: getCookieDomain(),
 } as const;
 
 export const extractSessionCookieFromHeaders = (headers: Headers): string | null => {

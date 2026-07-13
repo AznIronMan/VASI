@@ -13,7 +13,7 @@ working on VASI.
 - Company: Clark & Burke LLC
 - Website: https://www.cnb.llc
 - Developer email: streetkings@cnb.llc
-- Current version: `0.5.1`
+- Current version: `0.6.0`
 
 ## Current State
 
@@ -37,8 +37,13 @@ working on VASI.
   mounted runtime secrets, an external PostgreSQL boundary, an unexposed app
   network, and a private-bind internal TLS listener. Its target-architecture
   container build has been validated without replacing the maintenance origin.
-- Edge access enforcement and deployment have not yet been implemented.
-  Inherited audit advisories and recorded baseline exceptions remain open
+- A generic edge Compose contract now pins OAuth2 Proxy, classifies the complete
+  route/TRPC surface, requires OIDC plus native VASI authorization for staff,
+  preserves recipient token flows, verifies origin TLS, normalizes proxy
+  metadata, and fails unknown traffic closed. It has passed isolated
+  target-host smoke tests but is not connected to production OIDC credentials
+  or the live listener.
+- Inherited audit advisories and recorded baseline exceptions remain open
   hardening work.
 - No VASI application has been deployed to the reserved production endpoints;
   they still serve maintenance placeholders.

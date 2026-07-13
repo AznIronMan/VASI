@@ -257,8 +257,8 @@ does not proxy to the application.
 - Reject request bodies on `GET` and `HEAD`.
 - Default request-body limit: 2 MiB.
 - PDF upload limit: the configured application limit plus at most 2 MiB of
-  multipart overhead. With the default 50 MiB application limit, the edge limit
-  is 52 MiB.
+  multipart overhead. With VASI's initial 10 MiB application limit, the edge
+  limit is 12 MiB.
 - Normal proxy connect timeout: 5 seconds. Normal response-header/read timeout:
   60 seconds. Upload and streamed download timeout: 300 seconds.
 - Stream uploads and downloads where supported; do not buffer sensitive PDFs

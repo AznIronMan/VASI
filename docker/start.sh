@@ -71,6 +71,13 @@ if [ "${VASI_MIGRATE_ONLY:-false}" = "true" ]; then
     exit 0
 fi
 
+if [ "${VASI_BOOTSTRAP_ADMIN:-false}" = "true" ]; then
+    run_migrations
+    node bootstrap-admin.mjs
+    printf "✅ Initial VASI administrator bootstrap completed.\n"
+    exit 0
+fi
+
 if [ "${VASI_RUN_MIGRATIONS:-true}" = "true" ]; then
     run_migrations
 fi

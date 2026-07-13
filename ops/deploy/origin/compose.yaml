@@ -101,6 +101,33 @@ services:
       start_period: 45s
     stop_grace_period: 30s
 
+  bootstrap-admin:
+    image: ${VASI_IMAGE:?Set VASI_IMAGE to an immutable VASI image reference}
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      VASI_BOOTSTRAP_ADMIN: "true"
+      VASI_RUN_MIGRATIONS: "false"
+      NEXT_PRIVATE_DATABASE_URL_FILE: /run/secrets/vasi-database-url
+      NEXT_PRIVATE_DIRECT_DATABASE_URL_FILE: /run/secrets/vasi-database-url
+      VASI_BOOTSTRAP_ADMIN_EMAIL: ${VASI_BOOTSTRAP_ADMIN_EMAIL:?Set the initial administrator email}
+      VASI_BOOTSTRAP_ADMIN_NAME: ${VASI_BOOTSTRAP_ADMIN_NAME:?Set the initial administrator display name}
+      VASI_BOOTSTRAP_ADMIN_PASSWORD_FILE: /run/secrets/vasi-bootstrap-admin-password
+    secrets:
+      - vasi-database-url
+      - vasi-bootstrap-admin-password
+    networks:
+      - egress
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    profiles:
+      - tools
+
   origin:
     image: nginx:1.29.8-alpine3.23
     restart: unless-stopped
@@ -165,3 +192,5 @@ secrets:
     file: ${VASI_SECRETS_DIR:?Set the protected secret directory}/signing.p12
   vasi-signing-passphrase:
     file: ${VASI_SECRETS_DIR:?Set the protected secret directory}/signing-passphrase
+  vasi-bootstrap-admin-password:
+    file: ${VASI_SECRETS_DIR:?Set the protected secret directory}/bootstrap-admin-password

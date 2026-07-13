@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.5.1`
+Version: `0.6.0`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,9 +16,10 @@ operational standards.
 
 ## Current Status
 
-`0.5.1` hardens the private-origin container contract added in `0.5.0`, alongside
-the exact public-edge route policy, VASI/CNB identity, supported production
-configuration, and locally reproduced upstream baseline. It includes:
+`0.6.0` adds the executable staff/recipient edge and first-administrator
+contracts to the private-origin container model, VASI/CNB identity, supported
+production configuration, and locally reproduced upstream baseline. It
+includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -29,8 +30,8 @@ configuration, and locally reproduced upstream baseline. It includes:
 - A split public-edge/private-origin access model that avoids direct WAN
   exposure of the signing application.
 - Provisioned private PostgreSQL, internal-CA TLS, public/internal DNS ingress,
-  reserved container endpoints, and verified backup coverage for the future
-  application build.
+  reserved container endpoints, verified backup coverage, and staged origin/
+  edge images without activating public application traffic.
 - A dependency-ordered implementation roadmap covering upstream import, local
   verification, configuration, branding, access control, deployment, mail,
   PDF signing identity, data recovery, policy, security, operations,
@@ -72,6 +73,18 @@ configuration, and locally reproduced upstream baseline. It includes:
 - A hardened container entrypoint that reads migration credentials from secret
   files without retaining them in the long-running server environment, plus a
   target-architecture image build and rendered-Compose validation.
+- A pinned, provider-neutral OIDC staff portal that remains separate from
+  native VASI login, roles, disabled-user checks, and object authorization.
+- A deny-by-default streaming edge gateway with strict path/method/origin/body
+  handling, trusted proxy enforcement, verified origin TLS, coarse abuse
+  limits, generic errors, redacted logs, cookie/redirect containment, and no
+  identity-token forwarding.
+- A generated inventory of all 269 pinned TRPC procedures, exact 12-procedure
+  recipient allowlist, whole-batch enforcement, and local rejection of unknown,
+  duplicate, mixed, and enterprise calls.
+- Host-only `SameSite=Lax` VASI cookies, combined portal/application logout,
+  and a one-time first-administrator bootstrap that refuses existing admins,
+  inline database credentials, and duplicate users.
 
 The local proof uses an untrusted example certificate and synthetic data. It
 also records inherited dependency advisories and known endpoint/proxy gaps for
@@ -105,6 +118,7 @@ upgrade/rollback procedures.
 - [Security standard](docs/standards/security-and-privacy.md)
 - [Deployment direction](docs/operator/deployment.md)
 - [Edge route and exposure policy](docs/operator/edge-route-policy.md)
+- [Staff authentication](docs/operator/staff-authentication.md)
 - [Production configuration](docs/operator/configuration.md)
 - [Local development](docs/operator/local-development.md)
 - [Contributing](docs/contributing.md)
@@ -118,6 +132,29 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.6.0 - 2026-07-12
+
+- Added the pinned OAuth2 Proxy OIDC staff portal and provider-neutral protected
+  configuration, session, MFA, deactivation, logout, and recovery contract.
+- Added the non-root streaming edge gateway implementing the staff, recipient,
+  file, authentication, TRPC, blocked, and internal route policies with verified
+  origin TLS and normalized forwarding metadata.
+- Generated and checked all 269 pinned TRPC procedure names directly from the
+  TypeScript router graph; only the 12 reviewed recipient procedures may bypass
+  staff OIDC, and mixed, duplicate, unknown, or enterprise batches fail locally.
+- Enforced path normalization, canonical Host/Origin, request/body limits,
+  token/public-auth rate limits with small bursts, WebSocket rejection, generic
+  errors, path-free logs, internal-cookie rejection, and internal redirect
+  containment.
+- Made application authentication cookies host-only and `SameSite=Lax`, and
+  expire the edge portal cookie after successful native VASI sign-out.
+- Added a fail-closed one-time native administrator bootstrap using mounted
+  database/password secrets with no public signup or sample data.
+- Validated Compose and both images on the intended architectures, verified the
+  OIDC configuration against real discovery, and passed isolated routing, rate,
+  TLS, cookie, redirect, logout, and forwarding-header smoke matrices without
+  replacing either maintenance placeholder.
 
 ### 0.5.1 - 2026-07-12
 

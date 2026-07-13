@@ -29,7 +29,8 @@ requirements, not optional production cleanup.
 
 The [production configuration contract](operator/configuration.md) defines the
 current secret boundary, disabled integrations, encryption-key recovery limits,
-and rotation requirements.
+and rotation requirements. The [staff authentication guide](operator/staff-authentication.md)
+defines the independent OIDC and native VASI session/authorization layers.
 
 ## Signing Certificate
 

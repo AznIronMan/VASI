@@ -34,6 +34,26 @@ not copy the value into Compose output or the long-running application
 environment. Back up the database before migration and review upstream schema
 compatibility before rollback.
 
+## Bootstrap The First Administrator
+
+Only when the database contains no administrator, create a random 16-or-more
+character bootstrap password in `bootstrap-admin-password` using the same
+`1001:1001` ownership and `0400` mode as the other application secrets. Set the
+administrator email and display name in the protected environment file, then
+run:
+
+```sh
+docker compose --env-file /protected/vasi-origin.env --profile tools run --rm bootstrap-admin
+```
+
+The command applies pending migrations, refuses to run if any administrator or
+the requested email already exists, hashes the password with the application's
+bcrypt cost, and creates one verified native VASI administrator without a
+personal organisation. Sign in through the staff edge, change the bootstrap
+password immediately, enable native VASI 2FA, create the real organisation, and
+remove the bootstrap password file and values. Do not use the seed command or
+temporarily enable public signup in production.
+
 ## Start And Verify
 
 ```sh

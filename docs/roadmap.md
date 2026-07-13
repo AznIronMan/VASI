@@ -2,11 +2,13 @@
 
 ## Current Position
 
-Repository governance, the private-edge/internal-origin architecture, private
-PostgreSQL, internal TLS, DNS/TLS ingress, backup discovery, and reserved
-container endpoints are established. The endpoints still serve maintenance
+Repository governance, the pinned/verified application, VASI identity,
+production configuration, private PostgreSQL, internal TLS, DNS/TLS ingress,
+origin Compose, staff OIDC, and deny-by-default recipient gateway contracts are
+established and their images are staged. The endpoints still serve maintenance
 placeholders: no Documenso/VASI application or production signing workflow is
-deployed.
+live. Provider credentials, signing identity, mail, recovery, acceptance, and
+cutover gates remain.
 
 ## Phase 1 - Upstream Baseline
 
@@ -74,8 +76,9 @@ deployed.
   application work.
 - After the configuration contract, branding and public-route design can proceed
   in parallel.
-- After the private origin is healthy, SMTP, PDF signing identity, staff auth,
-  and complete backup/restore work can proceed in parallel.
+- After the private-origin contract is staged, SMTP, PDF signing identity,
+  staff auth, recipient edge, and complete backup/restore work can proceed in
+  parallel without activating public application traffic.
 - Recipient-edge implementation follows the route contract, private origin, and
   staff-auth boundary.
 - Security hardening and operations follow the integrated system.
