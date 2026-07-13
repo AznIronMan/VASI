@@ -2,16 +2,20 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.1.0`
+Version: `0.1.1`
 
 A CNB project maintained by Street Kings Productions.
 
 ## Current milestone
 
-VASI now contains the authentication foundation for `https://vsign.cnb.llc`.
-It is ready for Microsoft, Google, Apple, Yahoo, and username/password sign-in.
-Provider credentials, production infrastructure, DNS, and TLS must still be
-configured before the portal is live.
+The authentication portal is deployed and responding at
+`https://vsign.cnb.llc`. It is ready for Microsoft, Google, Apple, Yahoo, and
+username/password sign-in. The production container workflow includes a
+one-shot database migrator, restart policy, liveness monitoring, a read-only
+filesystem, and a configurable loopback or private-network bind for a trusted
+HTTPS gateway. Social sign-in and transactional email remain disabled until
+their credentials are configured; account verification and password recovery
+therefore cannot be completed yet.
 
 Authentication is not yet authorization. The next application milestone should
 add CNB roles, external signer invitations, access policy, and the signing
@@ -82,10 +86,13 @@ Apple key handling, email behavior, and the production checklist.
 ## Container image
 
 ```bash
-docker build -t vasi:0.1.0 .
-docker run --rm -p 3000:3000 --env-file .env.production vasi:0.1.0
+export VASI_ENV_FILE=/absolute/path/to/vasi.env
+docker compose -f compose.production.yaml run --rm migrate
+docker compose -f compose.production.yaml up -d --build app
 ```
 
-The image runs as a non-root user and does not contain local environment files,
-task records, or operator-private material. Database migration is a separate
-release step and is not run automatically when the container starts.
+The app image runs as a non-root user and does not contain local environment
+files, task records, or operator-private material. The production Compose file
+binds to `127.0.0.1:3000` by default; set `VASI_BIND_ADDRESS` or `VASI_PORT` only
+when the trusted ingress topology requires it. Database migration remains an
+explicit, repeatable release step and never runs automatically on app startup.

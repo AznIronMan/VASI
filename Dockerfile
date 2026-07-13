@@ -10,6 +10,12 @@ COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
+FROM dependencies AS migrator
+COPY database ./database
+COPY scripts ./scripts
+USER node
+CMD ["node", "scripts/migrate.mjs"]
+
 FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production

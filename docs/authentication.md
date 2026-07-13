@@ -79,8 +79,12 @@ exercised against the real sender domain.
 
 1. Set a unique `BETTER_AUTH_SECRET` of at least 32 random characters.
 2. Use a dedicated PostgreSQL role and require TLS for remote database traffic.
+   Set `DATABASE_SSL=disable` only when PostgreSQL is reached over a trusted
+   private or loopback path and the server does not offer TLS.
 3. Apply the tracked migration with `npm run auth:migrate` before application
-   rollout; the migration runner verifies its checksum and is safe to repeat.
+   rollout, or run the production migrator with
+   `docker compose -f compose.production.yaml run --rm migrate`; the migration
+   runner verifies its checksum and is safe to repeat.
 4. Keep the origin reachable only through the trusted HTTPS reverse proxy.
 5. Confirm every provider callback and remove unused local callbacks from
    production provider registrations.

@@ -13,11 +13,31 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is required to run migrations.");
 }
 
+if (
+  process.env.DATABASE_SSL !== undefined &&
+  !["disable", "require"].includes(process.env.DATABASE_SSL)
+) {
+  throw new Error("DATABASE_SSL must be either require or disable.");
+}
+
+const databaseURL = new URL(process.env.DATABASE_URL);
+if (process.env.DATABASE_SSL) {
+  databaseURL.searchParams.set(
+    "sslmode",
+    process.env.DATABASE_SSL === "require" ? "verify-full" : "disable",
+  );
+}
+
 const sql = await readFile(migrationPath, "utf8");
 const checksum = createHash("sha256").update(sql).digest("hex");
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_SSL === "require" ? { rejectUnauthorized: true } : undefined,
+  connectionString: databaseURL.toString(),
+  ssl:
+    process.env.DATABASE_SSL === "require"
+      ? { rejectUnauthorized: true }
+      : process.env.DATABASE_SSL === "disable"
+        ? false
+        : undefined,
 });
 const client = await pool.connect();
 

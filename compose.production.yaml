@@ -1,0 +1,49 @@
+name: vasi
+
+services:
+  migrate:
+    build:
+      context: .
+      target: migrator
+    env_file:
+      - ${VASI_ENV_FILE:?Set VASI_ENV_FILE to the absolute runtime environment path}
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    profiles:
+      - release
+
+  app:
+    build:
+      context: .
+      target: runner
+    image: ${VASI_IMAGE:-vasi:0.1.1}
+    env_file:
+      - ${VASI_ENV_FILE:?Set VASI_ENV_FILE to the absolute runtime environment path}
+    restart: unless-stopped
+    init: true
+    ports:
+      - ${VASI_BIND_ADDRESS:-127.0.0.1}:${VASI_PORT:-3000}:3000
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+      - /app/.next/cache:size=64m,mode=0750,uid=1001,gid=1001
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
