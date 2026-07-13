@@ -112,7 +112,7 @@ The approved evidence package must retain or reproducibly export:
   final record.
 
 Raw passwords, access codes, recipient tokens, OIDC tokens, session cookies,
-private keys, and SMTP credentials are never evidence-package content.
+private keys, and transactional-mail credentials are never evidence-package content.
 
 ## Retention, Hold, Deletion, And Export
 

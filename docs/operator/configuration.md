@@ -11,25 +11,25 @@ non-HTTPS origin stop the process before it begins serving requests.
 
 ## Supported Profile
 
-| Area | VASI production decision |
-| --- | --- |
-| Public URL | HTTPS edge gateway; all generated links use this origin |
-| Internal URL | Separate HTTPS private origin used for self-calls |
-| Staff authentication | External CNB edge policy; application signup disabled |
-| Recipient authentication | Upstream token-bound invitations and configured document policy |
-| Database | PostgreSQL with separate pooled/runtime and direct/migration URLs |
-| Document storage | PostgreSQL `database` transport |
-| Jobs | Upstream `local` provider backed by PostgreSQL |
-| Mail | Authenticated `smtp-auth` over implicit TLS |
-| PDF signing | File-mounted local PKCS#12 certificate and separate passphrase secret |
-| Timestamping | Optional until the signing-identity gate selects and tests a TSA |
-| Uploads | PDF only, 10 MB application display limit; edge limit must agree |
-| Billing and enterprise | Disabled; no Documenso enterprise license key |
-| Analytics and telemetry | PostHog unset and Documenso telemetry disabled |
-| Signup and application SSO | All application signup methods disabled; OAuth/OIDC unset |
-| AI, DOCX conversion, Browserless | Disabled for the initial profile |
-| Webhook private-network bypass | Disabled; no private target allowlist |
-| Rate-limit bypass and debug switches | Disabled |
+| Area                                 | VASI production decision                                              |
+| ------------------------------------ | --------------------------------------------------------------------- |
+| Public URL                           | HTTPS edge gateway; all generated links use this origin               |
+| Internal URL                         | Separate HTTPS private origin used for self-calls                     |
+| Staff authentication                 | External CNB edge policy; application signup disabled                 |
+| Recipient authentication             | Upstream token-bound invitations and configured document policy       |
+| Database                             | PostgreSQL with separate pooled/runtime and direct/migration URLs     |
+| Document storage                     | PostgreSQL `database` transport                                       |
+| Jobs                                 | Upstream `local` provider backed by PostgreSQL                        |
+| Mail                                 | Microsoft Graph with app-only OAuth and Exchange mailbox-scoped RBAC  |
+| PDF signing                          | File-mounted local PKCS#12 certificate and separate passphrase secret |
+| Timestamping                         | Optional until the signing-identity gate selects and tests a TSA      |
+| Uploads                              | PDF only, 10 MB application display limit; edge limit must agree      |
+| Billing and enterprise               | Disabled; no Documenso enterprise license key                         |
+| Analytics and telemetry              | PostHog unset and Documenso telemetry disabled                        |
+| Signup and application SSO           | All application signup methods disabled; OAuth/OIDC unset             |
+| AI, DOCX conversion, Browserless     | Disabled for the initial profile                                      |
+| Webhook private-network bypass       | Disabled; no private target allowlist                                 |
+| Rate-limit bypass and debug switches | Disabled                                                              |
 
 Database storage keeps source PDFs, completed PDFs, and application records in
 one PostgreSQL recovery boundary. Capacity planning, backups, restores, and
@@ -42,38 +42,35 @@ not a one-line production toggle.
 These are the supported operator-set values. The example names use reserved
 domains and must be replaced in the protected deployment configuration.
 
-| Variable | Required value or rule |
-| --- | --- |
-| `NODE_ENV` | `production` |
-| `VASI_CONFIG_PROFILE` | `production` |
-| `PORT` | Container listener, normally `3000` |
-| `NEXT_PUBLIC_WEBAPP_URL` | Public HTTPS edge origin, with no path |
-| `NEXT_PRIVATE_INTERNAL_WEBAPP_URL` | Different private HTTPS origin, with no path |
-| `NEXT_PUBLIC_SUPPORT_EMAIL` | Approved public support mailbox |
-| `NEXT_PUBLIC_SIGNING_CONTACT_INFO` | Approved contact text or URL embedded in signatures |
-| `NEXT_PUBLIC_UPLOAD_TRANSPORT` | `database` |
-| `NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT` | Integer from 1 through 25; VASI default `10` |
-| `NEXT_PRIVATE_JOBS_PROVIDER` | `local` |
-| `NEXT_PRIVATE_SMTP_TRANSPORT` | `smtp-auth` |
-| `NEXT_PRIVATE_SMTP_HOST` | `smtp.azurecomm.net` |
-| `NEXT_PRIVATE_SMTP_PORT` | `587` |
-| `NEXT_PRIVATE_SMTP_SECURE` | `false` for STARTTLS |
-| `NEXT_PRIVATE_SMTP_REQUIRE_TLS` | `true` |
-| `NEXT_PRIVATE_SMTP_UNSAFE_IGNORE_TLS` | `false` or unset |
-| `NEXT_PRIVATE_SMTP_FROM_NAME` | Approved VASI/CNB sender name |
-| `NEXT_PRIVATE_SMTP_FROM_ADDRESS` | Approved aligned sender address |
-| `NEXT_PRIVATE_SIGNING_TRANSPORT` | `local` |
-| `NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH` | Absolute `/run/secrets/` PKCS#12 path |
-| `NEXT_PRIVATE_SIGNING_TIMESTAMP_AUTHORITY` | Empty until a tested TSA is approved; otherwise approved URLs |
-| `NEXT_PRIVATE_USE_LEGACY_SIGNING_SUBFILTER` | `false` or unset |
-| `NEXT_PUBLIC_DISABLE_SIGNUP` | `true` |
-| `NEXT_PUBLIC_DISABLE_EMAIL_PASSWORD_SIGNUP` | `true` |
-| `NEXT_PUBLIC_DISABLE_GOOGLE_SIGNUP` | `true` |
-| `NEXT_PUBLIC_DISABLE_MICROSOFT_SIGNUP` | `true` |
-| `NEXT_PUBLIC_DISABLE_OIDC_SIGNUP` | `true` |
-| `NEXT_PUBLIC_FEATURE_BILLING_ENABLED` | `false` or unset |
-| `DOCUMENSO_DISABLE_TELEMETRY` | `true` |
-| `DANGEROUS_BYPASS_RATE_LIMITS` | `false` or unset |
+| Variable                                    | Required value or rule                                        |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| `NODE_ENV`                                  | `production`                                                  |
+| `VASI_CONFIG_PROFILE`                       | `production`                                                  |
+| `PORT`                                      | Container listener, normally `3000`                           |
+| `NEXT_PUBLIC_WEBAPP_URL`                    | Public HTTPS edge origin, with no path                        |
+| `NEXT_PRIVATE_INTERNAL_WEBAPP_URL`          | Different private HTTPS origin, with no path                  |
+| `NEXT_PUBLIC_SUPPORT_EMAIL`                 | Approved public support mailbox                               |
+| `NEXT_PUBLIC_SIGNING_CONTACT_INFO`          | Approved contact text or URL embedded in signatures           |
+| `NEXT_PUBLIC_UPLOAD_TRANSPORT`              | `database`                                                    |
+| `NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT`    | Integer from 1 through 25; VASI default `10`                  |
+| `NEXT_PRIVATE_JOBS_PROVIDER`                | `local`                                                       |
+| `NEXT_PRIVATE_SMTP_TRANSPORT`               | `microsoft-graph`                                             |
+| `NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID`    | Microsoft Entra tenant UUID                                   |
+| `NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID`    | Dedicated VASI mail application UUID                          |
+| `NEXT_PRIVATE_SMTP_FROM_NAME`               | Approved VASI/CNB sender name                                 |
+| `NEXT_PRIVATE_SMTP_FROM_ADDRESS`            | Exchange RBAC-scoped sender mailbox                           |
+| `NEXT_PRIVATE_SIGNING_TRANSPORT`            | `local`                                                       |
+| `NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH`      | Absolute `/run/secrets/` PKCS#12 path                         |
+| `NEXT_PRIVATE_SIGNING_TIMESTAMP_AUTHORITY`  | Empty until a tested TSA is approved; otherwise approved URLs |
+| `NEXT_PRIVATE_USE_LEGACY_SIGNING_SUBFILTER` | `false` or unset                                              |
+| `NEXT_PUBLIC_DISABLE_SIGNUP`                | `true`                                                        |
+| `NEXT_PUBLIC_DISABLE_EMAIL_PASSWORD_SIGNUP` | `true`                                                        |
+| `NEXT_PUBLIC_DISABLE_GOOGLE_SIGNUP`         | `true`                                                        |
+| `NEXT_PUBLIC_DISABLE_MICROSOFT_SIGNUP`      | `true`                                                        |
+| `NEXT_PUBLIC_DISABLE_OIDC_SIGNUP`           | `true`                                                        |
+| `NEXT_PUBLIC_FEATURE_BILLING_ENABLED`       | `false` or unset                                              |
+| `DOCUMENSO_DISABLE_TELEMETRY`               | `true`                                                        |
+| `DANGEROUS_BYPASS_RATE_LIMITS`              | `false` or unset                                              |
 
 The following variables are deliberately empty in the supported profile:
 
@@ -101,23 +98,22 @@ The VASI server supports a `_FILE` convention before it imports application
 code. Each file contains exactly one UTF-8 value with an optional final newline.
 Setting both the inline variable and its `_FILE` counterpart is an error.
 
-| File-path variable | Populates | Classification |
-| --- | --- | --- |
-| `NEXTAUTH_SECRET_FILE` | `NEXTAUTH_SECRET` | Session signing/encryption secret |
-| `NEXT_PRIVATE_ENCRYPTION_KEY_FILE` | `NEXT_PRIVATE_ENCRYPTION_KEY` | Primary application encryption key |
-| `NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY_FILE` | `NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY` | Secondary application encryption key |
-| `NEXT_PRIVATE_DATABASE_URL_FILE` | `NEXT_PRIVATE_DATABASE_URL` | Runtime database credential/URL |
-| `NEXT_PRIVATE_DIRECT_DATABASE_URL_FILE` | `NEXT_PRIVATE_DIRECT_DATABASE_URL` | Migration database credential/URL |
-| `NEXT_PRIVATE_SMTP_USERNAME_FILE` | `NEXT_PRIVATE_SMTP_USERNAME` | SMTP credential |
-| `NEXT_PRIVATE_SMTP_PASSWORD_FILE` | `NEXT_PRIVATE_SMTP_PASSWORD` | SMTP credential |
-| `NEXT_PRIVATE_SIGNING_PASSPHRASE_FILE` | `NEXT_PRIVATE_SIGNING_PASSPHRASE` | PKCS#12 passphrase |
+| File-path variable                                | Populates                                    | Classification                       |
+| ------------------------------------------------- | -------------------------------------------- | ------------------------------------ |
+| `NEXTAUTH_SECRET_FILE`                            | `NEXTAUTH_SECRET`                            | Session signing/encryption secret    |
+| `NEXT_PRIVATE_ENCRYPTION_KEY_FILE`                | `NEXT_PRIVATE_ENCRYPTION_KEY`                | Primary application encryption key   |
+| `NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY_FILE`      | `NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY`      | Secondary application encryption key |
+| `NEXT_PRIVATE_DATABASE_URL_FILE`                  | `NEXT_PRIVATE_DATABASE_URL`                  | Runtime database credential/URL      |
+| `NEXT_PRIVATE_DIRECT_DATABASE_URL_FILE`           | `NEXT_PRIVATE_DIRECT_DATABASE_URL`           | Migration database credential/URL    |
+| `NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET_FILE` | `NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET` | Entra application credential         |
+| `NEXT_PRIVATE_SIGNING_PASSPHRASE_FILE`            | `NEXT_PRIVATE_SIGNING_PASSPHRASE`            | PKCS#12 passphrase                   |
 
 The certificate itself is mounted at
 `NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH`. Do not use
 `NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS` in production because it turns the
 private key bundle into an environment value.
 
-The selected mail provider and its TLS semantics are documented in
+The selected mail provider and its authorization boundary are documented in
 [Transactional Email Delivery](email-delivery.md). The signing trust and
 timestamp decision gate is documented in [PDF Signing Identity And
 Timestamping](pdf-signing.md).
@@ -136,7 +132,7 @@ Generate the session and two application encryption keys independently:
 openssl rand -base64 48
 ```
 
-Use a password manager or secret store to create the database, SMTP, and
+Use a password manager or secret store to create the database, Graph mail, and
 PKCS#12 credentials. Do not pipe production values through shared shell history
 or write them to the repository checkout.
 
@@ -151,7 +147,7 @@ Key behavior is not interchangeable:
   provide a general online re-encryption command. Never replace either key in
   place without an inventory, an offline tested re-encryption migration, a
   backup, and a rollback copy of the old key.
-- Database and SMTP credential rotation must overlap provider-side validity
+- Database and Graph application credential rotation must overlap provider-side validity
   where possible: create the new credential, stage the new secret, restart and
   verify, then revoke the old credential.
 - Rotate the PKCS#12 bundle and passphrase as one change. Validate a synthetic
@@ -205,7 +201,8 @@ detected:
   use the same origin;
 - database URLs are not complete PostgreSQL URLs or point at loopback;
 - storage, jobs, mail, or signing transports differ from the supported profile;
-- SMTP TLS is disabled, the upstream sender identity remains, or signup is on;
+- Graph app-only configuration is missing, legacy SMTP values are set, the
+  upstream sender identity remains, or signup is on;
 - the signing bundle is inline instead of mounted under `/run/secrets/`;
 - telemetry, billing, enterprise licensing, analytics, AI, SSO, conversion,
   private webhook bypass, or a dangerous rate-limit/debug switch is enabled.

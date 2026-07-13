@@ -3,20 +3,21 @@ title: Email Configuration
 description: Configure email delivery for notifications and document signing invitations.
 ---
 
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Step, Steps } from 'fumadocs-ui/components/steps';
+import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
+import { Callout } from "fumadocs-ui/components/callout";
+import { Step, Steps } from "fumadocs-ui/components/steps";
 
 ## Supported Email Transports
 
-Documenso supports four email transport methods:
+Documenso supports five email transport methods:
 
-| Transport      | Use Case                              | Configuration Complexity |
-| -------------- | ------------------------------------- | ------------------------ |
-| `smtp-auth`    | Standard SMTP with username/password  | Low                      |
-| `smtp-api`     | SMTP with API key authentication      | Low                      |
-| `resend`       | Resend.com email API                  | Low                      |
-| `mailchannels` | MailChannels API (Cloudflare Workers) | Medium                   |
+| Transport         | Use Case                              | Configuration Complexity |
+| ----------------- | ------------------------------------- | ------------------------ |
+| `smtp-auth`       | Standard SMTP with username/password  | Low                      |
+| `smtp-api`        | SMTP with API key authentication      | Low                      |
+| `microsoft-graph` | Microsoft 365 with app-only OAuth     | High                     |
+| `resend`          | Resend.com email API                  | Low                      |
+| `mailchannels`    | MailChannels API (Cloudflare Workers) | Medium                   |
 
 Select a transport by setting the `NEXT_PRIVATE_SMTP_TRANSPORT` environment variable. The default is `smtp-auth`.
 
@@ -35,9 +36,59 @@ NEXT_PRIVATE_SMTP_FROM_NAME="Documenso"
 ```
 
 <Callout type="warn">
-  The sender address must be authorized to send from your email provider. Using an unauthorized
-  address will cause delivery failures.
+  The sender address must be authorized to send from your email provider. Using
+  an unauthorized address will cause delivery failures.
 </Callout>
+
+## Microsoft Graph Configuration
+
+Use `microsoft-graph` to send through a Microsoft 365 mailbox with OAuth 2.0
+client credentials. This transport does not require a mailbox password or a
+delegated user session.
+
+| Variable                                          | Description                                  | Required   |
+| ------------------------------------------------- | -------------------------------------------- | ---------- |
+| `NEXT_PRIVATE_SMTP_TRANSPORT`                     | Set to `microsoft-graph`                     | Yes        |
+| `NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID`          | Microsoft Entra tenant ID                    | Yes        |
+| `NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID`          | Dedicated application client ID              | Yes        |
+| `NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET`      | Application client secret                    | One of two |
+| `NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET_FILE` | File containing the client secret            | One of two |
+| `NEXT_PRIVATE_SMTP_FROM_ADDRESS`                  | Microsoft 365 mailbox authorized for the app | Yes        |
+
+Set either the inline client secret or its `_FILE` variable, not both. Prefer
+the file variable for a container deployment.
+
+```bash
+NEXT_PRIVATE_SMTP_TRANSPORT="microsoft-graph"
+NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID="00000000-0000-4000-8000-000000000001"
+NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID="00000000-0000-4000-8000-000000000002"
+NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET_FILE="/run/secrets/graph-mail-client-secret"
+NEXT_PRIVATE_SMTP_FROM_ADDRESS="signing@example.com"
+NEXT_PRIVATE_SMTP_FROM_NAME="Documenso"
+```
+
+Create a single-tenant Entra application with no redirect URI. For a
+least-privilege deployment, register its enterprise service principal in
+Exchange Online and assign `Application Mail.Send` through an Exchange
+Application RBAC management scope containing only the sender mailbox.
+
+<Callout type="warn">
+  Entra application permissions and Exchange Application RBAC permissions are
+  additive. Do not also grant the unscoped Entra `Mail.Send` application
+  permission when you rely on Exchange RBAC for mailbox restriction.
+</Callout>
+
+The transport submits a base64 MIME message through the Microsoft Graph
+`sendMail` action. It rejects messages whose From address differs from the
+configured mailbox. Microsoft Graph write requests are limited to 4 MB, so the
+transport rejects raw MIME messages larger than 3,000,000 bytes. Completion
+emails that attach large signed PDFs need a separately designed large-attachment
+workflow.
+
+See [Microsoft Graph app-only authentication](https://learn.microsoft.com/en-us/graph/auth-v2-service),
+[Microsoft Graph sendMail](https://learn.microsoft.com/en-us/graph/api/user-sendmail?view=graph-rest-1.0),
+and [Exchange Online Application RBAC](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac)
+for the provider setup.
 
 ## SMTP Configuration
 
@@ -90,8 +141,8 @@ NEXT_PRIVATE_SMTP_FROM_NAME="Documenso"
 ```
 
 <Callout type="info">
-  Gmail requires an App Password when 2FA is enabled. Generate one at [Google Account
-  Security](https://myaccount.google.com/apppasswords).
+  Gmail requires an App Password when 2FA is enabled. Generate one at [Google
+  Account Security](https://myaccount.google.com/apppasswords).
 </Callout>
 
 **Microsoft 365 / Outlook:**
@@ -269,8 +320,8 @@ Email templates support branding customization through organisation settings. Wh
 Configure branding in the application under **Organisation Settings > Preferences > Branding**.
 
 <Callout type="info">
-  Template modifications require rebuilding the application. For simple customizations, use the
-  branding settings instead.
+  Template modifications require rebuilding the application. For simple
+  customizations, use the branding settings instead.
 </Callout>
 
 ## Testing Email Delivery

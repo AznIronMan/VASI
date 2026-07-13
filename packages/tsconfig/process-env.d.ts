@@ -10,6 +10,7 @@ declare namespace NodeJS {
     NEXT_PRIVATE_DIRECT_DATABASE_URL_FILE?: string;
     NEXT_PRIVATE_ENCRYPTION_KEY_FILE?: string;
     NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY_FILE?: string;
+    NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET_FILE?: string;
     NEXT_PRIVATE_SIGNING_PASSPHRASE_FILE?: string;
     NEXT_PRIVATE_SMTP_PASSWORD_FILE?: string;
     NEXT_PRIVATE_SMTP_USERNAME_FILE?: string;
@@ -72,7 +73,11 @@ declare namespace NodeJS {
     NEXT_PUBLIC_SIGNING_CONTACT_INFO?: string;
     NEXT_PRIVATE_USE_LEGACY_SIGNING_SUBFILTER?: string;
 
-    NEXT_PRIVATE_SMTP_TRANSPORT?: 'mailchannels' | 'resend' | 'smtp-auth' | 'smtp-api';
+    NEXT_PRIVATE_SMTP_TRANSPORT?: 'mailchannels' | 'microsoft-graph' | 'resend' | 'smtp-auth' | 'smtp-api';
+
+    NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID?: string;
+    NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID?: string;
+    NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET?: string;
 
     NEXT_PRIVATE_RESEND_API_KEY?: string;
 

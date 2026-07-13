@@ -15,7 +15,7 @@ and WebSocket stacks. The supported lockfile now uses:
 | --- | --- | --- |
 | React Router framework packages | `7.15.1` | Origin request rendering and actions |
 | Hono | `4.12.27` | Origin HTTP server and auth mounts |
-| Nodemailer | `9.0.3` | Production ACS SMTP delivery |
+| Nodemailer | `9.0.3` | Production MIME generation for Microsoft Graph delivery |
 | `@grpc/grpc-js` | `1.14.4` | Transitive cloud client code |
 | `protobufjs` | `7.6.5` | Transitive cloud message processing |
 | `form-data` | `4.0.6` | Transitive outbound HTTP clients |
@@ -91,7 +91,7 @@ The integrated audit must still verify:
   limits, proxy-source enforcement, client-IP normalization, and generic logs;
 - upload PDF validation, encoded document/attachment limits, malicious parser
   inputs, signature images, and document download authorization;
-- SMTP sender alignment, template/link safety, header injection, retries, and
+- Graph mailbox scope, sender alignment, template/link safety, header injection, retries, and
   redacted provider failures;
 - PostgreSQL TLS/role boundaries, application encryption, jobs, backup/restore,
   secret recovery, deletion, retention, and legal hold;
@@ -107,6 +107,6 @@ The integrated audit must still verify:
 Security evidence may contain release IDs, route names, status codes, aggregate
 counts, public certificate fingerprints, and redacted findings. It must not
 contain customer documents, recipient addresses, invitation/access tokens,
-cookies, authorization headers, passwords, database URLs, OIDC/SMTP secrets,
+cookies, authorization headers, passwords, database URLs, OIDC/Graph secrets,
 private keys, or raw production dumps. Any exception requires an incident owner
 and protected evidence store outside Git.

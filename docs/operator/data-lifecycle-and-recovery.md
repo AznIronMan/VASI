@@ -14,7 +14,7 @@ document-storage backup, but it is not a complete VASI recovery by itself.
 | Envelopes, recipients, fields, signatures, and audit facts | PostgreSQL | Same transactionally consistent database dump |
 | Local job queue and results | PostgreSQL | Same dump; reconcile pending/processing work before enabling outbound effects |
 | Session and application encryption keys | Protected runtime secret files | Separately encrypted, access-controlled recovery copy with tested custody |
-| Database and SMTP credentials | Protected runtime secret files/provider | Provider-side reset plus protected recovery procedure; do not rely on database dumps |
+| Database and Graph mail credentials | Protected runtime secret files/provider | Provider-side reset plus protected recovery procedure; do not rely on database dumps |
 | PDF-signing identity and passphrase | Separate protected secret files | Separately encrypted recovery copy and retained public chain for historical verification |
 | Edge OIDC and cookie secrets | Protected edge secret files | Recreate/rotate through the identity provider and protected recovery store |
 | Public/internal TLS keys | Ingress/origin protected stores | Reissue or restore under the applicable CA procedure |

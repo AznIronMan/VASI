@@ -80,7 +80,7 @@ while preserving a practical path for upstream security merges.
   approved private management sources.
 - Application-private: application-to-database, storage, mail, job, and other
   supporting-service traffic.
-- Secret: encryption keys, database credentials, SMTP credentials, signing
+- Secret: encryption keys, database credentials, mail-provider credentials, signing
   certificate/private key/password, timestamp credentials, and session secrets.
 - Sensitive data: source documents, completed PDFs, signatures, recipient
   identity, audit events, IP addresses, delivery metadata, and backups.

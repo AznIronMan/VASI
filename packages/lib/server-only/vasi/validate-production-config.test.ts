@@ -16,13 +16,10 @@ const validProductionEnvironment = (): Record<string, string> => ({
   NEXT_PUBLIC_UPLOAD_TRANSPORT: 'database',
   NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT: '10',
   NEXT_PRIVATE_JOBS_PROVIDER: 'local',
-  NEXT_PRIVATE_SMTP_TRANSPORT: 'smtp-auth',
-  NEXT_PRIVATE_SMTP_HOST: 'smtp.azurecomm.net',
-  NEXT_PRIVATE_SMTP_PORT: '587',
-  NEXT_PRIVATE_SMTP_USERNAME: 'vasi-smtp-user',
-  NEXT_PRIVATE_SMTP_PASSWORD: 'strong-smtp-value-01',
-  NEXT_PRIVATE_SMTP_SECURE: 'false',
-  NEXT_PRIVATE_SMTP_REQUIRE_TLS: 'true',
+  NEXT_PRIVATE_SMTP_TRANSPORT: 'microsoft-graph',
+  NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID: '86f90d3f-4d1d-4f5d-9bf4-487f787214db',
+  NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID: '392bc1f1-0b91-46cc-9dc4-3eaef5e6e901',
+  NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET: 'strong-graph-credential-value-01',
   NEXT_PRIVATE_SMTP_FROM_NAME: 'VASI',
   NEXT_PRIVATE_SMTP_FROM_ADDRESS: 'signing@company.tld',
   NEXT_PUBLIC_SUPPORT_EMAIL: 'support@company.tld',
@@ -84,9 +81,12 @@ describe('VASI production configuration validation', () => {
     }
   });
 
-  it('requires the approved STARTTLS SMTP profile', () => {
+  it('requires the approved Microsoft Graph app-only profile', () => {
     const environment = validProductionEnvironment();
 
+    environment.NEXT_PRIVATE_SMTP_TRANSPORT = 'smtp-auth';
+    environment.NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID = 'not-a-uuid';
+    environment.NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET = 'short';
     environment.NEXT_PRIVATE_SMTP_HOST = 'smtp.company.tld';
     environment.NEXT_PRIVATE_SMTP_PORT = '465';
     environment.NEXT_PRIVATE_SMTP_SECURE = 'true';
@@ -94,11 +94,14 @@ describe('VASI production configuration validation', () => {
 
     const errors = getVasiProductionConfigErrors(environment);
 
-    expect(errors).toContain('NEXT_PRIVATE_SMTP_HOST must use the approved Azure Communication Services endpoint.');
     expect(errors).toContain(
-      'NEXT_PRIVATE_SMTP_PORT must be 587 for the approved Azure Communication Services profile.',
+      'NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET must be at least 20 characters and must not be a placeholder.',
     );
-    expect(errors).toContain('NEXT_PRIVATE_SMTP_SECURE must be false for STARTTLS on port 587.');
-    expect(errors).toContain('NEXT_PRIVATE_SMTP_REQUIRE_TLS must be true.');
+    expect(errors).toContain('NEXT_PRIVATE_SMTP_TRANSPORT must be microsoft-graph.');
+    expect(errors).toContain('NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID must be a valid UUID.');
+    expect(errors).toContain('NEXT_PRIVATE_SMTP_HOST must be unset when using Microsoft Graph.');
+    expect(errors).toContain('NEXT_PRIVATE_SMTP_PORT must be unset when using Microsoft Graph.');
+    expect(errors).toContain('NEXT_PRIVATE_SMTP_SECURE must be unset when using Microsoft Graph.');
+    expect(errors).toContain('NEXT_PRIVATE_SMTP_REQUIRE_TLS must be unset when using Microsoft Graph.');
   });
 });

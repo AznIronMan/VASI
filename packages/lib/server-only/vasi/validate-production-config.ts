@@ -103,6 +103,7 @@ const DISABLED_INTEGRATION_KEYS = [
 
 const PLACEHOLDER_PATTERN = /(cafebabe|deadbeef|change.?me|example|password|replace|secret|todo)/i;
 const RESERVED_HOST_PATTERN = /(^|\.)example\.(com|net|org)$|\.(example|invalid|test)$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const isSet = (value: string | undefined): value is string => typeof value === 'string' && value.trim().length > 0;
 
@@ -238,15 +239,14 @@ export const getVasiProductionConfigErrors = (environment: Environment): string[
     errors.push('NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT must be an integer from 1 through 25.');
   }
 
-  if (environment.NEXT_PRIVATE_SMTP_TRANSPORT !== 'smtp-auth') {
-    errors.push('NEXT_PRIVATE_SMTP_TRANSPORT must be smtp-auth.');
+  if (environment.NEXT_PRIVATE_SMTP_TRANSPORT !== 'microsoft-graph') {
+    errors.push('NEXT_PRIVATE_SMTP_TRANSPORT must be microsoft-graph.');
   }
 
   for (const key of [
-    'NEXT_PRIVATE_SMTP_HOST',
-    'NEXT_PRIVATE_SMTP_PORT',
-    'NEXT_PRIVATE_SMTP_USERNAME',
-    'NEXT_PRIVATE_SMTP_PASSWORD',
+    'NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID',
+    'NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID',
+    'NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET',
     'NEXT_PRIVATE_SMTP_FROM_NAME',
     'NEXT_PRIVATE_SMTP_FROM_ADDRESS',
     'NEXT_PUBLIC_SUPPORT_EMAIL',
@@ -254,27 +254,20 @@ export const getVasiProductionConfigErrors = (environment: Environment): string[
     requireValue(environment, key, errors);
   }
 
-  const smtpPort = Number(environment.NEXT_PRIVATE_SMTP_PORT);
+  for (const key of ['NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID', 'NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID']) {
+    const value = environment[key] ?? '';
 
-  if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
-    errors.push('NEXT_PRIVATE_SMTP_PORT must be an integer from 1 through 65535.');
+    if (!UUID_PATTERN.test(value)) {
+      errors.push(`${key} must be a valid UUID.`);
+    }
   }
 
-  const smtpHost = environment.NEXT_PRIVATE_SMTP_HOST ?? '';
+  const graphClientSecret = environment.NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET ?? '';
 
-  if (['localhost', '127.0.0.1', '::1'].includes(smtpHost) || RESERVED_HOST_PATTERN.test(smtpHost)) {
-    errors.push('NEXT_PRIVATE_SMTP_HOST must not use a loopback or reserved example host in production.');
-  }
-
-  const smtpUsername = environment.NEXT_PRIVATE_SMTP_USERNAME ?? '';
-  const smtpPassword = environment.NEXT_PRIVATE_SMTP_PASSWORD ?? '';
-
-  if (PLACEHOLDER_PATTERN.test(smtpUsername)) {
-    errors.push('NEXT_PRIVATE_SMTP_USERNAME must not be a placeholder.');
-  }
-
-  if (smtpPassword.length < 12 || PLACEHOLDER_PATTERN.test(smtpPassword)) {
-    errors.push('NEXT_PRIVATE_SMTP_PASSWORD must be at least 12 characters and must not be a placeholder.');
+  if (graphClientSecret.length < 20 || PLACEHOLDER_PATTERN.test(graphClientSecret)) {
+    errors.push(
+      'NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET must be at least 20 characters and must not be a placeholder.',
+    );
   }
 
   for (const key of ['NEXT_PRIVATE_SMTP_FROM_ADDRESS', 'NEXT_PUBLIC_SUPPORT_EMAIL']) {
@@ -285,24 +278,18 @@ export const getVasiProductionConfigErrors = (environment: Environment): string[
     }
   }
 
-  if (smtpHost !== 'smtp.azurecomm.net') {
-    errors.push('NEXT_PRIVATE_SMTP_HOST must use the approved Azure Communication Services endpoint.');
-  }
-
-  if (smtpPort !== 587) {
-    errors.push('NEXT_PRIVATE_SMTP_PORT must be 587 for the approved Azure Communication Services profile.');
-  }
-
-  if (environment.NEXT_PRIVATE_SMTP_SECURE !== 'false') {
-    errors.push('NEXT_PRIVATE_SMTP_SECURE must be false for STARTTLS on port 587.');
-  }
-
-  if (environment.NEXT_PRIVATE_SMTP_REQUIRE_TLS !== 'true') {
-    errors.push('NEXT_PRIVATE_SMTP_REQUIRE_TLS must be true.');
-  }
-
-  if (environment.NEXT_PRIVATE_SMTP_UNSAFE_IGNORE_TLS === 'true') {
-    errors.push('NEXT_PRIVATE_SMTP_UNSAFE_IGNORE_TLS must not be true.');
+  for (const key of [
+    'NEXT_PRIVATE_SMTP_HOST',
+    'NEXT_PRIVATE_SMTP_PORT',
+    'NEXT_PRIVATE_SMTP_USERNAME',
+    'NEXT_PRIVATE_SMTP_PASSWORD',
+    'NEXT_PRIVATE_SMTP_SECURE',
+    'NEXT_PRIVATE_SMTP_REQUIRE_TLS',
+    'NEXT_PRIVATE_SMTP_UNSAFE_IGNORE_TLS',
+  ]) {
+    if (isSet(environment[key])) {
+      errors.push(`${key} must be unset when using Microsoft Graph.`);
+    }
   }
 
   if (environment.NEXT_PRIVATE_SMTP_FROM_NAME === 'Documenso') {

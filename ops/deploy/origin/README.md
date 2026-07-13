@@ -20,10 +20,12 @@ require the intended TLS mode. Source/completed PDFs are stored in PostgreSQL
 for this profile, so database backup and capacity are also document-storage
 concerns.
 
-The supported mail endpoint is Azure Communication Services SMTP on port 587
-with mandatory STARTTLS. Its SMTP username and Entra client secret use the two
-SMTP secret files. The signing bundle and passphrase remain separate from those
-credentials and from both TLS identities.
+The supported mail path is Microsoft Graph app-only OAuth. The dedicated Entra
+application must have an Exchange Application RBAC assignment scoped only to
+the configured sender mailbox; do not add an unscoped Entra `Mail.Send`
+application permission. Mount its client secret as
+`graph-mail-client-secret`. The signing bundle and passphrase remain separate
+from that credential and both TLS identities.
 
 ## Validate And Migrate
 
@@ -33,13 +35,13 @@ From this directory, supply the protected environment file to every command:
 docker compose --env-file /protected/vasi-origin.env config --quiet
 docker compose --env-file /protected/vasi-origin.env --profile tools run --rm migrate
 docker compose --env-file /protected/vasi-origin.env --profile tools run --rm signing-check
-docker compose --env-file /protected/vasi-origin.env --profile tools run --rm smtp-probe
+docker compose --env-file /protected/vasi-origin.env --profile tools run --rm graph-mail-probe
 ```
 
 `signing-check` validates PKCS#12 integrity, key matching, and a minimum 30-day
-validity window. `smtp-probe` verifies provider authentication and mandatory
-STARTTLS without sending a message. Set `VASI_SMTP_PROBE_TO` only for an
-approved synthetic delivery test. Neither probe prints secret values.
+validity window. `graph-mail-probe` verifies app-only token acquisition without
+sending a message. Set `VASI_GRAPH_MAIL_PROBE_TO` only for an approved synthetic
+delivery test. Neither probe prints secret values.
 
 Migration-only mode reads the database `_FILE` secret in a subprocess. It does
 not copy the value into Compose output or the long-running application

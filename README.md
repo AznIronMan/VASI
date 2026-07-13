@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.9.0`
+Version: `0.10.0`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,9 +16,9 @@ operational standards.
 
 ## Current Status
 
-`0.9.0` adds public-safe health, TLS-expiry, maintenance, upgrade, rollback, and
-incident operations to the hardened signing-policy, mail, PDF identity,
-application-owned recovery, staff/recipient edge, and private-origin contracts.
+`0.10.0` adds mailbox-scoped Microsoft Graph app-only transactional mail to the
+hardened signing-policy, PDF identity, application-owned recovery,
+staff/recipient edge, and private-origin contracts.
 It includes:
 
 - Repository rules and semantic versioning policy.
@@ -44,11 +44,11 @@ It includes:
   audit events, a valid whole-document SHA-256 CAdES seal, and detected
   post-signing tampering.
 - A deliberate Community Edition production profile with database document
-  storage, local jobs, TLS SMTP, mounted PDF-signing material, closed signup,
+  storage, local jobs, Graph app-only mail, mounted PDF-signing material, closed signup,
   disabled billing/telemetry/optional integrations, and explicit feature
   boundaries.
 - Startup validation that rejects unsafe production defaults, plus `_FILE`
-  loading for application, database, SMTP, and signing secrets.
+  loading for application, database, Graph mail, and signing secrets.
 - VASI/CNB identity across staff, authentication, recipient signing, browser,
   PWA, support, email, and signed-PDF surfaces.
 - A documented CNB palette with accessible action colors, repository-owned
@@ -85,8 +85,9 @@ It includes:
 - Host-only `SameSite=Lax` VASI cookies, combined portal/application logout,
   and a one-time first-administrator bootstrap that refuses existing admins,
   inline database credentials, and duplicate users.
-- An Azure Communication Services SMTP profile using port 587 with mandatory
-  STARTTLS, protected credential mounts, and a redacted auth/delivery probe.
+- A Microsoft Graph app-only mail transport with Exchange Application RBAC
+  mailbox scope, protected credential mounts, sender enforcement, MIME support,
+  and a redacted token/delivery probe.
 - Fail-closed PKCS#12 integrity, key-match, and minimum-validity checks plus a
   separate production trust and RFC 3161 decision gate.
 - A complete data/recovery inventory, a safe aggregate restore verifier, and an
@@ -114,7 +115,7 @@ VASI's planned production shape uses a public CNB authentication/edge gateway
 as the only WAN ingress. That edge proxies explicitly approved staff and
 recipient-signing traffic to an internal-only VASI application origin. The
 origin owns persistent database/document storage, protected application and
-signing secrets, SMTP integration, backups, and operator-verified
+signing secrets, Graph mail integration, backups, and operator-verified
 upgrade/rollback procedures.
 
 ## Documentation
@@ -150,6 +151,16 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.10.0 - 2026-07-12
+
+- Added a Microsoft Graph Nodemailer transport using client-credentials OAuth,
+  cached short-lived tokens, base64 MIME submission, fixed sender enforcement,
+  bounded message size, and redacted failures.
+- Added production validation, file-backed secret loading, Compose wiring, and
+  synthetic token/delivery probes for the dedicated mail application.
+- Replaced the planned ACS SMTP profile with Exchange Application RBAC scoped
+  to one transactional mailbox, including explicit in-scope and denial tests.
 
 ### 0.9.0 - 2026-07-12
 

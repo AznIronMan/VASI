@@ -4,6 +4,7 @@ import type { Transporter } from 'nodemailer';
 import { createTransport } from 'nodemailer';
 
 import { MailChannelsTransport } from './transports/mailchannels';
+import { makeMicrosoftGraphTransport } from './transports/microsoft-graph';
 
 /**
  * Creates a Nodemailer transport object for sending emails.
@@ -15,6 +16,11 @@ import { MailChannelsTransport } from './transports/mailchannels';
  * @returns {Transporter} A configured Nodemailer transporter instance.
  *
  * Supported Transports:
+ * - **microsoft-graph**: Uses Microsoft Graph app-only OAuth and requires:
+ *   - `NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID`: The Microsoft Entra tenant ID
+ *   - `NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID`: The dedicated application's client ID
+ *   - `NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET`: The dedicated application's client credential
+ *   - `NEXT_PRIVATE_SMTP_FROM_ADDRESS`: The mailbox authorized for app-only sending
  * - **mailchannels**: Uses MailChannelsTransport, requiring:
  *   - `NEXT_PRIVATE_MAILCHANNELS_API_KEY`: API key for MailChannels
  *   - `NEXT_PRIVATE_MAILCHANNELS_ENDPOINT`: Endpoint for MailChannels (optional)
@@ -53,6 +59,17 @@ import { MailChannelsTransport } from './transports/mailchannels';
  */
 const getTransport = (): Transporter => {
   const transport = env('NEXT_PRIVATE_SMTP_TRANSPORT') ?? 'smtp-auth';
+
+  if (transport === 'microsoft-graph') {
+    return createTransport(
+      makeMicrosoftGraphTransport({
+        tenantId: env('NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID'),
+        clientId: env('NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID'),
+        clientSecret: env('NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET'),
+        senderAddress: env('NEXT_PRIVATE_SMTP_FROM_ADDRESS'),
+      }),
+    );
+  }
 
   if (transport === 'mailchannels') {
     return createTransport(

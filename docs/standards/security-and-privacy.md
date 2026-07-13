@@ -5,7 +5,7 @@
 - Production documents, completed PDFs, signature images, recipient lists, and
   audit exports.
 - Private keys, signing certificates, certificate passwords, TLS keys,
-  application/encryption secrets, database credentials, SMTP credentials,
+  application/encryption secrets, database credentials, mail-provider credentials,
   access codes, tokens, cookies, or production `.env` files.
 - Private host details, live database URLs, raw logs, dumps, and backups.
 

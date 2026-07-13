@@ -22,14 +22,10 @@ services:
       NEXT_PUBLIC_UPLOAD_TRANSPORT: database
       NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT: ${NEXT_PUBLIC_DOCUMENT_SIZE_UPLOAD_LIMIT:-10}
       NEXT_PRIVATE_JOBS_PROVIDER: local
-      NEXT_PRIVATE_SMTP_TRANSPORT: smtp-auth
-      NEXT_PRIVATE_SMTP_HOST: ${NEXT_PRIVATE_SMTP_HOST:?Set the SMTP host}
-      NEXT_PRIVATE_SMTP_PORT: ${NEXT_PRIVATE_SMTP_PORT:-587}
-      NEXT_PRIVATE_SMTP_USERNAME_FILE: /run/secrets/vasi-smtp-username
-      NEXT_PRIVATE_SMTP_PASSWORD_FILE: /run/secrets/vasi-smtp-password
-      NEXT_PRIVATE_SMTP_SECURE: "false"
-      NEXT_PRIVATE_SMTP_REQUIRE_TLS: "true"
-      NEXT_PRIVATE_SMTP_UNSAFE_IGNORE_TLS: "false"
+      NEXT_PRIVATE_SMTP_TRANSPORT: microsoft-graph
+      NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID: ${NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID:?Set the Entra tenant ID}
+      NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID: ${NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID:?Set the mail application client ID}
+      NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET_FILE: /run/secrets/vasi-graph-mail-client-secret
       NEXT_PRIVATE_SMTP_FROM_NAME: ${NEXT_PRIVATE_SMTP_FROM_NAME:-VASI}
       NEXT_PRIVATE_SMTP_FROM_ADDRESS: ${NEXT_PRIVATE_SMTP_FROM_ADDRESS:?Set the approved sender address}
       NEXT_PRIVATE_SIGNING_TRANSPORT: local
@@ -58,8 +54,7 @@ services:
       - vasi-encryption-primary
       - vasi-encryption-secondary
       - vasi-database-url
-      - vasi-smtp-username
-      - vasi-smtp-password
+      - vasi-graph-mail-client-secret
       - source: vasi-signing-p12
         target: vasi-signing.p12
       - vasi-signing-passphrase
@@ -129,23 +124,19 @@ services:
     profiles:
       - tools
 
-  smtp-probe:
+  graph-mail-probe:
     image: ${VASI_IMAGE:?Set VASI_IMAGE to an immutable VASI image reference}
     restart: "no"
-    entrypoint: ["node", "smtp-probe.mjs"]
+    entrypoint: ["node", "graph-mail-probe.mjs"]
     environment:
-      NEXT_PRIVATE_SMTP_HOST: ${NEXT_PRIVATE_SMTP_HOST:?Set the SMTP host}
-      NEXT_PRIVATE_SMTP_PORT: ${NEXT_PRIVATE_SMTP_PORT:-587}
-      NEXT_PRIVATE_SMTP_USERNAME_FILE: /run/secrets/vasi-smtp-username
-      NEXT_PRIVATE_SMTP_PASSWORD_FILE: /run/secrets/vasi-smtp-password
-      NEXT_PRIVATE_SMTP_SECURE: "false"
-      NEXT_PRIVATE_SMTP_REQUIRE_TLS: "true"
+      NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID: ${NEXT_PRIVATE_MICROSOFT_GRAPH_TENANT_ID:?Set the Entra tenant ID}
+      NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID: ${NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_ID:?Set the mail application client ID}
+      NEXT_PRIVATE_MICROSOFT_GRAPH_CLIENT_SECRET_FILE: /run/secrets/vasi-graph-mail-client-secret
       NEXT_PRIVATE_SMTP_FROM_NAME: ${NEXT_PRIVATE_SMTP_FROM_NAME:-VASI}
       NEXT_PRIVATE_SMTP_FROM_ADDRESS: ${NEXT_PRIVATE_SMTP_FROM_ADDRESS:?Set the approved sender address}
-      VASI_SMTP_PROBE_TO: ${VASI_SMTP_PROBE_TO:-}
+      VASI_GRAPH_MAIL_PROBE_TO: ${VASI_GRAPH_MAIL_PROBE_TO:-}
     secrets:
-      - vasi-smtp-username
-      - vasi-smtp-password
+      - vasi-graph-mail-client-secret
     networks:
       - egress
     read_only: true
@@ -235,10 +226,8 @@ secrets:
     file: ${VASI_SECRETS_DIR:?Set the protected secret directory}/encryption-secondary
   vasi-database-url:
     file: ${VASI_SECRETS_DIR:?Set the protected secret directory}/database-url
-  vasi-smtp-username:
-    file: ${VASI_SECRETS_DIR:?Set the protected secret directory}/smtp-username
-  vasi-smtp-password:
-    file: ${VASI_SECRETS_DIR:?Set the protected secret directory}/smtp-password
+  vasi-graph-mail-client-secret:
+    file: ${VASI_SECRETS_DIR:?Set the protected secret directory}/graph-mail-client-secret
   vasi-signing-p12:
     file: ${VASI_SECRETS_DIR:?Set the protected secret directory}/signing.p12
   vasi-signing-passphrase:
