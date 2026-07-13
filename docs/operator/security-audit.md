@@ -63,6 +63,20 @@ For each release, rerun the repository scan and scan the exact pruned runtime
 image. A newly reachable or high/critical finding blocks release unless an
 authorized owner records a concrete, time-bounded risk acceptance.
 
+## Runtime Image Hardening
+
+Runtime images apply available Alpine security upgrades during assembly. The
+edge needs only the Node executable, and the origin invokes its packaged Prisma
+CLI directly, so neither image retains npm, Corepack, or package-manager shims.
+The origin also removes esbuild after the application and Prisma client have
+been compiled. This prevents unused npm dependencies and esbuild's embedded Go
+toolchain from expanding the production attack surface.
+
+Scan each exact immutable image with a checksum-verified current scanner and
+fresh vulnerability database. Record scanner/database time, image ID, finding
+counts, and any remediation or explicit risk acceptance without committing the
+full report when it contains private layer or host information.
+
 ## System Threat Model Checklist
 
 The integrated audit must still verify:

@@ -38,11 +38,13 @@ run_migrations() {
 
         NEXT_PRIVATE_DATABASE_URL="$database_url" \
             NEXT_PRIVATE_DIRECT_DATABASE_URL="$direct_database_url" \
-            npx prisma migrate deploy --schema ../../packages/prisma/schema.prisma
+            node ../../node_modules/prisma/build/index.js migrate deploy \
+                --schema ../../packages/prisma/schema.prisma
 
         unset database_url direct_database_url
     else
-        npx prisma migrate deploy --schema ../../packages/prisma/schema.prisma
+        node ../../node_modules/prisma/build/index.js migrate deploy \
+            --schema ../../packages/prisma/schema.prisma
     fi
 }
 

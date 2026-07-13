@@ -3,6 +3,7 @@
 ###########################
 FROM node:22-alpine3.22 AS base
 
+RUN apk upgrade --no-cache
 RUN apk add --no-cache openssl
 RUN apk add --no-cache font-freefont
 
@@ -111,6 +112,24 @@ COPY --from=installer --chown=nodejs:nodejs /app/packages/prisma/migrations ./pa
 
 # Generate the prisma client again
 RUN npx prisma generate --schema ./packages/prisma/schema.prisma
+
+# The compiled application and Prisma CLI do not need npm, Corepack, or the
+# esbuild executable at runtime. Removing those build/package-manager tools
+# keeps their dependency graphs and embedded Go toolchain out of the image.
+USER root
+RUN rm -rf \
+    /app/node_modules/@esbuild \
+    /app/node_modules/esbuild \
+    /usr/local/lib/node_modules/corepack \
+    /usr/local/lib/node_modules/npm \
+    /usr/local/bin/corepack \
+    /usr/local/bin/npm \
+    /usr/local/bin/npx \
+    /usr/local/bin/pnpm \
+    /usr/local/bin/pnpx \
+    /usr/local/bin/yarn \
+    /usr/local/bin/yarnpkg
+USER nodejs
 
 
 # Get the start script from docker/

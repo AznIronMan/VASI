@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.8.0`
+Version: `0.8.1`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,10 +16,10 @@ operational standards.
 
 ## Current Status
 
-`0.8.0` removes the known high/critical dependency findings and adds explicit
-signing-policy and security-audit gates to the fail-closed mail, PDF identity,
-application-owned recovery, executable staff/recipient edge, and private-origin
-contracts. It includes:
+`0.8.1` removes the known high/critical dependency and runtime-image findings,
+and adds explicit signing-policy and security-audit gates to the fail-closed
+mail, PDF identity, application-owned recovery, executable staff/recipient
+edge, and private-origin contracts. It includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -149,6 +149,15 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.8.1 - 2026-07-12
+
+- Upgraded Alpine packages during image assembly so fixed base-system security
+  updates are present even while the pinned Node image digest is unchanged.
+- Removed npm, Corepack, and unused package-manager shims from the runtime
+  images; migrations now invoke the packaged Prisma CLI directly.
+- Removed the unused runtime esbuild executable and its embedded Go toolchain
+  after the production application and Prisma client are compiled.
 
 ### 0.8.0 - 2026-07-12
 
