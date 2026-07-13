@@ -13,7 +13,7 @@ working on VASI.
 - Company: Clark & Burke LLC
 - Website: https://www.cnb.llc
 - Developer email: streetkings@cnb.llc
-- Current version: `0.4.0`
+- Current version: `0.5.0`
 
 ## Current State
 
@@ -33,6 +33,10 @@ working on VASI.
 - The canonical public edge, maintenance-only fallback, staff/recipient route
   split, exact public TRPC procedures, internal paths, proxy metadata, and
   exposure limits are documented for the pinned baseline.
+- A generic private-origin Compose contract now provides migration-only mode,
+  mounted runtime secrets, an external PostgreSQL boundary, an unexposed app
+  network, and a private-bind internal TLS listener. Its target-architecture
+  container build has been validated without replacing the maintenance origin.
 - Edge access enforcement and deployment have not yet been implemented.
   Inherited audit advisories and recorded baseline exceptions remain open
   hardening work.

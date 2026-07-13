@@ -5,13 +5,14 @@ operator access details are kept in ignored `.private/` notes.
 
 ## Current Status
 
-VASI contains the pinned Documenso `v2.14.0` application source, upstream
-Dockerfile, and upstream development/production Compose examples. The upstream
-production example is not the VASI deployment contract: it uses an embedded
-database, floating image tag, and direct port exposure. A VASI-specific generic
-Compose/edge template must use the verified
-[production configuration contract](configuration.md) and its fail-closed
-startup checks.
+VASI contains the pinned Documenso `v2.14.0` application source and a generic
+[private-origin Compose template](../../ops/deploy/origin/README.md). The
+upstream development/production examples are not the VASI deployment contract:
+the upstream production example uses an embedded database, floating image tag,
+and direct port exposure. The VASI template uses the verified
+[production configuration contract](configuration.md), protected secret files,
+an external PostgreSQL service, and a private-bind TLS listener. The separate
+public edge is not implemented yet.
 
 Private production prerequisites have been reserved and verified: PostgreSQL,
 administrator inheritance, encrypted internal service TLS, public and internal

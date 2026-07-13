@@ -39,23 +39,9 @@ RUN apk add --no-cache make cmake g++ openssl bash
 WORKDIR /app
 
 # Disable husky from installing hooks
-ENV HUSKY 0
-ENV DOCKER_OUTPUT 1
-ENV NEXT_TELEMETRY_DISABLED 1
-
-# Encryption keys
-ARG NEXT_PRIVATE_ENCRYPTION_KEY="CAFEBABE"
-ENV NEXT_PRIVATE_ENCRYPTION_KEY="$NEXT_PRIVATE_ENCRYPTION_KEY"
-
-ARG NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY="DEADBEEF"
-ENV NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY="$NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY"
-
-# Telemetry credentials (optional, baked into image at build time)
-ARG NEXT_PRIVATE_TELEMETRY_KEY=""
-ENV NEXT_PRIVATE_TELEMETRY_KEY="$NEXT_PRIVATE_TELEMETRY_KEY"
-
-ARG NEXT_PRIVATE_TELEMETRY_HOST=""
-ENV NEXT_PRIVATE_TELEMETRY_HOST="$NEXT_PRIVATE_TELEMETRY_HOST"
+ENV HUSKY=0
+ENV DOCKER_OUTPUT=1
+ENV NEXT_TELEMETRY_DISABLED=1
 
 
 # Uncomment and use build args to enable remote caching
@@ -81,22 +67,22 @@ COPY turbo.json turbo.json
 
 RUN npm install -g "turbo@^1.9.3"
 
-RUN turbo run build --filter=@documenso/remix...
+# The production values are runtime-only secrets. These non-secret sentinels
+# satisfy build-time configuration checks without baking deploy credentials into
+# an image layer or accepting them as build arguments.
+RUN NEXT_PRIVATE_ENCRYPTION_KEY="CAFEBABE" \
+    NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY="DEADBEEF" \
+    NEXT_PRIVATE_TELEMETRY_KEY="" \
+    NEXT_PRIVATE_TELEMETRY_HOST="" \
+    turbo run build --filter=@documenso/remix...
 
 ###########################
 #     RUNNER CONTAINER    #
 ###########################
 FROM base AS runner
 
-ENV HUSKY 0
-ENV DOCKER_OUTPUT 1
-
-# Telemetry credentials (baked into image at build time, can be disabled at runtime)
-ARG NEXT_PRIVATE_TELEMETRY_KEY=""
-ENV NEXT_PRIVATE_TELEMETRY_KEY="$NEXT_PRIVATE_TELEMETRY_KEY"
-
-ARG NEXT_PRIVATE_TELEMETRY_HOST=""
-ENV NEXT_PRIVATE_TELEMETRY_HOST="$NEXT_PRIVATE_TELEMETRY_HOST"
+ENV HUSKY=0
+ENV DOCKER_OUTPUT=1
 
 # Don't run production as root
 RUN addgroup --system --gid 1001 nodejs

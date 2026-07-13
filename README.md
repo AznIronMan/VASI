@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.4.0`
+Version: `0.5.0`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,9 +16,9 @@ operational standards.
 
 ## Current Status
 
-`0.4.0` adds the exact public-edge route and exposure contract to the VASI/CNB
-identity, supported production configuration, and locally reproduced upstream
-baseline. It includes:
+`0.5.0` adds the private-origin container contract to the exact public-edge
+route policy, VASI/CNB identity, supported production configuration, and locally
+reproduced upstream baseline. It includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -65,6 +65,13 @@ baseline. It includes:
   health/jobs/rendering paths private.
 - Canonical-origin, fallback-host, forwarded-header, client-IP, cookie,
   request-size, timeout, rate-limit, logging, and unknown-route requirements.
+- A generic private-origin Compose deployment with an immutable-image policy,
+  migration-only service, external PostgreSQL, protected secret mounts,
+  database document storage, an unexposed app network, and a private-bind
+  internal TLS proxy.
+- A hardened container entrypoint that reads migration credentials from secret
+  files without retaining them in the long-running server environment, plus a
+  target-architecture image build and rendered-Compose validation.
 
 The local proof uses an untrusted example certificate and synthetic data. It
 also records inherited dependency advisories and known endpoint/proxy gaps for
@@ -111,6 +118,21 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.5.0 - 2026-07-12
+
+- Added the public-safe private-origin Compose contract, protected runtime
+  secret mounts, an external database boundary, and a private internal-TLS
+  listener with no published application port.
+- Added an explicit migration-only container mode and secret-file database
+  loading while keeping deploy credentials out of image build arguments and
+  the long-running application environment.
+- Documented configuration, migration, startup, persistence checks, upgrades,
+  rollback, and maintenance-placeholder recovery.
+- Validated the rendered Compose services and built/inspected the non-root VASI
+  image on the target container architecture.
+- Kept the live application listener on its maintenance placeholder because the
+  public edge, mail, and signing-material gates are not complete.
 
 ### 0.4.0 - 2026-07-12
 
