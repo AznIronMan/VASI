@@ -7,10 +7,13 @@ host values and secret preparation stay in the ignored private operator notes.
 ## Inputs
 
 Copy `deployment.env.example` to a protected path outside the repository. Use
-an immutable image digest or a unique VASI commit tag. Create the secret files
-named by `compose.yaml` with mode `0600` and a directory inaccessible to other
-users. The signing PKCS#12 file is binary; every other secret is one UTF-8 value
-with an optional final newline.
+an immutable image digest or a unique VASI commit tag. The image runs as numeric
+UID/GID `1001:1001`. Docker Compose file-backed secrets retain host ownership,
+so make every runtime secret owned by `1001:1001` with mode `0400` inside a
+root-only parent directory. The signing PKCS#12 file is binary; every other
+secret is one UTF-8 value with an optional final newline. If the deployment
+uses a secret backend that remaps ownership, verify the mounted result is
+readable by `1001:1001` and not by other container users.
 
 The database URL must use the provisioned non-superuser application role and
 require the intended TLS mode. Source/completed PDFs are stored in PostgreSQL

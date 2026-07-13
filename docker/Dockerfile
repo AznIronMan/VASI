@@ -86,7 +86,7 @@ ENV DOCKER_OUTPUT=1
 
 # Don't run production as root
 RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nodejs
+RUN adduser --system --uid 1001 --ingroup nodejs nodejs
 
 USER nodejs
 

@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.5.0`
+Version: `0.5.1`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,9 +16,9 @@ operational standards.
 
 ## Current Status
 
-`0.5.0` adds the private-origin container contract to the exact public-edge
-route policy, VASI/CNB identity, supported production configuration, and locally
-reproduced upstream baseline. It includes:
+`0.5.1` hardens the private-origin container contract added in `0.5.0`, alongside
+the exact public-edge route policy, VASI/CNB identity, supported production
+configuration, and locally reproduced upstream baseline. It includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -118,6 +118,13 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.5.1 - 2026-07-12
+
+- Assigned the non-root runtime identity its intended numeric UID and GID.
+- Documented host ownership and permission requirements for Docker Compose
+  file-backed secrets after validating the packaged migration process against
+  the provisioned database.
 
 ### 0.5.0 - 2026-07-12
 
