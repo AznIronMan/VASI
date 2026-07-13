@@ -13,7 +13,7 @@ working on VASI.
 - Company: Clark & Burke LLC
 - Website: https://www.cnb.llc
 - Developer email: streetkings@cnb.llc
-- Current version: `0.7.0`
+- Current version: `0.8.0`
 
 ## Current State
 

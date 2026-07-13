@@ -1,6 +1,6 @@
 # VASI
 
-Version: `0.7.0`
+Version: `0.8.0`
 Last updated: `2026-07-12`
 
 VASI is **Verified Authorized Signing Infrastructure**: a planned CNB-branded,
@@ -16,10 +16,10 @@ operational standards.
 
 ## Current Status
 
-`0.7.0` adds fail-closed mail, PDF-signing identity, and application-owned
-recovery gates to the executable staff/recipient edge, private-origin container
-model, VASI/CNB identity, supported production configuration, and locally
-reproduced upstream baseline. It includes:
+`0.8.0` removes the known high/critical dependency findings and adds explicit
+signing-policy and security-audit gates to the fail-closed mail, PDF identity,
+application-owned recovery, executable staff/recipient edge, and private-origin
+contracts. It includes:
 
 - Repository rules and semantic versioning policy.
 - Ignored local `.tasks/` and `.private/` structures.
@@ -91,6 +91,12 @@ reproduced upstream baseline. It includes:
   separate production trust and RFC 3161 decision gate.
 - A complete data/recovery inventory, a safe aggregate restore verifier, and an
   application-role-owned isolated restore workflow for database-held documents.
+- Fixed request-router, HTTP, SMTP, gRPC/protobuf, multipart, temporary-file,
+  and WebSocket dependency lines with no high/critical npm audit finding.
+- A default-deny signing-policy approval matrix covering document eligibility,
+  recipient assurance, consent, evidence, retention, legal hold, and refusal.
+- A system threat-model checklist and explicit reachability classification for
+  the remaining low/moderate dependency findings.
 
 The local proof uses an untrusted example certificate and synthetic data. It
 also records inherited dependency advisories and known endpoint/proxy gaps for
@@ -129,6 +135,8 @@ upgrade/rollback procedures.
 - [Transactional email delivery](docs/operator/email-delivery.md)
 - [PDF signing and timestamping](docs/operator/pdf-signing.md)
 - [Data lifecycle and recovery](docs/operator/data-lifecycle-and-recovery.md)
+- [Signing policy approval draft](docs/operator/signing-policy-draft.md)
+- [Security audit baseline](docs/operator/security-audit.md)
 - [Local development](docs/operator/local-development.md)
 - [Contributing](docs/contributing.md)
 
@@ -141,6 +149,22 @@ subtree used by upstream build-time gating. VASI preserves its Commercial
 License but does not enable or claim rights to enterprise features.
 
 ## Changelog
+
+### 0.8.0 - 2026-07-12
+
+- Updated React Router, Hono, and Nodemailer past reviewed high-severity request,
+  CORS, deserialization, file-access, and SSRF findings.
+- Pinned fixed gRPC, protobuf, multipart, temporary-file, and both supported
+  WebSocket major lines; repository and runtime npm scans now report no high or
+  critical findings.
+- Preserved the pinned Community Edition source and enterprise subtree while
+  validating the router/mail/server dependency update through application tests
+  and type checking.
+- Added a default-deny production signing-policy draft with document-class,
+  signer-assurance, consent, evidence, retention, legal-hold, and acceptance
+  decisions that must be approved before real documents are sent.
+- Added the security dependency baseline, reachability record, integrated
+  threat-model checklist, and secret-safe evidence rules.
 
 ### 0.7.0 - 2026-07-12
 
