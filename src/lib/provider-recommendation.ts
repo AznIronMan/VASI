@@ -27,7 +27,23 @@ const consumerDomains: Record<string, AuthProviderId> = {
   "yahoo.com": "yahoo",
   "ymail.com": "yahoo",
   "rocketmail.com": "yahoo",
+  "zoho.com": "zoho",
+  "zohomail.com": "zoho",
+  "zohomail.eu": "zoho",
+  "zohomail.in": "zoho",
+  "zohomail.com.au": "zoho",
 };
+
+const zohoMxNamespaces = new Set([
+  "zoho.com",
+  "zoho.eu",
+  "zoho.in",
+  "zoho.com.au",
+  "zoho.jp",
+  "zohocloud.ca",
+  "zoho.sa",
+  "zoho.uk",
+]);
 
 export function emailDomain(value: string) {
   const email = value.trim().toLowerCase();
@@ -53,6 +69,7 @@ export function emailDomain(value: string) {
 export function providerFromDomain(domain: string) {
   if (consumerDomains[domain]) return consumerDomains[domain];
   if (/^yahoo\.[a-z.]+$/.test(domain)) return "yahoo" as const;
+  if (/^zohomail\.(?:jp|ca|sa|uk)$/.test(domain)) return "zoho" as const;
   return undefined;
 }
 
@@ -86,6 +103,8 @@ export async function recommendProviderForEmail(
       )
     ) {
       provider = "google";
+    } else if (exchanges.some(isZohoMx)) {
+      provider = "zoho";
     } else if (exchanges.some((exchange) => exchange.endsWith(".icloud.com"))) {
       provider = "apple";
     } else if (exchanges.some((exchange) => exchange.endsWith(".yahoodns.net"))) {
@@ -104,6 +123,11 @@ export async function recommendProviderForEmail(
   });
 
   return provider;
+}
+
+function isZohoMx(exchange: string) {
+  const match = /^mx\d*\.(.+)$/.exec(exchange);
+  return Boolean(match && zohoMxNamespaces.has(match[1]));
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {

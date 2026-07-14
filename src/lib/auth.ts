@@ -45,20 +45,41 @@ if (isProviderConfigured("apple")) {
   });
 }
 
-const yahooPlugin = isProviderConfigured("yahoo")
-  ? genericOAuth({
-      config: [
-        {
-          providerId: "yahoo",
-          clientId: process.env.YAHOO_CLIENT_ID!,
-          clientSecret: process.env.YAHOO_CLIENT_SECRET!,
-          discoveryUrl: "https://api.login.yahoo.com/.well-known/openid-configuration",
-          issuer: "https://api.login.yahoo.com",
-          scopes: ["openid", "profile", "email"],
-          authentication: "basic",
-        },
-      ],
-    })
+const genericOAuthConfigs: Parameters<typeof genericOAuth>[0]["config"] = [];
+
+if (isProviderConfigured("yahoo")) {
+  genericOAuthConfigs.push({
+    providerId: "yahoo",
+    clientId: process.env.YAHOO_CLIENT_ID!,
+    clientSecret: process.env.YAHOO_CLIENT_SECRET!,
+    discoveryUrl: "https://api.login.yahoo.com/.well-known/openid-configuration",
+    issuer: "https://api.login.yahoo.com",
+    scopes: ["openid", "profile", "email"],
+    authentication: "basic",
+  });
+}
+
+if (isProviderConfigured("zoho")) {
+  const accountsOrigin = new URL(
+    process.env.ZOHO_ACCOUNTS_ORIGIN?.trim() || "https://accounts.zoho.com",
+  );
+  if (accountsOrigin.protocol !== "https:") {
+    throw new Error("ZOHO_ACCOUNTS_ORIGIN must use HTTPS.");
+  }
+
+  genericOAuthConfigs.push({
+    providerId: "zoho",
+    clientId: process.env.ZOHO_CLIENT_ID!,
+    clientSecret: process.env.ZOHO_CLIENT_SECRET!,
+    discoveryUrl: `${accountsOrigin.origin}/.well-known/openid-configuration`,
+    issuer: accountsOrigin.origin,
+    scopes: ["openid", "profile", "email"],
+    authentication: "basic",
+  });
+}
+
+const genericOAuthPlugin = genericOAuthConfigs.length
+  ? genericOAuth({ config: genericOAuthConfigs })
   : undefined;
 
 export const auth = betterAuth({
@@ -83,7 +104,7 @@ export const auth = betterAuth({
       defaultRole: "user",
       bannedUserMessage: "This V·Sign account is disabled. Contact CNB support for help.",
     }),
-    ...(yahooPlugin ? [yahooPlugin] : []),
+    ...(genericOAuthPlugin ? [genericOAuthPlugin] : []),
   ],
   databaseHooks: {
     session: {

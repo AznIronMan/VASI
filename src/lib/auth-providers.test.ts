@@ -46,6 +46,7 @@ describe("authentication provider configuration", () => {
       { id: "google", label: "Google", configured: false },
       { id: "apple", label: "Apple", configured: false },
       { id: "yahoo", label: "Yahoo", configured: true },
+      { id: "zoho", label: "Zoho", configured: false },
     ]);
     expect(JSON.stringify(providers)).not.toContain("client-secret");
   });
@@ -55,12 +56,23 @@ describe("authentication provider configuration", () => {
       "microsoft",
       "google",
       "yahoo",
+      "zoho",
     ]);
 
     expect(
       getLoginAuthProviderAvailability({ APPLE_LOGIN_ENABLED: "true" }).map(
         (provider) => provider.id,
       ),
-    ).toEqual(["microsoft", "google", "apple", "yahoo"]);
+    ).toEqual(["microsoft", "google", "apple", "yahoo", "zoho"]);
+  });
+
+  it("enables Zoho only with a complete client configuration", () => {
+    expect(isProviderConfigured("zoho", { ZOHO_CLIENT_ID: "client-id" })).toBe(false);
+    expect(
+      isProviderConfigured("zoho", {
+        ZOHO_CLIENT_ID: "client-id",
+        ZOHO_CLIENT_SECRET: "client-secret",
+      }),
+    ).toBe(true);
   });
 });

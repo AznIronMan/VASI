@@ -7,6 +7,7 @@ import { SsoOnboarding } from "@/components/auth/sso-onboarding";
 import { BrandMark } from "@/components/brand-mark";
 import { SocialIcon } from "@/components/social-icon";
 import { authClient } from "@/lib/auth-client";
+import { isGenericOAuthProvider } from "@/lib/auth-providers";
 import type {
   AuthProviderAvailability,
   AuthProviderId,
@@ -29,6 +30,7 @@ export function AuthPortal({
   providers: AuthProviderAvailability[];
 }) {
   const [mode, setMode] = useState<Mode>("sign-in");
+  const [showOtherMethods, setShowOtherMethods] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(
@@ -39,6 +41,7 @@ export function AuthPortal({
   function changeMode(nextMode: Mode) {
     setMode(nextMode);
     setMessage(null);
+    setShowOtherMethods(false);
     setShowPassword(false);
   }
 
@@ -53,9 +56,9 @@ export function AuthPortal({
     setPendingAction(provider);
     try {
       const errorCallbackURL = "/?error=oauth";
-      const result = provider === "yahoo"
+      const result = isGenericOAuthProvider(provider)
         ? await authClient.signIn.oauth2({
-            providerId: "yahoo",
+            providerId: provider,
             callbackURL,
             errorCallbackURL,
           })
@@ -118,6 +121,12 @@ export function AuthPortal({
 
   const isPending = pendingAction !== null;
 
+  function toggleOtherMethods() {
+    setMessage(null);
+    setShowPassword(false);
+    setShowOtherMethods((visible) => !visible);
+  }
+
   return (
     <main className="auth-shell">
       <section className="story-panel" aria-labelledby="story-title">
@@ -175,7 +184,7 @@ export function AuthPortal({
               {mode === "register"
                 ? "We’ll look for your organization’s trusted sign-in provider before offering a manual password."
                 : allowRegistration
-                  ? "Choose a trusted account or enter your V·Sign credentials."
+                  ? "Choose a trusted account to continue securely."
                   : "Use an authorized operator account to continue to the internal console."}
             </p>
           </div>
@@ -208,40 +217,56 @@ export function AuthPortal({
                 ))}
               </div>
 
-              <div className="divider"><span>or continue with credentials</span></div>
-
-              <form className="credentials-form" onSubmit={handleCredentials}>
-                <label className="field">
-                  <span>Username or email</span>
-                  <span className="input-wrap">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z" /><path d="m4 7 8 6 8-6" /></svg>
-                    <input name="identifier" type="text" autoComplete="username" required placeholder="username@company.com" />
-                  </span>
-                </label>
-
-                <label className="field">
-                  <span>Password</span>
-                  <span className="input-wrap">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M7 10V7a5 5 0 0 1 10 0v3" /></svg>
-                    <input name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" minLength={12} maxLength={128} required placeholder="Enter your password" />
-                    <button className="password-toggle" type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((visible) => !visible)}>
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.5" /></svg>
-                    </button>
-                  </span>
-                </label>
-
-                <div className="form-options">
-                  <label className="checkbox"><input name="rememberMe" type="checkbox" defaultChecked /><span>Keep me signed in</span></label>
-                  <Link href="/forgot-password">Forgot password?</Link>
-                </div>
-
-                {message && <p className={`form-message form-message--${messageType}`} role="status" aria-live="polite">{message}</p>}
-
-                <button className="primary-button" type="submit" disabled={isPending}>
-                  <span>{pendingAction === "credentials" ? "Please wait…" : "Continue securely"}</span>
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
+              <div className="other-methods">
+                <button
+                  aria-controls="credential-sign-in"
+                  aria-expanded={showOtherMethods}
+                  className="other-methods__toggle"
+                  disabled={isPending}
+                  onClick={toggleOtherMethods}
+                  type="button"
+                >
+                  <span>Other methods</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9 5 5 5-5" /></svg>
                 </button>
-              </form>
+
+                {showOtherMethods && (
+                  <div className="other-methods__panel" id="credential-sign-in">
+                    <form className="credentials-form" onSubmit={handleCredentials}>
+                      <label className="field">
+                        <span>Username or email</span>
+                        <span className="input-wrap">
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z" /><path d="m4 7 8 6 8-6" /></svg>
+                          <input name="identifier" type="text" autoComplete="username" required placeholder="username@company.com" />
+                        </span>
+                      </label>
+
+                      <label className="field">
+                        <span>Password</span>
+                        <span className="input-wrap">
+                          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M7 10V7a5 5 0 0 1 10 0v3" /></svg>
+                          <input name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" minLength={12} maxLength={128} required placeholder="Enter your password" />
+                          <button className="password-toggle" type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((visible) => !visible)}>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.5" /></svg>
+                          </button>
+                        </span>
+                      </label>
+
+                      <div className="form-options">
+                        <label className="checkbox"><input name="rememberMe" type="checkbox" defaultChecked /><span>Keep me signed in</span></label>
+                        <Link href="/forgot-password">Forgot password?</Link>
+                      </div>
+
+                      <button className="primary-button" type="submit" disabled={isPending}>
+                        <span>{pendingAction === "credentials" ? "Please wait…" : "Continue securely"}</span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5" /></svg>
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
+
+              {message && <p className={`form-message form-message--${messageType}`} role="status" aria-live="polite">{message}</p>}
             </>
           )}
 

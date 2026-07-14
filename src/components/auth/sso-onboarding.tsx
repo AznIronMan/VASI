@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { SocialIcon } from "@/components/social-icon";
 import { authClient } from "@/lib/auth-client";
+import { isGenericOAuthProvider } from "@/lib/auth-providers";
 import type {
   AuthProviderAvailability,
   AuthProviderId,
@@ -99,9 +100,9 @@ export function SsoOnboarding({
     setMessage(null);
 
     try {
-      const result = provider === "yahoo"
+      const result = isGenericOAuthProvider(provider)
         ? await authClient.signIn.oauth2({
-            providerId: "yahoo",
+            providerId: provider,
             callbackURL,
             errorCallbackURL,
           })
@@ -181,7 +182,7 @@ export function SsoOnboarding({
           </span>
         </label>
         <p className="onboarding-email__hint">
-          We’ll check whether your email uses Microsoft, Google, or Yahoo so you can avoid another password.
+          We’ll check whether your email uses Microsoft, Google, Yahoo, or Zoho so you can avoid another password.
         </p>
         <button className="primary-button" type="submit" disabled={stage === "checking"}>
           <span>{stage === "checking" ? "Checking your domain…" : "Continue"}</span>

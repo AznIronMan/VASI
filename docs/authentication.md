@@ -15,6 +15,7 @@ Register these HTTPS redirect URIs with the corresponding provider:
 | Google | `https://vsign.cnb.llc/api/auth/callback/google` | `/api/auth/callback/google` |
 | Apple | `https://vsign.cnb.llc/api/auth/callback/apple` | `/api/auth/callback/apple` |
 | Yahoo | `https://vsign.cnb.llc/api/auth/oauth2/callback/yahoo` | `/api/auth/oauth2/callback/yahoo` |
+| Zoho | `https://vsign.cnb.llc/api/auth/oauth2/callback/zoho` | `/api/auth/oauth2/callback/zoho` |
 
 Prefix each internal callback path with the exact `VASI_ADMIN_ORIGIN` and
 register it with the provider before enabling that provider for internal admin
@@ -64,23 +65,35 @@ application, request the `openid`, `profile`, and `email` scopes, and register t
 generic OAuth callback shown above. VASI uses Yahoo discovery metadata, a
 database-backed OAuth state, and client-secret Basic authentication.
 
+### Zoho
+
+Create a server-based application in the Zoho API Console for the same data
+center as the intended accounts and register the generic OAuth callback shown
+above. Configure `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, and the matching
+`ZOHO_ACCOUNTS_ORIGIN`; the origin defaults to `https://accounts.zoho.com` for
+the United States data center. VASI uses that origin's OIDC discovery metadata,
+requests only `openid`, `profile`, and `email`, and uses the stable subject claim
+as the connector identity. Review Zoho's multi-data-center requirements before
+accepting accounts homed outside the configured application data center.
+
 ## Username and password
 
 Registration starts with an email address. Common consumer domains map directly
-to Microsoft, Google, Apple, or Yahoo. Provider visibility is then applied to the
-recommendation, so iCloud-family addresses are not presented with Apple while
-`APPLE_LOGIN_ENABLED` is false. For custom domains, VASI performs a bounded DNS
-MX lookup and recognizes Microsoft 365 and Google Workspace mail infrastructure.
-This lookup describes a domain's likely identity provider and never checks
-whether a user account exists.
+to Microsoft, Google, Apple, Yahoo, or Zoho. Provider visibility is then applied
+to the recommendation, so iCloud-family addresses are not presented with Apple
+while `APPLE_LOGIN_ENABLED` is false. For custom domains, VASI performs a bounded
+DNS MX lookup and recognizes Microsoft 365, Google Workspace, and known Zoho
+Mail infrastructure. This lookup describes a domain's likely identity provider
+and never checks whether a user account exists.
 
-When a configured provider is found, its SSO action is the primary choice. The
-manual-password action remains keyboard-accessible but visually secondary. If
-selected, registration collects a name, a public username, and a password of 12
-to 128 characters. Usernames allow letters, numbers, dots, underscores, and
-hyphens. The public username-availability endpoint is disabled. Passwords are
-stored only through Better Auth's password hashing; VASI never stores or logs
-plaintext credentials.
+When a configured provider is found, its SSO action is the primary choice. On
+sign-in, username/password and password recovery are hidden initially under an
+accessible `Other methods` disclosure. Registration keeps the manual-password
+action keyboard-accessible but visually secondary. If selected, registration
+collects a name, a public username, and a password of 12 to 128 characters.
+Usernames allow letters, numbers, dots, underscores, and hyphens. The public
+username-availability endpoint is disabled. Passwords are stored only through
+Better Auth's password hashing; VASI never stores or logs plaintext credentials.
 
 Email verification is required before password sign-in. Verification and reset
 links expire after one hour, and a completed password reset revokes the user's
@@ -100,7 +113,7 @@ authenticated `admin` role and an allowlisted email. State-changing routes also
 require an exact `Origin` header. The public and internal hosts retain separate
 host-only sessions.
 
-For each user, the console shows Microsoft, Google, Apple, and Yahoo connectors:
+For each user, the console shows Microsoft, Google, Apple, Yahoo, and Zoho connectors:
 
 - green: connected, configured, and authenticated within 90 days;
 - yellow: connected but not authenticated for more than 90 days;

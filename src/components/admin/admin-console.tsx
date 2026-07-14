@@ -119,7 +119,7 @@ export function AdminConsole({
 
       <section className="admin-overview" aria-label="Identity overview">
         <AdminMetric label="Users" value={users.length} detail={`${users.filter((user) => user.active).length} active`} />
-        <AdminMetric label="Connected identities" value={connectedCount} detail="Across four providers" />
+        <AdminMetric label="Connected identities" value={connectedCount} detail="Across five providers" />
         <AdminMetric label="Pending invitations" value={invitations.length} detail="Valid invitations" />
       </section>
 
@@ -277,7 +277,7 @@ export function AdminConsole({
             <h2 id="connector-dialog-title">Manage connectors</h2>
             <p className="connector-modal__user">{selectedUser.name} · {selectedUser.email}</p>
             <p className="connector-modal__explanation">
-              A connector links V·Sign to an identity held by Microsoft, Google, Apple, or Yahoo. Force disconnect removes the V·Sign link and revokes V·Sign sessions; it does not delete the user’s provider account.
+              A connector links V·Sign to an identity held by Microsoft, Google, Apple, Yahoo, or Zoho. Force disconnect removes the V·Sign link and revokes V·Sign sessions; it does not delete the user’s provider account.
             </p>
             <div className="connector-modal__list">
               {selectedUser.connectors.map((connector) => (

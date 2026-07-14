@@ -22,10 +22,13 @@ describe("provider recommendation", () => {
     await expect(recommendProviderForEmail("person@yahoo.co.uk", resolver)).resolves.toBe(
       "yahoo",
     );
+    await expect(recommendProviderForEmail("person@zohomail.com", resolver)).resolves.toBe(
+      "zoho",
+    );
     expect(resolver).not.toHaveBeenCalled();
   });
 
-  it("detects Microsoft 365 and Google Workspace MX records", async () => {
+  it("detects Microsoft 365, Google Workspace, and Zoho Mail MX records", async () => {
     await expect(
       recommendProviderForEmail("person@company.example", async () => [
         { exchange: "company-example.mail.protection.outlook.com", priority: 0 },
@@ -38,6 +41,14 @@ describe("provider recommendation", () => {
         { exchange: "aspmx.l.google.com", priority: 1 },
       ]),
     ).resolves.toBe("google");
+
+    resetProviderRecommendationCacheForTests();
+    await expect(
+      recommendProviderForEmail("person@company.example", async () => [
+        { exchange: "mx.zoho.com", priority: 10 },
+        { exchange: "mx2.zoho.com", priority: 20 },
+      ]),
+    ).resolves.toBe("zoho");
   });
 
   it("rejects malformed or network-address domains", () => {

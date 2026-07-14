@@ -421,24 +421,54 @@ a {
   background: #c3b89f;
 }
 
-.divider {
-  display: flex;
-  margin: 22px 0 19px;
-  align-items: center;
-  gap: 13px;
-  color: #8b928f;
-  font-size: 10px;
-  font-weight: 640;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+.other-methods {
+  margin-top: 12px;
 }
 
-.divider::before,
-.divider::after {
-  height: 1px;
-  flex: 1;
-  background: var(--line);
-  content: "";
+.other-methods__toggle {
+  display: flex;
+  min-height: 36px;
+  margin: 0 auto;
+  padding: 6px 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
+  color: #68736f;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.other-methods__toggle:hover:not(:disabled) {
+  color: var(--green-800);
+}
+
+.other-methods__toggle:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.other-methods__toggle svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  transition: transform 150ms ease;
+}
+
+.other-methods__toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.other-methods__panel {
+  margin-top: 6px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
 }
 
 .credentials-form {
@@ -1686,10 +1716,6 @@ input:disabled {
 
   .form-row {
     grid-template-columns: 1fr;
-  }
-
-  .divider span {
-    text-align: center;
   }
 
   .recovery-shell {

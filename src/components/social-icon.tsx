@@ -31,6 +31,17 @@ export function SocialIcon({ provider }: { provider: AuthProviderId }) {
     );
   }
 
+  if (provider === "zoho") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="1" y="5" width="6" height="14" rx="1.3" fill="#e42527" transform="rotate(-4 4 12)" />
+        <rect x="6.5" y="5.5" width="6" height="13" rx="1.3" fill="#f9b21d" transform="rotate(3 9.5 12)" />
+        <rect x="12" y="5" width="6" height="14" rx="1.3" fill="#2d9f4e" transform="rotate(-3 15 12)" />
+        <rect x="17.5" y="5.5" width="5.5" height="13" rx="1.3" fill="#3686d3" transform="rotate(4 20.25 12)" />
+      </svg>
+    );
+  }
+
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path fill="#6001d2" d="M12.7 13.4 8.2 2H3l7 16.5L7.4 24h4.9L24 2h-5.1l-6.2 11.4Z" />

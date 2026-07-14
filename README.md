@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.2.1`
+Version: `0.2.2`
 
 A CNB project maintained by Street Kings Productions.
 
@@ -12,16 +12,19 @@ The authentication portal is deployed and responding at
 `https://vsign.cnb.llc`. Microsoft, Google, Yahoo, and username/password sign-in
 are enabled in production. Transactional verification and password-recovery
 messages use a mailbox-scoped Microsoft Graph application, with SMTP retained
-as a fallback. The Apple connector implementation remains available, but Apple
-is hidden from login and onboarding while Developer Program approval is pending.
+as a fallback. Zoho OIDC support is available and awaits production client
+credentials. The Apple connector implementation remains available, but Apple is
+hidden from login and onboarding while Developer Program approval is pending.
 
 The internal identity administration console is available at the configured
 private origin under `/admin`. It lists connector health, manual-password
 availability, and account state; supports invitations, password setup/reset,
 account enable/disable, and forced connector disconnection; and records each
 administrative change. Public account creation and invitation acceptance start
-with an email-domain check that recommends an available Microsoft, Google, or
-Yahoo connection before exposing the secondary manual-password path.
+with an email-domain check that recommends an available Microsoft, Google,
+Yahoo, or Zoho connection before exposing the secondary manual-password path.
+Provider actions remain primary on sign-in; username/password is contained under
+an `Other methods` disclosure.
 
 The production container workflow includes a one-shot database migrator,
 restart policy, liveness monitoring, a read-only filesystem, and a configurable
@@ -39,10 +42,11 @@ the signing workspace must be added on top of the verified user session.
 - Built-in Microsoft, Google, and Apple OAuth/OIDC providers, with Apple login
   exposure gated until its developer configuration is approved and verified.
 - Yahoo OpenID Connect through the generic OAuth authorization-code flow.
+- Zoho OpenID Connect with consumer-domain and hosted-domain MX discovery.
 - Username or email sign-in, registration, required email verification,
   password recovery, and session revocation after password reset.
-- SSO-first registration and invitation acceptance with common-domain mapping
-  plus Microsoft 365 and Google Workspace MX discovery.
+- SSO-first sign-in, registration, and invitation acceptance with common-domain
+  mapping plus Microsoft 365, Google Workspace, and Zoho Mail MX discovery.
 - Internal-host-only identity administration with operator allowlisting,
   account disablement, session revocation, connector status and disconnection,
   manual-password controls, invitations, and audit records.
@@ -67,11 +71,12 @@ npm run dev
 ```
 
 Open `http://localhost:3000`. Without provider credentials, the Microsoft,
-Google, and Yahoo buttons remain visible and identify that configuration is
-required. Apple remains hidden unless `APPLE_LOGIN_ENABLED=true`. In development,
-verification and reset URLs are written to the server console when transactional
-email is not configured. Production intentionally rejects email delivery when
-the selected Graph or SMTP provider is incomplete.
+Google, Yahoo, and Zoho buttons remain visible and identify that configuration
+is required. Apple remains hidden unless `APPLE_LOGIN_ENABLED=true`. The manual
+sign-in form is available under `Other methods`. In development, verification
+and reset URLs are written to the server console when transactional email is not
+configured. Production intentionally rejects email delivery when the selected
+Graph or SMTP provider is incomplete.
 
 For local administration, set `VASI_ADMIN_ORIGIN` to the local origin and add
 your test account to `VASI_ADMIN_EMAILS`. The admin plugin promotes an
@@ -98,6 +103,8 @@ configure:
 - A complete Microsoft Graph mailer configuration, or `AUTH_EMAIL_FROM`,
   `SMTP_HOST`, and any credentials required by an SMTP fallback
 - One complete client ID/client secret set for each social provider to enable
+- `ZOHO_ACCOUNTS_ORIGIN` matching the data center where the Zoho client is
+  registered; it defaults to the United States origin
 - `APPLE_LOGIN_ENABLED=true` only after the Apple callback, signing key, and
   Private Email Relay configuration have been approved and verified
 

@@ -1,4 +1,4 @@
-export const authProviderIds = ["microsoft", "google", "apple", "yahoo"] as const;
+export const authProviderIds = ["microsoft", "google", "apple", "yahoo", "zoho"] as const;
 
 export type AuthProviderId = (typeof authProviderIds)[number];
 
@@ -15,6 +15,7 @@ const providerLabels: Record<AuthProviderId, string> = {
   google: "Google",
   apple: "Apple",
   yahoo: "Yahoo",
+  zoho: "Zoho",
 };
 
 function hasValues(environment: PublicEnvironment, keys: string[]) {
@@ -42,6 +43,8 @@ export function isProviderConfigured(
       );
     case "yahoo":
       return hasValues(environment, ["YAHOO_CLIENT_ID", "YAHOO_CLIENT_SECRET"]);
+    case "zoho":
+      return hasValues(environment, ["ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET"]);
   }
 }
 
@@ -63,4 +66,10 @@ export function getLoginAuthProviderAvailability(
   return getAuthProviderAvailability(environment).filter(
     (provider) => provider.id !== "apple" || appleLoginEnabled,
   );
+}
+
+export function isGenericOAuthProvider(
+  provider: AuthProviderId,
+): provider is Extract<AuthProviderId, "yahoo" | "zoho"> {
+  return provider === "yahoo" || provider === "zoho";
 }
