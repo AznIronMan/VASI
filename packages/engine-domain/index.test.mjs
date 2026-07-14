@@ -1,0 +1,18 @@
+import { describe, expect, it } from "vitest";
+
+import { authorizeServiceAction } from "./index.mjs";
+
+describe("engine service authorization", () => {
+  it("allows the private ingress identity endpoint", () => {
+    expect(authorizeServiceAction("vasi-private-ingress", "actor.identity")).toEqual({
+      action: "actor.identity",
+      serviceId: "vasi-private-ingress",
+    });
+  });
+
+  it("rejects unknown service identities", () => {
+    expect(() => authorizeServiceAction("public-browser", "actor.identity")).toThrow(
+      "not authorized",
+    );
+  });
+});

@@ -8,6 +8,7 @@ type SettingDefinition = {
   default?: string;
   name: string;
   required: boolean;
+  scope: string;
   secret: boolean;
 };
 
@@ -21,7 +22,9 @@ type RuntimeSettingRow = {
   scope: string;
 };
 
-const definitions = settingDefinitions as SettingDefinition[];
+const definitions = (settingDefinitions as SettingDefinition[]).filter(
+  (definition) => definition.scope === "gateway",
+);
 const knownNames = new Set(definitions.map((definition) => definition.name));
 
 const globalForRuntimeSettings = globalThis as unknown as {

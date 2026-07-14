@@ -25,4 +25,23 @@ describe("settings CLI", () => {
       rmSync(workingDirectory, { force: true, recursive: true });
     }
   });
+
+  it("rejects an unknown scope without a stack trace", () => {
+    const result = spawnSync(process.execPath, [script, "--scope", "public", "list"], {
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toBe("Unknown VASI runtime setting scope public.\n");
+  });
+
+  it("requires streamed JSON for non-interactive bootstrap", () => {
+    const result = spawnSync(process.execPath, [script, "--scope", "engine", "bootstrap", "-"], {
+      encoding: "utf8",
+      input: "not-json",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toBe("Input must be a valid JSON object.\n");
+  });
 });

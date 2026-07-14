@@ -1,4 +1,4 @@
-import { createCipheriv, randomBytes, randomUUID } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
 import {
   chownSync,
   chmodSync,
@@ -15,7 +15,7 @@ import settingDefinitions from "../config/runtime-settings.json" with { type: "j
 
 const { Pool } = pg;
 const BOOTSTRAP_SCHEMA_VERSION = 1;
-const SETTINGS_SCOPE = "gateway";
+const DEFAULT_SETTINGS_SCOPE = "gateway";
 
 export function defaultSettingsPath() {
   return path.resolve(process.cwd(), "data", "VASI.settings");
@@ -139,14 +139,17 @@ export function createSettingsPool(bootstrap = loadBootstrapSettings()) {
 export async function writeRuntimeSettings({
   bootstrap = loadBootstrapSettings(),
   includeDefaults = false,
+  scope = DEFAULT_SETTINGS_SCOPE,
   source,
   values,
 }) {
   const pool = createSettingsPool(bootstrap);
-  const definitions = new Map(settingDefinitions.map((definition) => [definition.name, definition]));
+  const definitions = new Map(
+    definitionsForScope(scope).map((definition) => [definition.name, definition]),
+  );
   const configuredValues = { ...values };
   if (includeDefaults) {
-    for (const definition of settingDefinitions) {
+    for (const definition of definitions.values()) {
       if (configuredValues[definition.name] === undefined && definition.default !== undefined) {
         configuredValues[definition.name] = definition.default;
       }
@@ -166,7 +169,7 @@ export async function writeRuntimeSettings({
       const encrypted = encryptRuntimeSetting({
         installationId: bootstrap.installationId,
         name,
-        scope: SETTINGS_SCOPE,
+        scope,
         settingsKey: bootstrap.settingsKey,
         value,
       });
@@ -184,7 +187,7 @@ export async function writeRuntimeSettings({
          returning "version"`,
         [
           bootstrap.installationId,
-          SETTINGS_SCOPE,
+          scope,
           name,
           encrypted.ciphertext,
           encrypted.iv,
@@ -199,7 +202,7 @@ export async function writeRuntimeSettings({
         [
           randomUUID(),
           bootstrap.installationId,
-          SETTINGS_SCOPE,
+          scope,
           name,
           result.rows[0].version,
           source,
@@ -216,8 +219,8 @@ export async function writeRuntimeSettings({
   }
 }
 
-export async function unsetRuntimeSetting(name, source) {
-  const definition = settingDefinitions.find((item) => item.name === name);
+export async function unsetRuntimeSetting(name, source, scope = DEFAULT_SETTINGS_SCOPE) {
+  const definition = settingDefinition(name, scope);
   if (!definition) throw new Error(`Unknown VASI runtime setting ${name}.`);
   if (definition.required) throw new Error(`Required VASI runtime setting ${name} cannot be removed.`);
 
@@ -230,7 +233,7 @@ export async function unsetRuntimeSetting(name, source) {
       `delete from "vasi_runtime_setting"
        where "installationId" = $1 and "scope" = $2 and "name" = $3
        returning "version"`,
-      [bootstrap.installationId, SETTINGS_SCOPE, name],
+      [bootstrap.installationId, scope, name],
     );
     if (result.rowCount) {
       await client.query(
@@ -240,7 +243,7 @@ export async function unsetRuntimeSetting(name, source) {
         [
           randomUUID(),
           bootstrap.installationId,
-          SETTINGS_SCOPE,
+          scope,
           name,
           result.rows[0].version,
           source,
@@ -257,7 +260,7 @@ export async function unsetRuntimeSetting(name, source) {
   }
 }
 
-export async function listRuntimeSettings() {
+export async function listRuntimeSettings(scope = DEFAULT_SETTINGS_SCOPE) {
   const bootstrap = loadBootstrapSettings();
   const pool = createSettingsPool(bootstrap);
   try {
@@ -266,12 +269,56 @@ export async function listRuntimeSettings() {
        from "vasi_runtime_setting"
        where "installationId" = $1 and "scope" = $2
        order by "name"`,
-      [bootstrap.installationId, SETTINGS_SCOPE],
+      [bootstrap.installationId, scope],
     );
     return result.rows;
   } finally {
     await pool.end();
   }
+}
+
+export async function readRuntimeSettings({
+  bootstrap = loadBootstrapSettings(),
+  scope = DEFAULT_SETTINGS_SCOPE,
+} = {}) {
+  const definitions = definitionsForScope(scope);
+  const known = new Map(definitions.map((definition) => [definition.name, definition]));
+  const values = Object.fromEntries(
+    definitions
+      .filter((definition) => definition.default !== undefined)
+      .map((definition) => [definition.name, definition.default]),
+  );
+  const pool = createSettingsPool(bootstrap);
+  try {
+    const result = await pool.query(
+      `select "name", "scope", "ciphertext", "iv", "authTag"
+       from "vasi_runtime_setting"
+       where "installationId" = $1 and "scope" = $2`,
+      [bootstrap.installationId, scope],
+    );
+    for (const row of result.rows) {
+      if (!known.has(row.name)) continue;
+      values[row.name] = decryptRuntimeSetting({
+        authTag: row.authTag,
+        ciphertext: row.ciphertext,
+        installationId: bootstrap.installationId,
+        iv: row.iv,
+        name: row.name,
+        scope,
+        settingsKey: bootstrap.settingsKey,
+      });
+    }
+  } finally {
+    await pool.end();
+  }
+
+  const missing = definitions
+    .filter((definition) => definition.required && !String(values[definition.name] || "").trim())
+    .map((definition) => definition.name);
+  if (missing.length) {
+    throw new Error(`Required VASI ${scope} settings are missing: ${missing.join(", ")}.`);
+  }
+  return values;
 }
 
 export function parseEnvironmentFile(filePath) {
@@ -291,12 +338,16 @@ export function parseEnvironmentText(contents) {
   return values;
 }
 
-export function settingDefinition(name) {
-  return settingDefinitions.find((definition) => definition.name === name);
+export function settingDefinition(name, scope = DEFAULT_SETTINGS_SCOPE) {
+  return definitionsForScope(scope).find((definition) => definition.name === name);
 }
 
-export function runtimeSettingNames() {
-  return settingDefinitions.map((definition) => definition.name);
+export function runtimeSettingNames(scope = DEFAULT_SETTINGS_SCOPE) {
+  return definitionsForScope(scope).map((definition) => definition.name);
+}
+
+export function runtimeSettingScopes() {
+  return [...new Set(settingDefinitions.map((definition) => definition.scope))];
 }
 
 function parseEnvironmentValue(sourceValue) {
@@ -322,6 +373,25 @@ function encryptRuntimeSetting({ installationId, name, scope, settingsKey, value
   return { authTag: cipher.getAuthTag(), ciphertext, iv };
 }
 
+function decryptRuntimeSetting({
+  authTag,
+  ciphertext,
+  installationId,
+  iv,
+  name,
+  scope,
+  settingsKey,
+}) {
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", settingsKey, iv);
+    decipher.setAAD(runtimeSettingAAD({ installationId, name, scope }));
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+  } catch {
+    throw new Error(`Runtime setting ${name} could not be authenticated.`);
+  }
+}
+
 function runtimeSettingAAD({ installationId, name, scope }) {
   return Buffer.from(
     ["vasi-runtime-setting-v1", installationId, scope, name].join("\0"),
@@ -339,4 +409,10 @@ function validateDatabaseSettings({ databasePoolMax, databaseSSL, databaseURL })
   if (!Number.isInteger(Number(databasePoolMax)) || Number(databasePoolMax) < 1 || Number(databasePoolMax) > 100) {
     throw new Error("The VASI PostgreSQL pool size must be between 1 and 100.");
   }
+}
+
+function definitionsForScope(scope) {
+  const definitions = settingDefinitions.filter((definition) => definition.scope === scope);
+  if (!definitions.length) throw new Error(`Unknown VASI runtime setting scope ${scope}.`);
+  return definitions;
 }

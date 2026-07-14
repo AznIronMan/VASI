@@ -12,6 +12,10 @@ export default defineConfig({
       reporter: ["text", "html"],
     },
     environment: "node",
-    include: ["src/**/*.test.ts", "scripts/**/*.test.mjs"],
+    include: [
+      "src/**/*.test.ts",
+      "scripts/**/*.test.mjs",
+      "packages/**/*.test.mjs",
+    ],
   },
 });

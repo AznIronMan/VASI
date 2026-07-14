@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseEnvironmentText } from "./settings-core.mjs";
+import {
+  parseEnvironmentText,
+  runtimeSettingNames,
+  runtimeSettingScopes,
+} from "./settings-core.mjs";
 
 describe("legacy environment parsing", () => {
   it("accepts streamed Docker environment output without exposing values", () => {
@@ -22,5 +26,14 @@ describe("legacy environment parsing", () => {
     expect(() => parseEnvironmentText("not an assignment")).toThrow(
       "Invalid environment-file syntax on line 1.",
     );
+  });
+});
+
+describe("runtime setting scopes", () => {
+  it("keeps gateway and private-engine settings in explicit scopes", () => {
+    expect(runtimeSettingScopes()).toEqual(["gateway", "engine"]);
+    expect(runtimeSettingNames("gateway")).toContain("BETTER_AUTH_SECRET");
+    expect(runtimeSettingNames("gateway")).not.toContain("ENGINE_INTERNAL_HMAC_SECRET");
+    expect(runtimeSettingNames("engine")).toContain("ENGINE_INTERNAL_HMAC_SECRET");
   });
 });

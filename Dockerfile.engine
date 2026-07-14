@@ -1,0 +1,15 @@
+FROM node:24-alpine AS dependencies
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+FROM dependencies AS engine-tools
+COPY config ./config
+COPY database ./database
+COPY packages ./packages
+COPY scripts ./scripts
+COPY services ./services
+
+FROM engine-tools AS engine-runtime
+USER node
+CMD ["node", "services/engine/server.mjs"]

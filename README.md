@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.3.0`
+Version: `0.4.0`
 
 A CNB project maintained by Street Kings Productions.
 
@@ -15,12 +15,18 @@ username/password sign-in are available; Zoho is implemented and awaits a
 production client; Apple is implemented but hidden until Apple Developer
 approval is complete.
 
-The product direction is a private, independently deployable interaction and
-evidence engine behind this gateway. It will record the authenticated
-participant, exact immutable content and questions presented, activity and
-timing evidence, responses and outcomes, and a tamper-evident chronology. That
-engine is not yet implemented in this release; `/workspace` remains the
-verified-session handoff point.
+This release also establishes the private engine boundary behind that gateway.
+It includes independently deployable engine, private-ingress, and worker
+processes; a separate PostgreSQL database/schema and migration history; mutual
+TLS from V·Sign; HMAC-authenticated ingress-to-engine requests; and short-lived,
+replay-protected EdDSA actor assertions. The engine and worker publish no host
+ports. The only listener is the mTLS private-ingress facade, which defaults to
+loopback and must be explicitly bound to an approved private interface.
+
+Tenant, workflow, content, response, evidence-ledger, report, retention, and
+sealing domains remain subsequent milestones. `/workspace` is still the
+verified-session handoff point; this release proves the secure service boundary
+without claiming that evidence workflows are complete.
 
 ## Included
 
@@ -37,9 +43,17 @@ verified-session handoff point.
   PostgreSQL connection, installation identity, pool/transport selection, and
   the key that decrypts runtime settings.
 - AES-256-GCM encrypted runtime configuration in PostgreSQL, audited settings
-  changes, forward-only migrations, and a value-redacting settings CLI.
+  changes, explicit gateway/engine scopes, forward-only migrations, and a
+  value-redacting settings CLI.
 - A non-root application image, loopback-only published port, health check,
   read-only application filesystem, and explicit release migration.
+- Framework-independent engine contracts, service authorization, request
+  signing, actor-assertion validation, and gateway-client packages.
+- Private engine and worker containers with no published ports, plus an mTLS
+  facade, PostgreSQL outbox baseline, and persistent assertion replay defense.
+- An admin-host-only engine identity diagnostic at `/api/admin/engine`; it
+  translates the authenticated V·Sign administrator session into a one-minute
+  internal actor assertion without forwarding provider tokens or cookies.
 
 ## Configuration model
 
@@ -48,7 +62,7 @@ installation state and must never be committed, copied into an image, or sent
 with a support bundle. It contains the minimum information needed to reach
 PostgreSQL and decrypt the remaining settings. Provider credentials, auth and
 mailer secrets, origins, allowlists, and other runtime configuration are
-encrypted in PostgreSQL and scoped to the installation ID.
+encrypted in PostgreSQL and scoped to the installation ID and process family.
 
 The bootstrap database and PostgreSQL must be backed up together. Losing
 `VASI.settings` loses the decryption key for the PostgreSQL settings; restoring
@@ -104,8 +118,8 @@ Create the deployment directory and initialize it from an interactive terminal:
 
 ```bash
 install -d -m 700 data
-docker compose -f compose.production.yaml --profile tools run --rm settings init
-docker compose -f compose.production.yaml --profile release run --rm migrate
+docker compose -f compose.production.yaml --profile tools run --rm --build settings init
+docker compose -f compose.production.yaml --profile release run --rm --build migrate
 docker compose -f compose.production.yaml up -d --build app
 ```
 
@@ -127,5 +141,32 @@ legacy file can instead be mounted and imported by path, then securely retired
 only after the new application passes its checks. This compatibility command is
 not the continuing configuration mechanism.
 
+## Private engine
+
+The sanitized private-engine Compose contract is separate from the public
+gateway contract:
+
+```bash
+install -d -m 700 data
+docker compose -f compose.engine.yaml --profile tools run --rm --build settings init
+docker compose -f compose.engine.yaml --profile release run --rm --build migrate
+docker compose -f compose.engine.yaml up -d --build engine worker private-ingress
+```
+
+`engine` and `worker` have no `ports` mappings. `private-ingress` is the narrow
+service facade and binds only `127.0.0.1:11121` in the sanitized template. A
+deployment-specific, untracked Compose override may replace that with an
+approved private address. Never bind it to a public interface or configure a
+public reverse proxy to supply the V·Sign client certificate.
+
+The engine uses its own PostgreSQL database or role/schema boundary and its own
+`data/VASI.settings`; do not reuse the gateway bootstrap. Service TLS keys,
+client trust, internal HMAC material, and assertion keys are encrypted in the
+appropriate PostgreSQL settings scope. Run `npm run engine:probe` from the
+gateway deployment to verify mTLS, actor identity, and replay rejection.
+
 See [Authentication setup](docs/authentication.md) for callbacks, provider and
-mailer settings, administration behavior, and the release checklist.
+mailer settings, administration behavior, and the release checklist. See
+[Private engine deployment](docs/engine-deployment.md) and the
+[engine boundary decision](docs/architecture/private-engine-boundary.md) for
+the service trust and deployment contract.

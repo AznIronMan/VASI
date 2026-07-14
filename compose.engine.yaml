@@ -1,0 +1,133 @@
+name: vasi-engine
+
+services:
+  settings:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+      target: engine-tools
+    image: vasi-engine-tools:0.4.0
+    entrypoint: ["node", "scripts/settings.mjs", "--scope", "engine"]
+    command: ["list"]
+    user: "0:0"
+    volumes:
+      - ./data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - engine-data
+    profiles:
+      - tools
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+      target: engine-runtime
+    image: vasi-engine:0.4.0
+    command: ["node", "scripts/engine-migrate.mjs"]
+    user: "1000:1000"
+    volumes:
+      - ./data:/app/data:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - engine-data
+    profiles:
+      - release
+
+  engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+      target: engine-runtime
+    image: vasi-engine:0.4.0
+    command: ["node", "services/engine/server.mjs"]
+    restart: unless-stopped
+    init: true
+    volumes:
+      - ./data:/app/data:ro
+    expose:
+      - "8080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - engine-private
+      - engine-data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8080/healthz',{headers:{'x-vasi-service':'healthcheck'}}).then(r=>{if(r.status!==401)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  worker:
+    image: vasi-engine:0.4.0
+    command: ["node", "services/worker/worker.mjs"]
+    restart: unless-stopped
+    init: true
+    volumes:
+      - ./data:/app/data:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - engine-data
+    depends_on:
+      engine:
+        condition: service_healthy
+
+  private-ingress:
+    image: vasi-engine:0.4.0
+    command: ["node", "services/private-ingress/server.mjs"]
+    restart: unless-stopped
+    init: true
+    ports:
+      - 127.0.0.1:11121:8443
+    volumes:
+      - ./data:/app/data:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - engine-private
+      - engine-data
+    depends_on:
+      engine:
+        condition: service_healthy
+
+networks:
+  engine-private:
+    internal: true
+  engine-data: {}

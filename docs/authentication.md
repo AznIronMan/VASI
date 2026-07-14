@@ -16,17 +16,19 @@ contains only:
 - a random 256-bit key used to decrypt runtime settings in PostgreSQL.
 
 All settings named in this document—including origins, allowlists, identity
-provider clients, auth secrets, and mail credentials—are encrypted with
-AES-256-GCM in `vasi_runtime_setting`. Encryption binds each value to its
-installation, scope, and name. `vasi_runtime_setting_audit` records set/unset
-operations without recording values.
+provider clients, auth secrets, mail credentials, and private-engine client
+trust—are encrypted with AES-256-GCM in `vasi_runtime_setting`. Encryption binds
+each value to its installation, scope, and name.
+`vasi_runtime_setting_audit` records set/unset operations without recording
+values. Gateway settings use the `gateway` scope. The separately deployed
+engine has its own bootstrap and uses the `engine` scope.
 
 Initialize a source deployment with `npm run settings:init`, or a container
 deployment with:
 
 ```bash
 install -d -m 700 data
-docker compose -f compose.production.yaml --profile tools run --rm settings init
+docker compose -f compose.production.yaml --profile tools run --rm --build settings init
 ```
 
 Use `npm run settings -- set SETTING_NAME` or the Compose `settings` tool to
@@ -34,6 +36,11 @@ change one value through hidden terminal input. `settings list` reveals only
 configured names, versions, and secret classifications. Restart the app after
 changing a setting because each process intentionally loads one consistent
 settings snapshot.
+
+Private-engine settings are managed only from its deployment. Its Compose tool
+selects the `engine` scope automatically; a source command must explicitly use
+`node scripts/settings.mjs --scope engine ...`. Never point the gateway and
+engine at the same bootstrap database.
 
 `VASI.settings` is mode `0600`, ignored by Git, excluded from the container
 build context, and mounted read-only into the app. Back it up securely together
@@ -215,9 +222,9 @@ PostgreSQL.
    bootstrap for remote database traffic. Disable it only over a trusted private
    or loopback path when that PostgreSQL service does not offer TLS.
 3. Apply the tracked migration with `npm run db:migrate` before application
-   rollout, or run the production migrator with
-   `docker compose -f compose.production.yaml run --rm migrate`; the migration
-   runner verifies its checksum and is safe to repeat.
+   rollout, or run the production migrator service with `--build`; the command
+   in the production-container section is safe to repeat and verifies every
+   migration checksum.
 4. Keep the origin reachable only through the trusted HTTPS reverse proxy.
 5. Confirm every provider callback and remove unused local callbacks from
    production provider registrations.
@@ -234,3 +241,7 @@ PostgreSQL.
     require an allowlisted administrator on the private hostname.
 12. Confirm `VASI.settings` is mode `0600`, absent from the image and repository,
     and that the running app has no application secrets in its environment.
+13. If the private engine is configured, run `npm run engine:probe`, confirm the
+    replay attempt is rejected, and confirm engine and worker publish no host
+    ports. Verify `/api/admin/engine` is 404 on the public host and requires an
+    allowlisted administrator on the private host.

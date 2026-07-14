@@ -13,6 +13,7 @@ RUN npm run build
 FROM dependencies AS migrator
 COPY config ./config
 COPY database ./database
+COPY packages ./packages
 COPY scripts ./scripts
 CMD ["node", "scripts/migrate.mjs"]
 
