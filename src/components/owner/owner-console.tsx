@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { OwnerGovernance } from "@/components/owner/owner-governance";
 import type { IssuedEvidenceRequest } from "@/lib/evidence-types";
 import type {
   OwnerArtifact,
@@ -98,6 +99,7 @@ export function OwnerConsole({ baseURL, initialTenants }: {
           .filter(Number.isSafeInteger),
       },
       purpose: String(data.get("purpose")),
+      retention: { profile: String(data.get("retentionProfile") || "tenant_default") },
       schedule: {
         defaultDueDays: Number(data.get("defaultDueDays")),
         defaultExpirationDays: Number(data.get("defaultExpirationDays")),
@@ -309,6 +311,7 @@ export function OwnerConsole({ baseURL, initialTenants }: {
           <label className="field"><span>Participant title</span><input name="title" defaultValue={editing?.document.title} minLength={2} maxLength={160} required /></label>
           <label className="field"><span>Purpose</span><textarea name="purpose" defaultValue={editing?.document.purpose} minLength={2} maxLength={1000} required /></label>
           <label className="field"><span>Instructions</span><textarea name="instructions" defaultValue={editing?.document.instructions} maxLength={4000} /></label>
+          <label className="field"><span>Retention profile</span><input name="retentionProfile" defaultValue={editing?.document.retention?.profile || "tenant_default"} pattern="[a-z][a-z0-9_-]*" required /><small>Each issued record binds the active revision of this named profile.</small></label>
           {activities.map((activity, index) => <ActivityEditor key={`${activity.id}:${index}`} activity={activity} artifacts={publishedArtifacts} index={index} update={(next) => setActivities((current) => current.map((entry, item) => item === index ? next : entry))} remove={() => setActivities((current) => current.filter((_, item) => item !== index))} />)}
           <button className="secondary-button" type="button" disabled={activities.length >= 50} onClick={() => setActivities((current) => [...current, emptyActivity(current.length)])}>Add ordered step</button>
           <div className="form-row"><label className="field"><span>Default due days</span><input name="defaultDueDays" type="number" min="1" max="365" defaultValue={editing?.document.schedule?.defaultDueDays || 7} required /></label><label className="field"><span>Expiration days</span><input name="defaultExpirationDays" type="number" min="1" max="365" defaultValue={editing?.document.schedule?.defaultExpirationDays || 14} required /></label></div>
@@ -326,6 +329,7 @@ export function OwnerConsole({ baseURL, initialTenants }: {
       {issued && <section className="evidence-issued"><p className="eyebrow eyebrow--green">ONE-TIME PARTICIPANT LINK</p><a href={`${baseURL}${issued.participantPath}`}>{baseURL}{issued.participantPath}</a><p>Copy this now. VASI stores only its digest after the encrypted delivery outbox is completed.</p></section>}
 
       {permissions.has("member.manage") && <section className="owner-grid"><form className="evidence-panel" onSubmit={setMember}><p className="eyebrow eyebrow--green">COMPANY ACCESS</p><h2>Grant by verified email</h2><label className="field"><span>Email</span><input name="email" type="email" required /></label><div className="form-row"><label className="field"><span>Role</span><select name="role"><option value="owner">Owner</option><option value="manager">Manager</option><option value="author">Author</option><option value="auditor">Auditor</option></select></label><label className="field"><span>Status</span><select name="status"><option value="active">Active</option><option value="disabled">Disabled</option></select></label></div><button className="primary-button" disabled={pending === "member"} type="submit">Update access</button></form><section className="evidence-panel"><p className="eyebrow eyebrow--green">MEMBERS</p><h2>Engine-owned roles</h2>{members.map((member, index) => <article className="owner-member" key={`${member.email}:${member.principalId}:${index}`}><strong>{member.email || member.principalId}</strong><span>{member.roles.join(", ")} · {member.status} · {member.source}</span></article>)}</section></section>}
+      <OwnerGovernance permissions={[...permissions]} tenantId={tenantId} />
     </main>
   );
 }

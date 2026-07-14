@@ -49,9 +49,12 @@ and expired requests under row locks and records both lifecycle and chained
 evidence events. Reissue creates a new assignment and one-time opaque link bound
 to the same immutable revision.
 
-Post-completion policy is revision-bound: receipt only, original content until
-request expiration, or continuing content access. The authenticated participant
-receipt remains available even when the original content is no longer returned.
+Post-completion access policy is revision-bound: receipt only, original content
+until request expiration, or continuing content access. In VASI 0.10.0, the
+workflow also names a versioned retention profile whose active revision is
+snapshotted at issuance. The authenticated participant history/report horizon,
+original content horizon, evidence archive, and optional evidence deletion are
+then enforced independently.
 
 ## Notification outbox
 
@@ -82,7 +85,9 @@ PostgreSQL documents, questions/tests, typed/drawn signatures, and append-only
 response revisions are implemented in VASI 0.7.0. Provider-hosted media and
 duration evidence are implemented in VASI 0.8.0. Deterministic reports,
 portable bundles, offline/public verification, and optional X.509 leaf seals
-are implemented in VASI 0.9.0. Retention/legal hold, participant data requests,
-and advanced trust-service/timestamp profiles remain separate milestones. The
+are implemented in VASI 0.9.0. Retention, legal holds, controlled purge,
+participant history, and reviewed participant data exports are implemented in
+VASI 0.10.0. Advanced trust-service/timestamp profiles remain separate
+milestones. The
 standard integrity seal still does not claim an external CA identity, trusted
 timestamp, or legal conclusion.

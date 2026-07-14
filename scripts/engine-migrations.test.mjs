@@ -15,5 +15,6 @@ describe("engine migration ledger", () => {
 
     expect(source).toContain("set search_path to public, pg_catalog");
     expect(source.match(/public\.\"_vasi_engine_migrations\"/g)).toHaveLength(3);
+    expect(source).toContain("0008_engine_lifecycle_governance");
   });
 });

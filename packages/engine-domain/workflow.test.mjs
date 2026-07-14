@@ -60,6 +60,9 @@ describe("workflow contracts", () => {
     expect(hasTenantPermission(["author"], "workflow.manage")).toBe(true);
     expect(hasTenantPermission(["auditor"], "request.manage")).toBe(false);
     expect(hasTenantPermission(["admin"], "workflow.manage")).toBe(false);
+    expect(hasTenantPermission(["owner"], "lifecycle.manage")).toBe(true);
+    expect(hasTenantPermission(["manager"], "data_request.review")).toBe(true);
+    expect(hasTenantPermission(["auditor"], "lifecycle.read")).toBe(true);
   });
 
   it("allows only declared rich-activity outcomes in forward branches", () => {

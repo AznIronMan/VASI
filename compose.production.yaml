@@ -5,7 +5,7 @@ services:
     build:
       context: .
       target: migrator
-    image: vasi-settings:0.9.0
+    image: vasi-settings:0.10.0
     volumes:
       - ./data:/app/data
     entrypoint: ["node", "scripts/settings.mjs"]
@@ -29,7 +29,7 @@ services:
     build:
       context: .
       target: migrator
-    image: vasi-settings:0.9.0
+    image: vasi-settings:0.10.0
     volumes:
       - ./data:/app/data:ro
     user: "1000:1000"
@@ -47,7 +47,7 @@ services:
     build:
       context: .
       target: runner
-    image: vasi:0.9.0
+    image: vasi:0.10.0
     restart: unless-stopped
     init: true
     ports:

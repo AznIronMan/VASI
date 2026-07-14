@@ -13,8 +13,10 @@ describe("replaceable evidence signing provider", () => {
     const payload = { schema: "vasi-signing-provider-test/v1", value: "bound" };
     const manifestSeal = provider.signManifest(payload)[0];
     const bundleSeal = provider.signBundleIndex(payload)[0];
+    const dataExportSeal = provider.signDetached(payload, "vasi-participant-data-export/v1")[0];
     expect(verifyDetachedIntegritySeal(payload, manifestSeal, ["vasi-integrity-seal/v1"])).toBe(true);
     expect(verifyDetachedIntegritySeal(payload, bundleSeal, ["vasi-bundle-seal/v1"])).toBe(true);
+    expect(verifyDetachedIntegritySeal(payload, dataExportSeal, ["vasi-participant-data-export/v1"])).toBe(true);
     expect(manifestSeal.role).toBe("vasi_integrity");
   });
 

@@ -35,6 +35,10 @@ const migrations = [
     name: "0007_engine_evidence_reports",
     path: path.join(repositoryRoot, "database", "engine-evidence-reports.sql"),
   },
+  {
+    name: "0008_engine_lifecycle_governance",
+    path: path.join(repositoryRoot, "database", "engine-lifecycle-governance.sql"),
+  },
 ];
 
 export async function runEngineMigrations(bootstrap = loadBootstrapSettings()) {

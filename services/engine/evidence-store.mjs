@@ -15,6 +15,7 @@ import {
   evaluateNextActivity,
   hasTenantPermission,
   participantActivityProjection,
+  permissionsForRoles,
   validatePublishedIssueInput,
   validateRequestAction,
 } from "../../packages/engine-domain/workflow.mjs";
@@ -23,6 +24,12 @@ import { validateParticipantArtifactInput } from "../../packages/engine-domain/a
 import { readArtifactChunk } from "./artifact-store.mjs";
 import { appendEvent } from "./evidence-events.mjs";
 import { EngineStoreError } from "./errors.mjs";
+import {
+  anchorRecordLifecycle,
+  assertLifecycleContentAvailable,
+  assertLifecycleHistoryAvailable,
+  bindRecordLifecycle,
+} from "./lifecycle-store.mjs";
 import {
   assertMediaCompletion,
   loadMediaEvidence,
@@ -69,7 +76,7 @@ export function createEvidenceStore(database, settings) {
         return {
           id: tenantId,
           name: input.name,
-          permissions: ["member.manage", "record.read", "request.manage", "workflow.manage"],
+          permissions: permissionsForRoles(["owner"]),
           roles: ["owner"],
           slug: input.slug,
         };
@@ -143,6 +150,14 @@ export function createEvidenceStore(database, settings) {
             ("assignmentId", "lastSequence", "lastHash") values ($1, 0, $2)`,
           [assignmentId, GENESIS_HASH],
         );
+        await bindRecordLifecycle(client, {
+          actor,
+          assignmentId,
+          expiresAt: input.expiresAt,
+          profileName: "tenant_default",
+          requestId,
+          tenantId: input.tenantId,
+        });
         await appendEvent(client, {
           actor,
           assignmentId,
@@ -182,6 +197,7 @@ export function createEvidenceStore(database, settings) {
         authorizeParticipant(record, actor);
         const now = new Date();
         if (record.status === "completed") {
+          await assertLifecycleHistoryAvailable(client, record.assignmentId, new Date());
           return { completed: true, receiptAvailable: true };
         }
         assertAssignmentAvailable(record, now);
@@ -356,6 +372,13 @@ export function createEvidenceStore(database, settings) {
            set "status" = 'completed', "completedAt" = $2 where "id" = $1`,
           [record.requestId, completedAt],
         );
+        await anchorRecordLifecycle(client, {
+          actor,
+          assignmentId: record.assignmentId,
+          completedAt,
+          requestId: record.requestId,
+          tenantId: record.tenantId,
+        });
 
         const events = await evidenceEvents(client, record.assignmentId);
         const manifestId = randomUUID();
@@ -400,6 +423,7 @@ export function createEvidenceStore(database, settings) {
       return transaction(database, async (client) => {
         const assignment = await assignmentForHandle(client, handleDigest, false);
         authorizeParticipant(assignment, actor);
+        await assertLifecycleHistoryAvailable(client, assignment.assignmentId, new Date());
         const record = await loadEvidenceRecord(client, assignment.assignmentId, signingProvider);
         await recordEvidenceAccess(client, actor, record, "participant_receipt");
         return participantReceipt(record);
@@ -431,6 +455,7 @@ export function createEvidenceStore(database, settings) {
       return transaction(database, async (client) => {
         const record = await participantArtifactRecord(client, handleDigest, input, true);
         authorizeParticipant(record, actor);
+        await assertLifecycleContentAvailable(client, record.assignmentId, new Date());
         assertParticipantContentAccess(record, new Date());
         const accessType = input.disposition === "attachment"
           ? "participant_download"
@@ -486,6 +511,7 @@ export function createEvidenceStore(database, settings) {
       try {
         const record = await participantArtifactRecord(client, handleDigest, input, false);
         authorizeParticipant(record, actor);
+        await assertLifecycleContentAvailable(client, record.assignmentId, new Date());
         assertParticipantContentAccess(record, new Date());
         return readArtifactChunk(client, input.artifactId, input.sequence);
       } finally {
@@ -601,6 +627,14 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
       ("assignmentId", "lastSequence", "lastHash") values ($1, 0, $2)`,
     [assignmentId, GENESIS_HASH],
   );
+  await bindRecordLifecycle(client, {
+    actor,
+    assignmentId,
+    expiresAt,
+    profileName: revision.snapshot.retention?.profile || "tenant_default",
+    requestId,
+    tenantId: input.tenantId,
+  });
   for (const [ordinal, activity] of revision.snapshot.activities.entries()) {
     await client.query(
       `insert into "vasi_engine"."activity_instance"
@@ -991,6 +1025,13 @@ async function respondToWorkflowActivity({
      set "status" = 'completed', "completedAt" = $2 where "id" = $1`,
     [record.requestId, completedAt],
   );
+  await anchorRecordLifecycle(client, {
+    actor,
+    assignmentId: record.assignmentId,
+    completedAt,
+    requestId: record.requestId,
+    tenantId: record.tenantId,
+  });
   const responses = await client.query(
     `select i."activityId", i."ordinal", i."definitionHash", r."responseValue", r."responseLabel",
             r."outcome", r."result", r."respondedAt",

@@ -78,6 +78,9 @@ export function createSigningProvider(settings) {
   return Object.freeze({
     keyRecords: Object.freeze(keyRecords),
     primaryPublicJWK: publicJWK,
+    signDetached(payload, profile) {
+      return sign(payload, profile);
+    },
     signBundleIndex(index) {
       return sign(index, "vasi-bundle-seal/v1");
     },

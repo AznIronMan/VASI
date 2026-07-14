@@ -25,6 +25,12 @@ Approved routes are:
 | `GET/POST` | `/v1/owner/tenants` | List or create an authorized company space |
 | `POST` | `/v1/owner/member-list` | List engine-authorized company members and grants |
 | `POST` | `/v1/owner/members` | Grant or change company roles by verified email |
+| `POST` | `/v1/owner/retention-policy-list` | List system and tenant retention-policy revisions |
+| `POST` | `/v1/owner/retention-policies` | Append and activate a policy revision optimistically |
+| `POST` | `/v1/owner/lifecycle-record-list` | List authorized record lifecycle, deadlines, and holds |
+| `POST` | `/v1/owner/legal-holds` | Place or release an append-only legal hold |
+| `POST` | `/v1/owner/data-request-review-list` | List participant data scopes for tenant review |
+| `POST` | `/v1/owner/data-request-reviews` | Approve/redact or deny one tenant scope |
 | `POST` | `/v1/owner/artifact-list` | List tenant-authorized artifact metadata and state |
 | `POST` | `/v1/owner/artifacts` | Create a quarantined artifact revision |
 | `POST` | `/v1/owner/artifact-chunks` | Append one bounded ordered artifact chunk |
@@ -41,6 +47,10 @@ Approved routes are:
 | `POST` | `/v1/owner/request-actions` | Remind, revoke, or reissue idempotently |
 | `POST` | `/v1/owner/records` | Verify and return an owner-authorized structured record |
 | `POST` | `/v1/participant/open` | Bind/open an opaque participant assignment |
+| `GET` | `/v1/participant/history` | List participant-bound records with lifecycle state |
+| `GET/POST` | `/v1/participant/data-requests` | List or create a participant data request |
+| `POST` | `/v1/participant/data-exports` | Open an approved sealed participant data export |
+| `POST` | `/v1/participant/data-export-chunks` | Return one authorized verified export chunk |
 | `POST` | `/v1/participant/respond` | Record one authoritative response and seal its manifest |
 | `POST` | `/v1/participant/receipt` | Return a participant-safe verified receipt |
 | `POST` | `/v1/participant/artifact-open` | Authorize/audit exact participant document access |
@@ -84,6 +94,12 @@ present:
 - `EVIDENCE_CERTIFICATE_KEY_ID`
 - `EVIDENCE_CERTIFICATE_PRIVATE_KEY_PEM`
 - `EVIDENCE_CERTIFICATE_CHAIN_PEM`
+
+Participant data access accepts `ENGINE_PARTICIPANT_DATA_EXPORT_MAX_BYTES`
+(default 64 MiB), `ENGINE_DATA_REQUEST_REVIEW_DAYS` (default 30), and
+`ENGINE_DATA_EXPORT_DELIVERY_DAYS` (default 7). Review and delivery bounds are
+enforced by the engine and worker; export bytes remain in bounded PostgreSQL
+chunks until controlled expiry.
 
 The certificate private key is secret. Its chain is public verification
 material. Use signing material distinct from the service TLS identity. Local
@@ -141,6 +157,7 @@ npm run engine:probe:workflow # disposable conformance database only
 npm run engine:probe:documents # disposable conformance database only
 npm run engine:probe:media # disposable conformance database only
 npm run engine:probe:reports # disposable conformance database only
+npm run engine:probe:lifecycle # disposable conformance database only
 ```
 
 The proof verifies server trust, the V·Sign client certificate, engine health,

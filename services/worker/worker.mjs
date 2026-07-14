@@ -10,14 +10,20 @@ import {
   readRuntimeSettings,
 } from "../../scripts/settings-core.mjs";
 import { createNotificationDispatcher } from "./notification-adapters.mjs";
+import { createSigningProvider } from "../engine/signing-provider.mjs";
+import {
+  advanceOneRetentionLifecycle,
+  expireOneParticipantDataRequest,
+} from "./retention-worker.mjs";
 
-const ENGINE_VERSION = "0.9.0";
+const ENGINE_VERSION = "0.10.0";
 const GENESIS_HASH = "0".repeat(64);
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
 const database = createSettingsPool(bootstrap);
 const pollMilliseconds = boundedPollMilliseconds(settings.ENGINE_WORKER_POLL_MS);
 const dispatchNotification = createNotificationDispatcher(settings);
+const signingProvider = createSigningProvider(settings);
 let stopping = false;
 
 console.info(`VASI worker ${ENGINE_VERSION} started with deterministic lifecycle and outbox processing.`);
@@ -28,6 +34,8 @@ while (!stopping) {
     );
     await recoverStaleJobs(database);
     await advanceOneLifecycle(database);
+    await expireOneParticipantDataRequest(database);
+    await advanceOneRetentionLifecycle(database, signingProvider);
     const job = await claimJob(database);
     if (job) await deliverJob(database, job, dispatchNotification, settings.ENGINE_OUTBOX_ENCRYPTION_SECRET);
   } catch (error) {

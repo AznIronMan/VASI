@@ -99,5 +99,7 @@ stable principal and verified email. Export chunk reads recheck authorization
 and verify each stored chunk before returning it to V·Sign.
 
 The participant report is not the broader participant-data-request workflow.
-Retention, legal hold, data-subject request review, and controlled full-data
-delivery are separate lifecycle controls.
+VASI 0.10.0 implements that separate workflow with organization-scoped review,
+mandatory redaction policy, sealed bounded JSON delivery, audited access, and
+automatic export-content expiry. Retention and legal holds remain independent
+controls and can block destructive purge while a data request is active.

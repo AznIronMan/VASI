@@ -23,5 +23,11 @@ describe("engine service authorization", () => {
     expect(authorizeServiceAction("vasi-private-ingress", "verification.lookup").action).toBe(
       "verification.lookup",
     );
+    expect(authorizeServiceAction("vasi-private-ingress", "lifecycle.hold.command").action).toBe(
+      "lifecycle.hold.command",
+    );
+    expect(authorizeServiceAction("vasi-private-ingress", "participant.data_request.create").action).toBe(
+      "participant.data_request.create",
+    );
   });
 });

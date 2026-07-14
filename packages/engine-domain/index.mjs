@@ -13,7 +13,18 @@ const serviceActions = Object.freeze({
     "engine.health",
     "membership.list",
     "membership.update",
+    "lifecycle.hold.command",
+    "lifecycle.policy.list",
+    "lifecycle.policy.update",
+    "lifecycle.record.list",
+    "data_request.review",
+    "data_request.review.list",
     "participant.open",
+    "participant.history.list",
+    "participant.data_request.create",
+    "participant.data_request.list",
+    "participant.data_export.open",
+    "participant.data_export.read",
     "participant.media.open",
     "participant.receipt",
     "participant.report.open",
@@ -45,3 +56,4 @@ export function authorizeServiceAction(serviceId, action) {
 }
 
 export * from "./media.mjs";
+export * from "./lifecycle.mjs";

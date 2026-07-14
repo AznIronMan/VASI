@@ -16,6 +16,18 @@ const tenant = await call(owner, "POST", "/v1/owner/tenants", {
   slug: `workflow-${randomUUID()}`,
 });
 expectStatus(tenant, 200, "workflow tenant creation");
+const retention = await call(owner, "POST", "/v1/owner/retention-policies", {
+  expectedRevision: 0,
+  name: "workflow_conformance",
+  policy: {
+    contentAccess: { mode: "request_expiration" },
+    evidence: { archiveAfterDays: 365, deleteAfterDays: null },
+    participantHistory: { daysAfterTerminal: null },
+    schema: "vasi-retention-policy/v1",
+  },
+  tenantId: tenant.body.id,
+});
+expectStatus(retention, 200, "workflow retention profile creation");
 
 await expectCall(owner, "POST", "/v1/owner/members", {
   email: manager.email,
@@ -69,6 +81,13 @@ if (publicationTwo.body.revision !== 2 || publicationOne.body.snapshotHash === p
 }
 
 const issued = await issue(manager, tenant.body.id, publicationOne.body.revisionId);
+const lifecycleRecords = await call(manager, "POST", "/v1/owner/lifecycle-record-list", {
+  tenantId: tenant.body.id,
+});
+expectStatus(lifecycleRecords, 200, "workflow lifecycle policy binding");
+if (lifecycleRecords.body.find((entry) => entry.assignmentId === issued.body.assignmentId)?.policyHash !== retention.body.policyHash) {
+  throw new Error("The workflow did not bind its named retention-policy revision.");
+}
 const handle = issued.body.participantPath.split("/").at(-1);
 let opened = await call(participant, "POST", "/v1/participant/open", { handle });
 expectStatus(opened, 200, "first activity open");
@@ -195,6 +214,7 @@ function workflowDocument(title) {
     ],
     notifications: { onCompletion: true, onIssue: true, reminderHoursBeforeDue: [24] },
     purpose: "Workflow conformance proof",
+    retention: { profile: "workflow_conformance" },
     schedule: { defaultDueDays: 7, defaultExpirationDays: 14 },
     schema: "vasi-workflow/v1",
     title,

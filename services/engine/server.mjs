@@ -17,11 +17,12 @@ import { readRequestBody, sendJSON } from "../shared/http.mjs";
 import { createArtifactStore } from "./artifact-store.mjs";
 import { createEvidenceStore, EvidenceStoreError } from "./evidence-store.mjs";
 import { EngineStoreError } from "./errors.mjs";
+import { createLifecycleStore } from "./lifecycle-store.mjs";
 import { createMediaStore } from "./media-store.mjs";
 import { createReportStore } from "./report-store.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.9.0";
+const ENGINE_VERSION = "0.10.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -33,6 +34,7 @@ const database = createSettingsPool(bootstrap);
 const evidence = createEvidenceStore(database, settings);
 const artifacts = createArtifactStore(database, settings);
 const media = createMediaStore(database, settings);
+const lifecycle = createLifecycleStore(database, settings);
 const reports = createReportStore(database, settings);
 const workflows = createWorkflowStore(database, settings);
 const seenServiceRequests = new Map();
@@ -190,6 +192,12 @@ function dispatchEvidence(action, actor, payload) {
     case "tenant.create": return evidence.createTenant(actor, payload);
     case "membership.list": return workflows.listMembers(actor, payload);
     case "membership.update": return workflows.setMember(actor, payload);
+    case "lifecycle.policy.list": return lifecycle.listPolicies(actor, payload);
+    case "lifecycle.policy.update": return lifecycle.updatePolicy(actor, payload);
+    case "lifecycle.record.list": return lifecycle.listRecords(actor, payload);
+    case "lifecycle.hold.command": return lifecycle.commandHold(actor, payload);
+    case "data_request.review.list": return lifecycle.listDataRequestReviews(actor, payload);
+    case "data_request.review": return lifecycle.reviewDataRequest(actor, payload);
     case "artifact.list": return artifacts.listArtifacts(actor, payload);
     case "artifact.create": return artifacts.createArtifact(actor, payload);
     case "artifact.chunk.append": return artifacts.appendChunk(actor, payload);
@@ -210,6 +218,11 @@ function dispatchEvidence(action, actor, payload) {
     case "record.export.open": return reports.openOwnerExport(actor, payload);
     case "record.export.read": return reports.readOwnerExportChunk(actor, payload);
     case "participant.open": return evidence.openAssignment(actor, payload);
+    case "participant.history.list": return lifecycle.listParticipantHistory(actor);
+    case "participant.data_request.list": return lifecycle.listParticipantDataRequests(actor);
+    case "participant.data_request.create": return lifecycle.createParticipantDataRequest(actor, payload);
+    case "participant.data_export.open": return lifecycle.openParticipantDataExport(actor, payload);
+    case "participant.data_export.read": return lifecycle.readParticipantDataExportChunk(actor, payload);
     case "participant.respond": return evidence.respond(actor, payload);
     case "participant.media.open": return media.openParticipantMedia(actor, payload);
     case "participant.media.events": return media.recordParticipantEvents(actor, payload);
@@ -234,6 +247,7 @@ function errorCode(error) {
   if (error?.code === "INVALID_ARTIFACT") return "invalid_artifact";
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return "invalid_media_telemetry";
+  if (error?.code === "INVALID_LIFECYCLE") return "invalid_lifecycle";
   if (error?.code === "AUTHORIZATION_FAILED" || String(error?.code || "").startsWith("ERR_JWT")) {
     return "authorization_failed";
   }
@@ -261,6 +275,7 @@ function errorStatus(error) {
   if (error?.code === "INVALID_ARTIFACT") return 400;
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return 400;
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return 400;
+  if (error?.code === "INVALID_LIFECYCLE") return 400;
   if (error instanceof EngineStoreError) return error.status;
   if (error?.code === "AUTHORIZATION_FAILED" || String(error?.code || "").startsWith("ERR_JWT")) return 401;
   return 500;
@@ -271,6 +286,7 @@ function publicErrorCode(error, status) {
   if (error?.code === "INVALID_ARTIFACT") return "invalid_artifact";
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return "invalid_media_telemetry";
+  if (error?.code === "INVALID_LIFECYCLE") return "invalid_lifecycle";
   if (error?.code === "INVALID_WORKFLOW") return "invalid_workflow";
   if (status === 413) return "request_too_large";
   if (status === 400) return "invalid_request";

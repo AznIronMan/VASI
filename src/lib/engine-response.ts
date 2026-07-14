@@ -41,6 +41,15 @@ export function friendlyEngineError(code?: string) {
     case "media_event_sequence_conflict": return "Playback evidence arrived out of order. Reload the request before continuing.";
     case "media_batch_replay_conflict": return "A playback evidence batch was replayed with different content and was rejected.";
     case "content_unavailable": return "The company’s access policy no longer makes this document available.";
+    case "participant_history_unavailable": return "This record is no longer available in participant history.";
+    case "retention_policy_version_conflict": return "That retention policy changed after it was loaded. Refresh before saving.";
+    case "retention_policy_not_found": return "The workflow names a retention profile that has not been configured for this company.";
+    case "legal_hold_already_released": return "That legal hold has already been released.";
+    case "data_request_review_pending": return "Your data request is awaiting review by one or more requesting organizations.";
+    case "data_request_already_reviewed": return "That organization has already reviewed this data request.";
+    case "data_request_expired": return "That participant data request has expired.";
+    case "data_request_denied": return "The reviewed participant data request was denied.";
+    case "participant_data_export_expired": return "That participant data export has expired. Submit a new data request if needed.";
     case "not_found": return "The requested record was not found or is not available to this account.";
     case "forbidden": return "This account is not authorized for that company or record.";
     case "integrity_check_failed": return "The evidence record did not pass integrity verification.";

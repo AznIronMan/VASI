@@ -15,10 +15,10 @@ export const POST_COMPLETION_ACCESS = Object.freeze([
 ]);
 
 const ROLE_PERMISSIONS = Object.freeze({
-  owner: Object.freeze(["artifact.manage", "artifact.read", "member.manage", "record.read", "request.manage", "workflow.manage"]),
-  manager: Object.freeze(["artifact.manage", "artifact.read", "record.read", "request.manage", "workflow.manage"]),
+  owner: Object.freeze(["artifact.manage", "artifact.read", "data_request.review", "lifecycle.manage", "lifecycle.read", "member.manage", "record.read", "request.manage", "workflow.manage"]),
+  manager: Object.freeze(["artifact.manage", "artifact.read", "data_request.review", "lifecycle.manage", "lifecycle.read", "record.read", "request.manage", "workflow.manage"]),
   author: Object.freeze(["artifact.manage", "artifact.read", "workflow.manage"]),
-  auditor: Object.freeze(["artifact.read", "record.read"]),
+  auditor: Object.freeze(["artifact.read", "lifecycle.read", "record.read"]),
 });
 
 export function permissionsForRoles(roles = []) {

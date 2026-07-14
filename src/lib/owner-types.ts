@@ -137,9 +137,75 @@ export type WorkflowDocument = {
   instructions?: string;
   notifications?: { onCompletion: boolean; onIssue: boolean; reminderHoursBeforeDue: number[] };
   purpose: string;
+  retention?: { profile: string };
   schedule?: { defaultDueDays: number; defaultExpirationDays: number };
   schema?: "vasi-workflow/v1";
   title: string;
+};
+
+export type RetentionPolicy = {
+  contentAccess: { daysAfterTerminal?: number; mode: "days_after_terminal" | "indefinite" | "request_expiration" };
+  evidence: { archiveAfterDays: number | null; deleteAfterDays: number | null };
+  participantHistory: { daysAfterTerminal: number | null };
+  schema: "vasi-retention-policy/v1";
+};
+
+export type OwnerRetentionPolicy = {
+  createdAt?: string;
+  createdByPrincipalId?: string;
+  id: string | null;
+  name: string;
+  policy: RetentionPolicy;
+  policyHash: string;
+  revision: number;
+  source: "system_default" | "tenant";
+};
+
+export type OwnerLegalHold = {
+  caseReference: string;
+  id: string;
+  placedAt: string;
+  placedByPrincipalId?: string;
+  reason: string;
+  releaseReason?: string;
+  releasedAt?: string;
+};
+
+export type OwnerLifecycleRecord = {
+  archiveAt?: string;
+  assignmentId: string;
+  assignmentStatus: string;
+  contentExpiresAt?: string;
+  contentStatus: "active" | "expired";
+  deleteAt?: string;
+  evidenceStatus: "active" | "archived" | "purge_due";
+  historyExpiresAt?: string;
+  historyStatus: "active" | "expired";
+  holds: OwnerLegalHold[];
+  intendedEmail: string;
+  participantEmail?: string;
+  policy: RetentionPolicy;
+  policyHash: string;
+  policyRevisionId?: string;
+  requestId: string;
+  requestStatus: string;
+  tenantId: string;
+  terminalAt: string;
+  title: string;
+};
+
+export type OwnerDataRequestReview = {
+  expiresAt: string;
+  matchedRecordCount: number;
+  requestId: string;
+  requesterEmail: string;
+  requestedAt: string;
+  requestStatus: string;
+  reviewPolicy?: Record<string, unknown>;
+  reviewReason?: string;
+  reviewedAt?: string;
+  status: "pending_review" | "approved" | "denied";
+  tenantId: string;
 };
 
 export type OwnerWorkflow = {

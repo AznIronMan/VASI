@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.9.0`
+Version: `0.10.0`
 
 A CNB project maintained by Street Kings Productions.
 
@@ -73,14 +73,24 @@ history, and access events remain immutable in PostgreSQL. Installations can
 add a separate X.509 certificate seal while the Ed25519 VASI integrity seal
 remains the required portable baseline.
 
+Version 0.10.0 adds independent original-content, participant-history,
+archive, and deletion horizons through immutable named retention-policy
+revisions bound at issuance. The worker enforces access expiration, logical
+archive, legal-hold and participant-data-request blockers, controlled physical
+purge, and signed integrity tombstones that preserve privacy-minimized public
+verification after source evidence is removed. The company console manages
+policies, record lifecycle, holds, and privacy reviews. The participant
+workspace now shows request history and supports a reviewed, redacted, sealed,
+time-limited JSON export of the participant's own VASI data.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
 verification alone does not establish chain trust, revocation status, trusted
-time, legal enforceability, or long-term validation. Retention/legal hold,
-participant data requests, productized owner/integration gateways,
-comprehensive replaceable malware scanning, and external KMS/HSM/TSA trust
-profiles remain subsequent milestones.
+time, legal enforceability, or long-term validation. Productized integration
+gateways, comprehensive replaceable malware scanning, external KMS/HSM/TSA
+trust profiles, deployment-specific legal/privacy approval, and independent
+security assessment remain subsequent milestones.
 
 ## Included
 
@@ -134,6 +144,13 @@ profiles remain subsequent milestones.
   chunks, portable sealed ZIP bundles with authoritative document revisions,
   an offline verifier, a privacy-minimized public fingerprint verifier, key
   rotation history, optional X.509 seals, and append-only export/access audits.
+- Versioned retention profiles with immutable per-record snapshots, independent
+  content/history/archive/delete horizons, append-only legal holds and releases,
+  hold-safe worker enforcement, controlled PostgreSQL purge, and signed
+  verification tombstones.
+- A participant record-history workspace and organization-scoped data-request
+  review that produces a privacy-redacted, sealed, bounded PostgreSQL JSON
+  export with audited access and automatic content expiry.
 
 ## Configuration model
 
@@ -257,6 +274,10 @@ duration calculations, and version 4 sealing. `npm run engine:probe:reports`
 verifies deterministic report reuse, PostgreSQL export streaming, certificate
 and standard seals when configured, portable offline verification, public
 lookup privacy, isolation, and tamper rejection.
+`npm run engine:probe:lifecycle` verifies named retention-policy binding,
+legal-hold enforcement and release, sealed purge tombstones, retired public
+verification, participant history, reviewed data export, controlled expiry,
+immutability, isolation, and lifecycle-chain integrity.
 
 See [Authentication setup](docs/authentication.md) for callbacks, provider and
 mailer settings, administration behavior, and the release checklist. See
@@ -274,3 +295,7 @@ The [evidence report and verification decision](docs/architecture/evidence-repor
 defines deterministic report profiles, portable bundle contents, offline and
 online verification, PostgreSQL persistence, key rotation, certificate seals,
 and assurance limits.
+The [lifecycle governance and participant data decision](docs/architecture/lifecycle-governance-and-participant-data.md)
+defines independent retention horizons, hold-safe deletion, integrity
+tombstones, participant history, reviewed data access, and remaining legal and
+operational approvals.

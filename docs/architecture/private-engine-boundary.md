@@ -91,5 +91,7 @@ defense, process isolation, database ownership, and deployment posture. VASI
 PostgreSQL document artifacts and rich electronic activities, VASI 0.8.0 adds
 separately documented provider-hosted media and duration evidence, and VASI
 0.9.0 adds PostgreSQL-backed evidence reports, bundles, and fingerprint
-verification. Retention, legal hold, participant data requests, and productized
-integrations remain later milestones.
+verification. VASI 0.10.0 adds engine-owned retention revisions, lifecycle
+chains, legal holds, sealed purge tombstones, participant history, and reviewed
+data exports. Productized third-party integration gateways and higher-assurance
+external trust adapters remain later milestones.

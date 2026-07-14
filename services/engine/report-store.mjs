@@ -6,11 +6,16 @@ import {
   evidenceReportMediaType,
   renderEvidenceReport,
 } from "../../packages/evidence-reporting/index.mjs";
-import { sha256Hex } from "../../packages/engine-crypto/index.mjs";
+import {
+  sha256Hex,
+  verifyCertificateSeal,
+  verifyDetachedIntegritySeal,
+} from "../../packages/engine-crypto/index.mjs";
 import { hasTenantPermission } from "../../packages/engine-domain/workflow.mjs";
 import { assertEvidenceRecord } from "../../packages/evidence-verifier/index.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { loadEvidenceRecord } from "./evidence-store.mjs";
+import { assertLifecycleHistoryAvailable } from "./lifecycle-store.mjs";
 import { createSigningProvider } from "./signing-provider.mjs";
 
 const GENERATOR_VERSION = "vasi-evidence-export/1";
@@ -53,9 +58,11 @@ export function createReportStore(database, settings) {
 
     async openParticipantReport(actor, payload) {
       requireParticipant(actor);
-      const handleDigest = digestHandle(payload?.handle);
       return transaction(database, async (client) => {
-        const assignment = await participantAssignment(client, handleDigest, actor);
+        const assignment = payload?.assignmentId
+          ? await participantAssignmentById(client, token(payload.assignmentId, "assignmentId"), actor)
+          : await participantAssignment(client, digestHandle(payload?.handle), actor);
+        await assertLifecycleHistoryAvailable(client, assignment.assignmentId, new Date());
         const input = Object.freeze({
           assignmentId: assignment.assignmentId,
           format: reportFormat(payload?.format),
@@ -94,6 +101,43 @@ export function createReportStore(database, settings) {
           [fingerprint],
         );
         if (!result.rowCount) {
+          const tombstoneResult = await client.query(
+            `select "tombstone", "seal", "purgedAt"
+             from "vasi_engine"."retention_purge_tombstone" where "manifestHash" = $1`,
+            [fingerprint],
+          );
+          if (tombstoneResult.rowCount) {
+            const tombstone = tombstoneResult.rows[0];
+            const seals = Array.isArray(tombstone.seal) ? tombstone.seal : [];
+            const sealResults = seals.map((seal) => ({
+              algorithm: seal.algorithm,
+              keyId: seal.keyId,
+              profile: seal.profile,
+              role: seal.role,
+              verified: seal.profile === "vasi-certificate-seal/v1"
+                ? verifyCertificateSeal(tombstone.tombstone, seal)
+                : verifyDetachedIntegritySeal(
+                  tombstone.tombstone,
+                  seal,
+                  ["vasi-retention-tombstone/v1"],
+                ),
+            }));
+            await recordAccess(client, {
+              actor,
+              accessType: "public_verification",
+              manifestHash: fingerprint,
+              metadata: { known: true, lookup: "retention_tombstone", retired: true },
+            });
+            return {
+              fingerprint,
+              known: true,
+              purgedAt: new Date(tombstone.purgedAt).toISOString(),
+              retired: true,
+              schema: "vasi-public-verification/v1",
+              seals: sealResults,
+              verified: sealResults.length > 0 && sealResults.every((seal) => seal.verified),
+            };
+          }
           await recordAccess(client, {
             actor,
             accessType: "public_verification",
@@ -351,6 +395,9 @@ async function readChunk(database, actor, payload, audience) {
       artifact.kind !== "report" || artifact.profile !== "participant" ||
       artifact.principalId !== actor.principalId || artifact.intendedEmail.toLowerCase() !== actor.email
     ) notFound();
+    if (audience === "participant") {
+      await assertLifecycleHistoryAvailable(client, artifact.assignmentId, new Date());
+    }
     const result = await client.query(
       `select "sequence", "byteLength", "sha256", "bytes"
        from "vasi_engine"."evidence_export_chunk"
@@ -473,6 +520,21 @@ async function participantAssignment(client, handleDigest, actor) {
     `select "id" as "assignmentId", "tenantId", "principalId", "intendedEmail", "status"
      from "vasi_engine"."participant_assignment" where "handleDigest" = $1`,
     [handleDigest],
+  );
+  if (!result.rowCount) notFound();
+  const row = result.rows[0];
+  if (
+    row.status !== "completed" || row.principalId !== actor.principalId ||
+    row.intendedEmail.toLowerCase() !== actor.email
+  ) notFound();
+  return row;
+}
+
+async function participantAssignmentById(client, assignmentId, actor) {
+  const result = await client.query(
+    `select "id" as "assignmentId", "tenantId", "principalId", "intendedEmail", "status"
+     from "vasi_engine"."participant_assignment" where "id" = $1`,
+    [assignmentId],
   );
   if (!result.rowCount) notFound();
   const row = result.rows[0];

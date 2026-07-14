@@ -64,3 +64,52 @@ export type ParticipantReceipt = {
 };
 
 export type EngineErrorResponse = { error?: string };
+
+export type ParticipantHistoryRecord = {
+  assignmentId: string;
+  completedAt?: string;
+  evidence: { archived: boolean; manifestFingerprint?: string; reportAvailable: boolean };
+  expiresAt: string;
+  firstOpenedAt?: string;
+  issuedAt: string;
+  lifecycle: {
+    archiveAt?: string;
+    contentAvailable: boolean;
+    contentExpiresAt?: string;
+    deleteAt?: string;
+    historyExpiresAt?: string;
+  };
+  purpose: string;
+  requestId: string;
+  sender: { email?: string; relationship: "requesting_organization" };
+  status: string;
+  tenant: { id: string; name: string };
+  title: string;
+  workflow: { id: string; revision: number; snapshotHash: string };
+};
+
+export type ParticipantDataRequest = {
+  expiresAt: string;
+  export?: {
+    byteLength: number;
+    chunkCount: number;
+    createdAt: string;
+    expiresAt: string;
+    filename: string;
+    id: string;
+    mediaType: string;
+    profile: string;
+    sha256: string;
+  };
+  id: string;
+  requestedAt: string;
+  reviewCompletedAt?: string;
+  scopes: Array<{
+    matchedRecordCount: number;
+    reviewReason?: string;
+    reviewedAt?: string;
+    status: "pending_review" | "approved" | "denied";
+    tenant: { id: string; name: string };
+  }>;
+  status: "pending_review" | "approved" | "partially_approved" | "denied" | "ready" | "expired" | "cancelled";
+};

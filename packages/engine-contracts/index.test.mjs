@@ -49,5 +49,11 @@ describe("private engine routes", () => {
     expect(resolveEngineRoute("POST", "/v1/public/verification")?.action).toBe(
       "verification.lookup",
     );
+    expect(resolveEngineRoute("POST", "/v1/owner/legal-holds")?.action).toBe(
+      "lifecycle.hold.command",
+    );
+    expect(resolveEngineRoute("GET", "/v1/participant/data-requests")?.action).toBe(
+      "participant.data_request.list",
+    );
   });
 });
