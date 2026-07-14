@@ -31,6 +31,10 @@ const migrations = [
     name: "0006_engine_media_evidence",
     path: path.join(repositoryRoot, "database", "engine-media-evidence.sql"),
   },
+  {
+    name: "0007_engine_evidence_reports",
+    path: path.join(repositoryRoot, "database", "engine-evidence-reports.sql"),
+  },
 ];
 
 export async function runEngineMigrations(bootstrap = loadBootstrapSettings()) {

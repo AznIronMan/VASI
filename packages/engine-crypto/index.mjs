@@ -5,6 +5,7 @@ import {
   createDecipheriv,
   createPrivateKey,
   createPublicKey,
+  X509Certificate,
   sign,
   timingSafeEqual,
   randomBytes,
@@ -59,32 +60,100 @@ export function hashCanonicalJSON(value) {
 }
 
 export function createIntegritySeal({ keyId, manifest, privateJWK }) {
-  const manifestBytes = Buffer.from(canonicalJSON(manifest), "utf8");
+  return createDetachedIntegritySeal({
+    keyId,
+    payload: manifest,
+    privateJWK,
+    profile: "vasi-integrity-seal/v1",
+  });
+}
+
+export function createDetachedIntegritySeal({ keyId, payload, privateJWK, profile }) {
+  const manifestBytes = Buffer.from(canonicalJSON(payload), "utf8");
   const privateKey = createPrivateKey({ format: "jwk", key: privateJWK });
   const publicJWK = createPublicKey(privateKey).export({ format: "jwk" });
   return Object.freeze({
     algorithm: "Ed25519",
     keyId,
     manifestHash: sha256Hex(manifestBytes),
-    profile: "vasi-integrity-seal/v1",
+    profile: sealProfile(profile),
     publicJWK,
     signature: sign(null, manifestBytes, privateKey).toString("base64url"),
   });
 }
 
 export function verifyIntegritySeal(manifest, seal) {
+  return verifyDetachedIntegritySeal(manifest, seal, ["vasi-integrity-seal/v1"]);
+}
+
+export function verifyDetachedIntegritySeal(payload, seal, allowedProfiles) {
   try {
     if (
       seal?.algorithm !== "Ed25519" ||
-      seal?.profile !== "vasi-integrity-seal/v1" ||
+      !allowedProfiles.includes(seal?.profile) ||
       typeof seal.signature !== "string"
     ) {
       return false;
     }
-    const manifestBytes = Buffer.from(canonicalJSON(manifest), "utf8");
+    const manifestBytes = Buffer.from(canonicalJSON(payload), "utf8");
     if (sha256Hex(manifestBytes) !== seal.manifestHash) return false;
     const publicKey = createPublicKey({ format: "jwk", key: seal.publicJWK });
     return verify(null, manifestBytes, publicKey, Buffer.from(seal.signature, "base64url"));
+  } catch {
+    return false;
+  }
+}
+
+export function createCertificateSeal({ certificateChainPEM, keyId, payload, privateKeyPEM }) {
+  const chain = certificateChain(certificateChainPEM);
+  const certificate = new X509Certificate(chain[0]);
+  const privateKey = createPrivateKey(privateKeyPEM);
+  if (!certificate.checkPrivateKey(privateKey)) {
+    throw new Error("The certificate seal private key does not match its leaf certificate.");
+  }
+  const algorithm = certificateAlgorithm(privateKey.asymmetricKeyType);
+  const manifestBytes = Buffer.from(canonicalJSON(payload), "utf8");
+  return Object.freeze({
+    algorithm: algorithm.label,
+    certificate: Object.freeze({
+      fingerprint256: certificate.fingerprint256.replaceAll(":", "").toLowerCase(),
+      issuer: certificate.issuer,
+      serialNumber: certificate.serialNumber,
+      subject: certificate.subject,
+      validFrom: new Date(certificate.validFrom).toISOString(),
+      validTo: new Date(certificate.validTo).toISOString(),
+    }),
+    certificateChain: Object.freeze(chain),
+    keyId,
+    manifestHash: sha256Hex(manifestBytes),
+    profile: "vasi-certificate-seal/v1",
+    publicJWK: certificate.publicKey.export({ format: "jwk" }),
+    signature: sign(algorithm.node, manifestBytes, privateKey).toString("base64url"),
+    validationScope: "leaf_signature_and_key_match",
+  });
+}
+
+export function verifyCertificateSeal(payload, seal) {
+  try {
+    if (
+      seal?.profile !== "vasi-certificate-seal/v1" ||
+      !Array.isArray(seal.certificateChain) ||
+      !seal.certificateChain.length ||
+      typeof seal.signature !== "string"
+    ) return false;
+    const certificate = new X509Certificate(seal.certificateChain[0]);
+    const expectedFingerprint = certificate.fingerprint256.replaceAll(":", "").toLowerCase();
+    if (seal.certificate?.fingerprint256 !== expectedFingerprint) return false;
+    const manifestBytes = Buffer.from(canonicalJSON(payload), "utf8");
+    if (sha256Hex(manifestBytes) !== seal.manifestHash) return false;
+    const algorithm = certificateAlgorithm(certificate.publicKey.asymmetricKeyType);
+    if (seal.algorithm !== algorithm.label) return false;
+    return verify(
+      algorithm.node,
+      manifestBytes,
+      certificate.publicKey,
+      Buffer.from(seal.signature, "base64url"),
+    );
   } catch {
     return false;
   }
@@ -134,6 +203,30 @@ function envelopeKey(secret) {
   const key = Buffer.from(secret, "base64url");
   if (key.length !== 32) throw new Error("The VASI envelope secret must contain 32 bytes.");
   return key;
+}
+
+function sealProfile(value) {
+  if (typeof value !== "string" || !/^vasi-[a-z0-9-]+\/v[1-9][0-9]*$/.test(value)) {
+    throw new Error("The VASI seal profile is invalid.");
+  }
+  return value;
+}
+
+function certificateChain(value) {
+  if (typeof value !== "string" || value.length > 100_000) {
+    throw new Error("The certificate seal chain is invalid.");
+  }
+  const chain = value.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) || [];
+  if (!chain.length || chain.length > 10) throw new Error("The certificate seal chain is invalid.");
+  for (const certificate of chain) new X509Certificate(certificate);
+  return chain;
+}
+
+function certificateAlgorithm(keyType) {
+  if (keyType === "ed25519") return { label: "Ed25519", node: null };
+  if (keyType === "rsa" || keyType === "rsa-pss") return { label: "RSA-SHA256", node: "sha256" };
+  if (keyType === "ec") return { label: "ECDSA-SHA256", node: "sha256" };
+  throw new Error("The certificate seal key algorithm is unsupported.");
 }
 
 function canonicalValue(value) {

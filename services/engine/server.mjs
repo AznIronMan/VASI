@@ -18,9 +18,10 @@ import { createArtifactStore } from "./artifact-store.mjs";
 import { createEvidenceStore, EvidenceStoreError } from "./evidence-store.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { createMediaStore } from "./media-store.mjs";
+import { createReportStore } from "./report-store.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.8.0";
+const ENGINE_VERSION = "0.9.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -32,6 +33,7 @@ const database = createSettingsPool(bootstrap);
 const evidence = createEvidenceStore(database, settings);
 const artifacts = createArtifactStore(database, settings);
 const media = createMediaStore(database, settings);
+const reports = createReportStore(database, settings);
 const workflows = createWorkflowStore(database, settings);
 const seenServiceRequests = new Map();
 
@@ -74,7 +76,7 @@ const server = createServer(async (request, response) => {
     return sendJSON(response, 200, result);
   } catch (error) {
     const status = errorStatus(error);
-    console.error("VASI engine request rejected", errorCode(error));
+    console.error("VASI engine request rejected", errorCode(error), internalErrorContext(error));
     return sendJSON(response, status, { error: publicErrorCode(error, status) });
   }
 });
@@ -205,11 +207,16 @@ function dispatchEvidence(action, actor, payload) {
     case "request.list": return evidence.listRequests(actor, payload);
     case "request.action": return evidence.requestAction(actor, payload);
     case "record.read": return evidence.ownerRecord(actor, payload);
+    case "record.export.open": return reports.openOwnerExport(actor, payload);
+    case "record.export.read": return reports.readOwnerExportChunk(actor, payload);
     case "participant.open": return evidence.openAssignment(actor, payload);
     case "participant.respond": return evidence.respond(actor, payload);
     case "participant.media.open": return media.openParticipantMedia(actor, payload);
     case "participant.media.events": return media.recordParticipantEvents(actor, payload);
     case "participant.receipt": return evidence.participantReceipt(actor, payload);
+    case "participant.report.open": return reports.openParticipantReport(actor, payload);
+    case "participant.report.read": return reports.readParticipantExportChunk(actor, payload);
+    case "verification.lookup": return reports.verifyFingerprint(actor, payload);
     default: throw new EvidenceStoreError("not_found", 404);
   }
 }
@@ -231,6 +238,20 @@ function errorCode(error) {
     return "authorization_failed";
   }
   return "internal_failure";
+}
+
+function internalErrorContext(error) {
+  if (error instanceof EngineStoreError) return undefined;
+  return {
+    constraint: boundedDiagnostic(error?.constraint),
+    sourceCode: boundedDiagnostic(error?.code),
+    table: boundedDiagnostic(error?.table),
+    type: boundedDiagnostic(error?.name),
+  };
+}
+
+function boundedDiagnostic(value) {
+  return typeof value === "string" && /^[A-Za-z0-9_.-]{1,128}$/.test(value) ? value : undefined;
 }
 
 function errorStatus(error) {

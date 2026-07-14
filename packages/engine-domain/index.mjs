@@ -16,9 +16,13 @@ const serviceActions = Object.freeze({
     "participant.open",
     "participant.media.open",
     "participant.receipt",
+    "participant.report.open",
+    "participant.report.read",
     "participant.respond",
     "participant.media.events",
     "record.read",
+    "record.export.open",
+    "record.export.read",
     "request.issue",
     "request.list",
     "request.action",
@@ -28,6 +32,7 @@ const serviceActions = Object.freeze({
     "workflow.draft.update",
     "workflow.list",
     "workflow.publish",
+    "verification.lookup",
   ]),
 });
 

@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.8.0`
+Version: `0.9.0`
 
 A CNB project maintained by Street Kings Productions.
 
@@ -61,12 +61,26 @@ sessions, preserves every calculation revision, and seals raw media evidence
 in the version 4 manifest. Browser telemetry remains explicitly supporting
 evidence rather than proof of attention or comprehension.
 
+Version 0.9.0 adds deterministic participant, plain-language, technical
+forensic, and structured evidence reports in JSON, text, and printable HTML.
+Authorized owners can download sealed portable ZIP bundles containing the
+record, event chain, all report forms, and exact PostgreSQL document revisions;
+participants can download a privacy-reduced report. The bundled offline
+verifier recomputes every entry, report, event hash, manifest binding, and seal
+without a private key, LLM, network, or VASI account. An exact-fingerprint
+public verifier exposes no record identity or content. Export bytes, signing-key
+history, and access events remain immutable in PostgreSQL. Installations can
+add a separate X.509 certificate seal while the Ed25519 VASI integrity seal
+remains the required portable baseline.
+
 The standard seal proves that the manifest and covered chain have not changed
-and were signed by the configured VASI seal key. It is not yet an independent
-CA identity, trusted timestamp, legal conclusion, or long-term validation
-profile. Reports/bundles, retention, participant data
-requests, productized owner/integration gateways, comprehensive replaceable
-malware scanning, and optional CA/TSA adapters remain subsequent milestones.
+and were signed by the configured VASI seal key. An optional certificate seal
+can establish an additional configured certificate identity, but local
+verification alone does not establish chain trust, revocation status, trusted
+time, legal enforceability, or long-term validation. Retention/legal hold,
+participant data requests, productized owner/integration gateways,
+comprehensive replaceable malware scanning, and external KMS/HSM/TSA trust
+profiles remain subsequent milestones.
 
 ## Included
 
@@ -116,6 +130,10 @@ malware scanning, and optional CA/TSA adapters remain subsequent milestones.
   YouTube/Vimeo playback telemetry, honest generic-frame/external-link
   downgrades, strict replay-safe event batches, unique-duration calculations,
   accessibility acknowledgement, and version 4 sealed evidence.
+- Deterministic human and machine evidence reports, immutable PostgreSQL export
+  chunks, portable sealed ZIP bundles with authoritative document revisions,
+  an offline verifier, a privacy-minimized public fingerprint verifier, key
+  rotation history, optional X.509 seals, and append-only export/access audits.
 
 ## Configuration model
 
@@ -168,6 +186,7 @@ npm run settings -- unset GOOGLE_CLIENT_ID
 npm run db:migrate
 npm run check
 npm run build
+npm run evidence:verify -- /path/to/vasi-evidence-bundle.zip
 ```
 
 Secret values are accepted only through hidden interactive input. Do not place
@@ -233,6 +252,11 @@ drafts, immutable revisions, branching, lifecycle, encrypted outbox, and
 multi-step sealing. `npm run engine:probe:documents` adds artifact ingestion,
 inspection, streaming, rich activities, response revisions, scoring, and
 version 3 manifest verification in that disposable environment.
+`npm run engine:probe:media` verifies provider descriptors, bounded telemetry,
+duration calculations, and version 4 sealing. `npm run engine:probe:reports`
+verifies deterministic report reuse, PostgreSQL export streaming, certificate
+and standard seals when configured, portable offline verification, public
+lookup privacy, isolation, and tamper rejection.
 
 See [Authentication setup](docs/authentication.md) for callbacks, provider and
 mailer settings, administration behavior, and the release checklist. See
@@ -246,3 +270,7 @@ the company roles, state machine, publication, lifecycle, and outbox contracts.
 The [document and electronic activity decision](docs/architecture/document-artifacts-and-activities.md)
 defines the PostgreSQL artifact lifecycle, supported contracts, streaming
 boundary, assurance language, and inspection limitations.
+The [evidence report and verification decision](docs/architecture/evidence-reports-and-verification.md)
+defines deterministic report profiles, portable bundle contents, offline and
+online verification, PostgreSQL persistence, key rotation, certificate seals,
+and assurance limits.

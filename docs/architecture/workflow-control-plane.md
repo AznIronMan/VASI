@@ -80,7 +80,9 @@ never forwarded to the engine.
 
 PostgreSQL documents, questions/tests, typed/drawn signatures, and append-only
 response revisions are implemented in VASI 0.7.0. Provider-hosted media and
-duration evidence are implemented in VASI 0.8.0. Reports, retention/legal hold,
-and participant data requests remain separate milestones.
-The standard integrity seal still does not claim an external CA identity,
-trusted timestamp, or legal conclusion.
+duration evidence are implemented in VASI 0.8.0. Deterministic reports,
+portable bundles, offline/public verification, and optional X.509 leaf seals
+are implemented in VASI 0.9.0. Retention/legal hold, participant data requests,
+and advanced trust-service/timestamp profiles remain separate milestones. The
+standard integrity seal still does not claim an external CA identity, trusted
+timestamp, or legal conclusion.

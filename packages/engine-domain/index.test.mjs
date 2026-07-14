@@ -15,4 +15,13 @@ describe("engine service authorization", () => {
       "not authorized",
     );
   });
+
+  it("authorizes explicit export and fingerprint verification actions", () => {
+    expect(authorizeServiceAction("vasi-private-ingress", "record.export.open").action).toBe(
+      "record.export.open",
+    );
+    expect(authorizeServiceAction("vasi-private-ingress", "verification.lookup").action).toBe(
+      "verification.lookup",
+    );
+  });
 });

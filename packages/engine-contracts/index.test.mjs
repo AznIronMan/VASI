@@ -43,5 +43,11 @@ describe("private engine routes", () => {
     );
     expect(resolveEngineRoute("GET", "/v1/participant/respond")).toBeUndefined();
     expect(resolveEngineRoute("POST", "/v1/participant/respond/extra")).toBeUndefined();
+    expect(resolveEngineRoute("POST", "/v1/owner/evidence-exports")?.action).toBe(
+      "record.export.open",
+    );
+    expect(resolveEngineRoute("POST", "/v1/public/verification")?.action).toBe(
+      "verification.lookup",
+    );
   });
 });

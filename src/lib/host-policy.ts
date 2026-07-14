@@ -25,3 +25,8 @@ export function hasExpectedMutationOrigin(headers: HeaderReader, origin: string)
     return false;
   }
 }
+
+export function isCrossSiteRequest(headers: HeaderReader) {
+  const site = headers.get("sec-fetch-site");
+  return Boolean(site && site !== "same-origin" && site !== "none");
+}

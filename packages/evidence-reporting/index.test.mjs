@@ -1,0 +1,22 @@
+import { describe, expect, it } from "vitest";
+
+import { sealedTestRecord } from "../evidence-verifier/test-fixture.mjs";
+import { buildEvidenceReports, evidenceReportHash, renderEvidenceReport } from "./index.mjs";
+
+describe("deterministic evidence reports", () => {
+  it("creates participant, plain-language, forensic, and structured reports traced to every event", () => {
+    const { record } = sealedTestRecord();
+    const reports = buildEvidenceReports(record);
+    expect(Object.keys(reports)).toEqual(["nontechnical", "participant", "structured", "technical"]);
+    for (const report of Object.values(reports)) {
+      expect(report.generatedFrom.manifestHash).toBe(record.seal.manifestHash);
+      expect(report.eventReferences).toHaveLength(record.events.length);
+      expect(report.eventReferences.map((event) => event.eventId)).toEqual(["event-1", "event-2", "event-3"]);
+    }
+    expect(JSON.stringify(reports.participant)).not.toContain("192.0.2.20");
+    expect(JSON.stringify(reports.technical)).toContain("192.0.2.20");
+    expect(renderEvidenceReport(reports.nontechnical, "text").toString()).toContain("CHRONOLOGY");
+    expect(renderEvidenceReport(reports.nontechnical, "html").toString()).toContain("<!doctype html>");
+    expect(evidenceReportHash(buildEvidenceReports(record).technical)).toBe(evidenceReportHash(reports.technical));
+  });
+});

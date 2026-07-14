@@ -76,6 +76,20 @@ Complete these `engine` scope settings before startup:
 - `EVIDENCE_SEAL_PUBLIC_JWK`
 - `EVIDENCE_SEAL_KEY_ID`
 
+Evidence reporting accepts optional bounds `ENGINE_EXPORT_MAX_BYTES` (default
+64 MiB) and `ENGINE_EXPORT_CHUNK_BYTES` (default 256 KiB). A second
+certificate-backed seal is enabled only when all three optional settings are
+present:
+
+- `EVIDENCE_CERTIFICATE_KEY_ID`
+- `EVIDENCE_CERTIFICATE_PRIVATE_KEY_PEM`
+- `EVIDENCE_CERTIFICATE_CHAIN_PEM`
+
+The certificate private key is secret. Its chain is public verification
+material. Use signing material distinct from the service TLS identity. Local
+certificate verification proves the leaf signature and key match, not public
+chain trust, revocation status, qualified-signature status, or trusted time.
+
 Notification delivery defaults to `ENGINE_NOTIFICATION_MODE=disabled`, which
 records a suppressed terminal attempt. To enable generic delivery, configure
 either `webhook` with an HTTPS URL and a 32-byte-or-longer HMAC secret, or
@@ -104,11 +118,11 @@ The service client certificate is not a participant signature and must never be
 described as one.
 
 The evidence-seal key is a separate Ed25519 identity. Keep an offline recovery
-copy or use a future signing-key adapter; do not reuse the gateway assertion key
-or TLS key. The private JWK is encrypted in the engine settings scope and the
-public JWK is embedded in each seal. Verification also anchors that public key
-to the configured key because a self-consistent replacement manifest and
-attacker key are not evidence of VASI origin.
+copy or use a higher-assurance external signing-key adapter; do not reuse the
+gateway assertion key or TLS key. The private JWK is encrypted in the engine
+settings scope, while public material is embedded in each seal and registered
+with an immutable key/status history. Rotation uses a new key ID and retains
+historical verification material.
 
 ## Release
 
@@ -125,6 +139,8 @@ npm run engine:probe
 npm run engine:probe:evidence # disposable conformance database only
 npm run engine:probe:workflow # disposable conformance database only
 npm run engine:probe:documents # disposable conformance database only
+npm run engine:probe:media # disposable conformance database only
+npm run engine:probe:reports # disposable conformance database only
 ```
 
 The proof verifies server trust, the V·Sign client certificate, engine health,

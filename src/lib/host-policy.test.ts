@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   hasExpectedMutationOrigin,
+  isCrossSiteRequest,
   isRequestForOrigin,
   requestHostname,
 } from "@/lib/host-policy";
@@ -36,5 +37,11 @@ describe("host policy", () => {
         "https://admin.internal.example",
       ),
     ).toBe(false);
+  });
+
+  it("rejects browser export requests initiated by another site", () => {
+    expect(isCrossSiteRequest(new Headers({ "sec-fetch-site": "cross-site" }))).toBe(true);
+    expect(isCrossSiteRequest(new Headers({ "sec-fetch-site": "same-origin" }))).toBe(false);
+    expect(isCrossSiteRequest(new Headers())).toBe(false);
   });
 });

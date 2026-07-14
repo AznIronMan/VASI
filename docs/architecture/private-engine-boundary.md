@@ -88,7 +88,8 @@ This boundary proves authenticated service identity, actor context, replay
 defense, process isolation, database ownership, and deployment posture. VASI
 0.5.0 adds the separately documented first sealed terms/response slice, VASI
 0.6.0 adds the general workflow and company control plane, VASI 0.7.0 adds
-PostgreSQL document artifacts and rich electronic activities, and VASI 0.8.0
-adds separately documented provider-hosted media and duration evidence.
-Reports/bundles, retention, legal hold, participant data requests, and
-productized integrations remain later milestones.
+PostgreSQL document artifacts and rich electronic activities, VASI 0.8.0 adds
+separately documented provider-hosted media and duration evidence, and VASI
+0.9.0 adds PostgreSQL-backed evidence reports, bundles, and fingerprint
+verification. Retention, legal hold, participant data requests, and productized
+integrations remain later milestones.

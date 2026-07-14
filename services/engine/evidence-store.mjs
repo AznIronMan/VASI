@@ -7,11 +7,10 @@ import {
   validateTenantInput,
 } from "../../packages/engine-domain/evidence.mjs";
 import {
-  createIntegritySeal,
   encryptJSONEnvelope,
   hashCanonicalJSON,
-  verifyIntegritySeal,
 } from "../../packages/engine-crypto/index.mjs";
+import { assertEvidenceRecord } from "../../packages/evidence-verifier/index.mjs";
 import {
   evaluateNextActivity,
   hasTenantPermission,
@@ -29,23 +28,14 @@ import {
   loadMediaEvidence,
   persistIssueMediaSnapshots,
 } from "./media-store.mjs";
+import { createSigningProvider, ensureSigningKeys } from "./signing-provider.mjs";
 
 const GENESIS_HASH = "0".repeat(64);
 
 export class EvidenceStoreError extends EngineStoreError {}
 
 export function createEvidenceStore(database, settings) {
-  const sealPrivateJWK = parseJWK(settings.EVIDENCE_SEAL_PRIVATE_JWK, "private");
-  const sealPublicJWK = parseJWK(settings.EVIDENCE_SEAL_PUBLIC_JWK, "public");
-  const sealKeyId = requiredSetting(settings, "EVIDENCE_SEAL_KEY_ID");
-  const keyProof = createIntegritySeal({
-    keyId: sealKeyId,
-    manifest: { keyId: sealKeyId, schema: "vasi-seal-key-check/v1" },
-    privateJWK: sealPrivateJWK,
-  });
-  if (hashCanonicalJSON(keyProof.publicJWK) !== hashCanonicalJSON(sealPublicJWK)) {
-    throw new Error("The VASI evidence seal private and public keys do not match.");
-  }
+  const signingProvider = createSigningProvider(settings);
   const outboxEncryptionSecret = requiredSetting(settings, "ENGINE_OUTBOX_ENCRYPTION_SECRET");
 
   return Object.freeze({
@@ -300,9 +290,7 @@ export function createEvidenceStore(database, settings) {
             interactionId,
             payload,
             record,
-            sealKeyId,
-            sealPrivateJWK,
-            sealPublicJWK,
+            signingProvider,
             outboxEncryptionSecret,
           });
         }
@@ -394,34 +382,14 @@ export function createEvidenceStore(database, settings) {
             title: record.title,
           },
         });
-        const seal = createIntegritySeal({ keyId: sealKeyId, manifest, privateJWK: sealPrivateJWK });
-        if (hashCanonicalJSON(seal.publicJWK) !== hashCanonicalJSON(sealPublicJWK)) {
-          throw new EvidenceStoreError("seal_key_mismatch", 500);
-        }
-        await client.query(
-          `insert into "vasi_engine"."evidence_manifest"
-            ("id", "tenantId", "requestId", "assignmentId", "manifest", "manifestHash", "createdAt")
-           values ($1, $2, $3, $4, $5, $6, $7)`,
-          [manifestId, record.tenantId, record.requestId, record.assignmentId, manifest, seal.manifestHash, completedAt],
-        );
-        await client.query(
-          `insert into "vasi_engine"."evidence_seal"
-            ("id", "manifestId", "profile", "algorithm", "keyId", "publicJwk", "signature", "createdAt")
-           values ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            randomUUID(),
-            manifestId,
-            seal.profile,
-            seal.algorithm,
-            seal.keyId,
-            seal.publicJWK,
-            seal.signature,
-            completedAt,
-          ],
-        );
-
-        const sealedRecord = { events, manifest, seal: { ...seal, createdAt: completedAt.toISOString() } };
-        verifyEvidenceRecord(sealedRecord, sealPublicJWK);
+        const sealedRecord = await persistSeal(client, {
+          completedAt,
+          events,
+          manifest,
+          manifestId,
+          record,
+          signingProvider,
+        });
         return participantReceipt(sealedRecord);
       });
     },
@@ -429,23 +397,20 @@ export function createEvidenceStore(database, settings) {
     async participantReceipt(actor, payload) {
       requireParticipant(actor);
       const handleDigest = digestHandle(payload?.handle);
-      const client = await database.connect();
-      try {
+      return transaction(database, async (client) => {
         const assignment = await assignmentForHandle(client, handleDigest, false);
         authorizeParticipant(assignment, actor);
-        const record = await loadEvidenceRecord(client, assignment.assignmentId, sealPublicJWK);
+        const record = await loadEvidenceRecord(client, assignment.assignmentId, signingProvider);
+        await recordEvidenceAccess(client, actor, record, "participant_receipt");
         return participantReceipt(record);
-      } finally {
-        client.release();
-      }
+      });
     },
 
     async ownerRecord(actor, payload) {
       requireActor(actor);
       const tenantId = boundedToken(payload?.tenantId, "tenantId", 128);
       const assignmentId = boundedToken(payload?.assignmentId, "assignmentId", 128);
-      const client = await database.connect();
-      try {
+      return transaction(database, async (client) => {
         await requireTenantPermission(client, actor.principalId, tenantId, "record.read");
         const assignment = await client.query(
           `select "id" from "vasi_engine"."participant_assignment"
@@ -453,10 +418,10 @@ export function createEvidenceStore(database, settings) {
           [assignmentId, tenantId],
         );
         if (!assignment.rowCount) notFound();
-        return await loadEvidenceRecord(client, assignmentId, sealPublicJWK);
-      } finally {
-        client.release();
-      }
+        const record = await loadEvidenceRecord(client, assignmentId, signingProvider);
+        await recordEvidenceAccess(client, actor, record, "owner_record_view");
+        return record;
+      });
     },
 
     async openParticipantArtifact(actor, payload) {
@@ -566,31 +531,9 @@ export function createEvidenceStore(database, settings) {
 }
 
 export function verifyEvidenceRecord(record, expectedPublicJWK) {
-  if (!record?.events?.length || !record.manifest || !record.seal) integrityFailure();
-  let previousHash = GENESIS_HASH;
-  for (const [index, event] of record.events.entries()) {
-    if (
-      event.sequence !== index + 1 ||
-      event.previousHash !== previousHash ||
-      event.eventData?.previousHash !== previousHash ||
-      event.eventData?.sequence !== event.sequence ||
-      hashCanonicalJSON(event.eventData) !== event.eventHash
-    ) {
-      integrityFailure();
-    }
-    previousHash = event.eventHash;
-  }
-  const hashes = record.events.map((event) => event.eventHash);
-  if (
-    record.manifest.evidence?.eventCount !== record.events.length ||
-    record.manifest.evidence?.firstSequence !== 1 ||
-    record.manifest.evidence?.lastSequence !== record.events.length ||
-    record.manifest.evidence?.headHash !== previousHash ||
-    JSON.stringify(record.manifest.evidence?.eventHashes) !== JSON.stringify(hashes) ||
-    (expectedPublicJWK &&
-      hashCanonicalJSON(record.seal.publicJWK) !== hashCanonicalJSON(expectedPublicJWK)) ||
-    !verifyIntegritySeal(record.manifest, record.seal)
-  ) {
+  try {
+    assertEvidenceRecord(record, { expectedPublicJWK });
+  } catch {
     integrityFailure();
   }
   return true;
@@ -831,9 +774,7 @@ async function respondToWorkflowActivity({
   interactionId,
   payload,
   record,
-  sealKeyId,
-  sealPrivateJWK,
-  sealPublicJWK,
+  signingProvider,
   outboxEncryptionSecret,
 }) {
   const interaction = await client.query(
@@ -1087,9 +1028,7 @@ async function respondToWorkflowActivity({
     manifest,
     manifestId,
     record,
-    sealKeyId,
-    sealPrivateJWK,
-    sealPublicJWK,
+    signingProvider,
   });
   if (record.notificationPolicy?.onCompletion) {
     await queueNotification(client, {
@@ -1172,28 +1111,46 @@ async function persistSeal(client, {
   manifest,
   manifestId,
   record,
-  sealKeyId,
-  sealPrivateJWK,
-  sealPublicJWK,
+  signingProvider,
 }) {
-  const seal = createIntegritySeal({ keyId: sealKeyId, manifest, privateJWK: sealPrivateJWK });
-  if (hashCanonicalJSON(seal.publicJWK) !== hashCanonicalJSON(sealPublicJWK)) {
-    throw new EvidenceStoreError("seal_key_mismatch", 500);
-  }
+  await ensureSigningKeys(client, signingProvider);
+  const seals = signingProvider.signManifest(manifest).map((seal) => ({
+    ...seal,
+    createdAt: completedAt.toISOString(),
+  }));
+  const seal = seals.find((candidate) => candidate.role === "vasi_integrity");
+  if (!seal) throw new EvidenceStoreError("seal_key_mismatch", 500);
   await client.query(
     `insert into "vasi_engine"."evidence_manifest"
       ("id", "tenantId", "requestId", "assignmentId", "manifest", "manifestHash", "createdAt")
      values ($1, $2, $3, $4, $5, $6, $7)`,
     [manifestId, record.tenantId, record.requestId, record.assignmentId, manifest, seal.manifestHash, completedAt],
   );
-  await client.query(
-    `insert into "vasi_engine"."evidence_seal"
-      ("id", "manifestId", "profile", "algorithm", "keyId", "publicJwk", "signature", "createdAt")
-     values ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [randomUUID(), manifestId, seal.profile, seal.algorithm, seal.keyId, seal.publicJWK, seal.signature, completedAt],
-  );
-  const sealedRecord = { events, manifest, seal: { ...seal, createdAt: completedAt.toISOString() } };
-  verifyEvidenceRecord(sealedRecord, sealPublicJWK);
+  for (const candidate of seals) {
+    await client.query(
+      `insert into "vasi_engine"."evidence_seal"
+        ("id", "manifestId", "profile", "algorithm", "keyId", "publicJwk", "signature",
+         "sealRole", "certificateChain", "metadata", "createdAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        randomUUID(),
+        manifestId,
+        candidate.profile,
+        candidate.algorithm,
+        candidate.keyId,
+        candidate.publicJWK,
+        candidate.signature,
+        candidate.role,
+        candidate.certificateChain ? JSON.stringify(candidate.certificateChain) : null,
+        candidate.certificate
+          ? { certificate: candidate.certificate, validationScope: candidate.validationScope }
+          : {},
+        completedAt,
+      ],
+    );
+  }
+  const sealedRecord = { events, manifest, seal, seals };
+  verifyEvidenceRecord(sealedRecord, signingProvider.primaryPublicJWK);
   return sealedRecord;
 }
 
@@ -1316,31 +1273,45 @@ async function evidenceEvents(client, assignmentId) {
   return result.rows.map((row) => ({ ...row, sequence: Number(row.sequence) }));
 }
 
-async function loadEvidenceRecord(client, assignmentId, expectedPublicJWK) {
+export async function loadEvidenceRecord(client, assignmentId, signingProvider) {
+  if (signingProvider) await ensureSigningKeys(client, signingProvider);
   const result = await client.query(
-    `select m."manifest", m."manifestHash", m."createdAt",
-            s."profile", s."algorithm", s."keyId", s."publicJwk", s."signature", s."createdAt" as "sealedAt"
-     from "vasi_engine"."evidence_manifest" m
-     join "vasi_engine"."evidence_seal" s on s."manifestId" = m."id"
-     where m."assignmentId" = $1`,
+    `select "id", "manifest", "manifestHash", "createdAt"
+     from "vasi_engine"."evidence_manifest" where "assignmentId" = $1`,
     [assignmentId],
   );
   if (!result.rowCount) throw new EvidenceStoreError("receipt_unavailable", 409);
   const row = result.rows[0];
+  const sealResult = await client.query(
+    `select "profile", "algorithm", "keyId", "publicJwk", "signature", "sealRole",
+            "certificateChain", "metadata", "createdAt" as "sealedAt"
+     from "vasi_engine"."evidence_seal" where "manifestId" = $1
+     order by case when "sealRole" = 'vasi_integrity' then 0 else 1 end, "keyId"`,
+    [row.id],
+  );
+  if (!sealResult.rowCount) throw new EvidenceStoreError("receipt_unavailable", 409);
+  const seals = sealResult.rows.map((candidate) => ({
+    algorithm: candidate.algorithm,
+    certificate: candidate.metadata?.certificate,
+    certificateChain: candidate.certificateChain || undefined,
+    createdAt: new Date(candidate.sealedAt).toISOString(),
+    keyId: candidate.keyId,
+    manifestHash: row.manifestHash,
+    profile: candidate.profile,
+    publicJWK: candidate.publicJwk,
+    role: candidate.sealRole,
+    signature: candidate.signature,
+    validationScope: candidate.metadata?.validationScope,
+  }));
+  const seal = seals.find((candidate) => candidate.role === "vasi_integrity");
+  if (!seal) throw new EvidenceStoreError("receipt_unavailable", 409);
   const record = {
     events: await evidenceEvents(client, assignmentId),
     manifest: row.manifest,
-    seal: {
-      algorithm: row.algorithm,
-      createdAt: new Date(row.sealedAt).toISOString(),
-      keyId: row.keyId,
-      manifestHash: row.manifestHash,
-      profile: row.profile,
-      publicJWK: row.publicJwk,
-      signature: row.signature,
-    },
+    seal,
+    seals,
   };
-  verifyEvidenceRecord(record, expectedPublicJWK);
+  verifyEvidenceRecord(record);
   return record;
 }
 
@@ -1378,6 +1349,25 @@ function participantReceipt(record) {
     },
     tenant: manifest.tenant,
   };
+}
+
+async function recordEvidenceAccess(client, actor, record, accessType) {
+  await client.query(
+    `insert into "vasi_engine"."evidence_access_event"
+      ("id", "tenantId", "requestId", "assignmentId", "manifestHash",
+       "actorPrincipalId", "accessType", "metadata")
+     values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      randomUUID(),
+      record.manifest.tenant.id,
+      record.manifest.request.id,
+      record.manifest.assignment.id,
+      record.seal.manifestHash,
+      actor.principalId,
+      accessType,
+      { source: "private_engine" },
+    ],
+  );
 }
 
 function formatResponse(value) {
@@ -1603,18 +1593,4 @@ function requiredSetting(settings, name) {
     throw new Error(`Required VASI engine setting ${name} is missing.`);
   }
   return value;
-}
-
-function parseJWK(value, type) {
-  try {
-    const jwk = JSON.parse(value);
-    if (!jwk || typeof jwk !== "object" || jwk.kty !== "OKP" || jwk.crv !== "Ed25519") {
-      throw new Error();
-    }
-    if (type === "private" && !jwk.d) throw new Error();
-    if (type === "public" && jwk.d) throw new Error();
-    return jwk;
-  } catch {
-    throw new Error(`The VASI evidence seal ${type} JWK is invalid.`);
-  }
 }

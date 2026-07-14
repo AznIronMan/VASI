@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     default: "V·Sign | Secure access",
     template: "%s | V·Sign",
   },
-  description: "Secure authentication for the CNB V·Sign signing workspace.",
+  description: "Secure identity access and independently verifiable evidence for VASI workflows.",
   applicationName: "V·Sign",
   robots: {
     index: false,

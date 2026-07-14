@@ -23,13 +23,18 @@ const engineRoutes = Object.freeze([
   { action: "request.list", method: "POST", path: "/v1/owner/request-list" },
   { action: "request.action", method: "POST", path: "/v1/owner/request-actions" },
   { action: "record.read", method: "POST", path: "/v1/owner/records" },
+  { action: "record.export.open", method: "POST", path: "/v1/owner/evidence-exports" },
+  { action: "record.export.read", method: "POST", path: "/v1/owner/evidence-export-chunks" },
   { action: "participant.open", method: "POST", path: "/v1/participant/open" },
   { action: "participant.respond", method: "POST", path: "/v1/participant/respond" },
   { action: "participant.media.open", method: "POST", path: "/v1/participant/media-open" },
   { action: "participant.media.events", method: "POST", path: "/v1/participant/media-events" },
   { action: "participant.receipt", method: "POST", path: "/v1/participant/receipt" },
+  { action: "participant.report.open", method: "POST", path: "/v1/participant/reports" },
+  { action: "participant.report.read", method: "POST", path: "/v1/participant/report-chunks" },
   { action: "artifact.participant.open", method: "POST", path: "/v1/participant/artifact-open" },
   { action: "artifact.participant.read", method: "POST", path: "/v1/participant/artifact-read" },
+  { action: "verification.lookup", method: "POST", path: "/v1/public/verification" },
 ]);
 
 export function resolveEngineRoute(method, path) {

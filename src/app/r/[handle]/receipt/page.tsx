@@ -62,6 +62,10 @@ export default async function ReceiptPage({ params }: { params: Promise<{ handle
           <p className="receipt-note">The company’s post-completion policy makes the original content unavailable here. Your receipt and transaction history remain available.</p>
         )}
         <p className="receipt-note">This receipt is a participant-readable summary. The company’s authorized record includes the detailed event chain and available authentication, timing, browser, and network context.</p>
+        <div className="participant-actions">
+          <a className="button button--primary" href={`/r/${handle}/report?format=html`}>Download participant report</a>
+          <a className="button button--secondary" href={`/verify?fingerprint=${receipt.integrity.manifestHash}`}>Verify fingerprint</a>
+        </div>
       </article>
     </main>
   );

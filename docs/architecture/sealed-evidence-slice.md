@@ -45,16 +45,20 @@ algorithm, key ID, public JWK, signature, and manifest SHA-256 hash.
 
 ## Verification and disclosure
 
-Every participant receipt and owner record is verified before release: event
+Every participant receipt, owner record, report, and bundle is verified before release: event
 sequence, previous hashes, recomputed event hashes, manifest event inventory,
 chain head, manifest hash, Ed25519 signature, and configured public-key anchor
 must agree. The participant receipt is intentionally understandable and does
 not expose the detailed contextual footprint. The owner record includes the
-structured chain for authorized forensic/reporting use. A future participant
-data-request workflow supplies the broader transparent export path.
+structured chain for authorized forensic/reporting use. VASI 0.9.0 adds
+deterministic participant, plain-language, forensic, and structured reports,
+portable bundles, offline verification, and privacy-minimized public
+fingerprint verification. A future participant data-request workflow supplies
+the broader transparent export path.
 
 This seal establishes integrity and VASI-key origin. It does not by itself prove
 legal enforceability, identity beyond the recorded authentication context,
 comprehension, independent time, certificate-chain trust, or long-term
-validation. Optional CA, HSM/KMS, RFC 3161, report, and bundle profiles remain
-separate adapters/milestones.
+validation. A separately configured X.509 certificate seal can add a leaf
+certificate signature, while public-chain trust, HSM/KMS, RFC 3161, revocation
+archival, and long-term validation remain separate adapters/milestones.

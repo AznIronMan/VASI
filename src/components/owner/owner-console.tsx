@@ -320,7 +320,7 @@ export function OwnerConsole({ baseURL, initialTenants }: {
 
       {permissions.has("request.manage") && <section className="owner-grid">
         <form className="evidence-panel" onSubmit={issueRequest}><p className="eyebrow eyebrow--green">ISSUE PUBLISHED REVISION</p><h2>Participant request</h2><label className="field"><span>Workflow</span><select name="workflowRevisionId" required>{published.map((workflow) => <option key={workflow.definitionId} value={workflow.publishedRevisionId}>{workflow.name} · revision {workflow.publishedRevision}</option>)}</select></label><label className="field"><span>Verified participant email</span><input name="intendedEmail" type="email" required /></label><label className="field"><span>Schedule for (optional)</span><input name="scheduledFor" type="datetime-local" /></label><div className="form-row"><label className="field"><span>Due (optional)</span><input name="dueAt" type="datetime-local" /></label><label className="field"><span>Expires (optional)</span><input name="expiresAt" type="datetime-local" /></label></div><button className="primary-button" disabled={!published.length || pending === "issue"} type="submit">{pending === "issue" ? "Issuing…" : "Create request"}</button></form>
-        <section className="evidence-panel"><p className="eyebrow eyebrow--green">REQUEST STATUS</p><h2>Lifecycle controls</h2>{requests.map((request) => <article className="owner-request" key={request.requestId}><div><strong>{request.title}</strong><span>{request.intendedEmail} · {request.status}</span><small>Due {request.dueAt ? new Date(request.dueAt).toLocaleString() : "not set"}</small></div><div>{!["completed", "expired", "revoked"].includes(request.status) && <><button type="button" onClick={() => void requestAction(request, "remind")}>Remind</button><button type="button" onClick={() => void requestAction(request, "reissue")}>Reissue</button><button type="button" onClick={() => void requestAction(request, "revoke")}>Revoke</button></>}</div></article>)}</section>
+        <section className="evidence-panel"><p className="eyebrow eyebrow--green">REQUEST STATUS</p><h2>Lifecycle controls</h2>{requests.map((request) => <article className="owner-request" key={request.requestId}><div><strong>{request.title}</strong><span>{request.intendedEmail} · {request.status}</span><small>Due {request.dueAt ? new Date(request.dueAt).toLocaleString() : "not set"}</small></div><div>{!["completed", "expired", "revoked"].includes(request.status) && <><button type="button" onClick={() => void requestAction(request, "remind")}>Remind</button><button type="button" onClick={() => void requestAction(request, "reissue")}>Reissue</button><button type="button" onClick={() => void requestAction(request, "revoke")}>Revoke</button></>}{request.status === "completed" && permissions.has("record.read") && <><a href={evidenceExportURL(tenantId, request.assignmentId, "report", "nontechnical", "html")}>Plain-language report</a><a href={evidenceExportURL(tenantId, request.assignmentId, "report", "technical", "json")}>Forensic JSON</a><a href={evidenceExportURL(tenantId, request.assignmentId, "bundle", "full", "zip")}>Evidence bundle</a></>}</div></article>)}</section>
       </section>}
 
       {issued && <section className="evidence-issued"><p className="eyebrow eyebrow--green">ONE-TIME PARTICIPANT LINK</p><a href={`${baseURL}${issued.participantPath}`}>{baseURL}{issued.participantPath}</a><p>Copy this now. VASI stores only its digest after the encrypted delivery outbox is completed.</p></section>}
@@ -502,6 +502,17 @@ function formatBytes(value: number) {
   if (value < 1024) return `${value} B`;
   if (value < 1_048_576) return `${(value / 1024).toFixed(1)} KiB`;
   return `${(value / 1_048_576).toFixed(1)} MiB`;
+}
+
+function evidenceExportURL(
+  tenantId: string,
+  assignmentId: string,
+  kind: "report" | "bundle",
+  profile: "nontechnical" | "technical" | "full",
+  format: "html" | "json" | "zip",
+) {
+  const query = new URLSearchParams({ assignmentId, format, kind, profile, tenantId });
+  return `/api/owner/evidence-export?${query}`;
 }
 
 async function api<T>(url: string, body: unknown): Promise<T> {
