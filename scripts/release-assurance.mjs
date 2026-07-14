@@ -234,6 +234,7 @@ export async function validateAutomationContract(repositoryRoot = root) {
     failures.push("release workflow must have read-only contents permission");
   }
   const jobs = Object.values(workflow?.jobs || {});
+  const releaseImages = policy.images.runtimeContracts.map((contract) => contract.image).sort();
   if (!jobs.length) failures.push("release workflow must define a job");
   for (const job of jobs) {
     for (const step of job?.steps || []) {
@@ -242,7 +243,14 @@ export async function validateAutomationContract(repositoryRoot = root) {
       }
     }
   }
-  return { failures, jobs: jobs.length };
+  const steps = jobs.flatMap((job) => job?.steps || []);
+  const build = steps.find((step) => step?.name === "Build exact production images")?.run || "";
+  const scan = steps.find((step) => step?.name === "Create exact image SBOM and vulnerability evidence")?.run || "";
+  for (const image of releaseImages) {
+    if (!String(build).includes(`--tag "${image}:`)) failures.push(`release workflow does not build ${image}`);
+    if (!String(scan).includes(`"${image}:`)) failures.push(`release workflow does not scan ${image}`);
+  }
+  return { failures, jobs: jobs.length, releaseImagesChecked: releaseImages };
 }
 
 export async function validateEgressPersistenceContract(repositoryRoot = root) {

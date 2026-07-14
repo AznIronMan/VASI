@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.21.0`
+Version: `0.21.1`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -226,6 +226,11 @@ gateway images, or weakened persistence units. A privacy-safe live probe proves
 the exact firewall, private denial, integration egress, runtime health, and
 database transport without exposing route, endpoint, credential, or customer
 details.
+
+Version 0.21.1 makes the database-gateway image a mandatory target in the
+commit-pinned CI build, runtime-contract check, SBOM export, and vulnerability
+scan. Source assurance derives the complete release-image set from the
+versioned policy and rejects a workflow that omits any declared image.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

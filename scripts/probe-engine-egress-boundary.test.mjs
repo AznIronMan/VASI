@@ -42,7 +42,7 @@ describe("engine egress boundary probe", () => {
       },
       schema: EGRESS_BOUNDARY_SCHEMA,
       status: "ok",
-      version: "0.21.0",
+      version: "0.21.1",
     });
   });
 

@@ -404,7 +404,7 @@ encrypted off-host custody or establish an RPO/RTO.
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.
 
-For rollback, first stop the complete 0.21.0 engine stack. Disable its two
+For rollback, first stop the complete 0.21.1 engine stack. Disable its two
 timers, remove the policy with
 `sudo /bin/sh scripts/apply-database-egress-policy.sh remove`, switch the whole
 release—not selected files—to the prior verified version, and follow that

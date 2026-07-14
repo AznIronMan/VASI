@@ -40,6 +40,14 @@ describe("release assurance policy", () => {
     const result = await validateAutomationContract(root);
     expect(result.failures).toEqual([]);
     expect(result.jobs).toBeGreaterThan(0);
+    expect(result.releaseImagesChecked).toEqual([
+      "vasi",
+      "vasi-database-gateway",
+      "vasi-engine",
+      "vasi-engine-maintenance",
+      "vasi-engine-tools",
+      "vasi-settings",
+    ]);
   });
 
   it("packages persistent least-privileged policy refresh and boundary verification", async () => {
@@ -49,12 +57,12 @@ describe("release assurance policy", () => {
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.21.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.21.1")).toMatchObject({
       entrypoints: ["server.js"],
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.21.0")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.21.1")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -75,7 +83,7 @@ describe("release assurance policy", () => {
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.21.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.21.1")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",

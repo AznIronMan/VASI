@@ -54,6 +54,7 @@ jobs:
           docker build --file Dockerfile.engine --target engine-runtime --tag "vasi-engine:${{ steps.release.outputs.version }}" .
           docker build --file Dockerfile.engine --target engine-tools --tag "vasi-engine-tools:${{ steps.release.outputs.version }}" .
           docker build --file Dockerfile.engine --target engine-maintenance --tag "vasi-engine-maintenance:${{ steps.release.outputs.version }}" .
+          docker build --file Dockerfile.engine --target database-gateway-runtime --tag "vasi-database-gateway:${{ steps.release.outputs.version }}" .
 
       - name: Create exact image SBOM and vulnerability evidence
         run: >-
@@ -63,6 +64,7 @@ jobs:
           "vasi-engine:${{ steps.release.outputs.version }}"
           "vasi-engine-tools:${{ steps.release.outputs.version }}"
           "vasi-engine-maintenance:${{ steps.release.outputs.version }}"
+          "vasi-database-gateway:${{ steps.release.outputs.version }}"
 
       - name: Retain assurance evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

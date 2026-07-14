@@ -4,7 +4,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const EGRESS_BOUNDARY_VERSION = "0.21.0";
+export const EGRESS_BOUNDARY_VERSION = "0.21.1";
 export const EGRESS_BOUNDARY_SCHEMA = "vasi-engine-egress-boundary/v1";
 const DEFAULT_DATABASE_CHAIN = "VASI_DATABASE_EGRESS";
 const DEFAULT_PROJECT_NAME = "vasi-engine";
