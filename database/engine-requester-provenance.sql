@@ -72,6 +72,39 @@ alter table "vasi_engine"."request_instance"
     )
   );
 
+create function "vasi_engine"."request_requester_snapshot_legacy_insert"()
+returns trigger language plpgsql as $$
+declare
+  requester_email text;
+begin
+  if NEW."requesterSnapshot" is not null then
+    return NEW;
+  end if;
+
+  select lower(m."email") into requester_email
+  from "vasi_engine"."tenant_membership" m
+  where m."tenantId" = NEW."tenantId"
+    and m."principalId" = NEW."createdByPrincipalId"
+    and m."status" = 'active'
+    and m."email" is not null
+  limit 1;
+
+  NEW."requesterSnapshot" = jsonb_build_object(
+    'schema', 'vasi-requester-snapshot/v1',
+    'principalId', NEW."createdByPrincipalId",
+    'email', requester_email,
+    'relationship', 'requesting_organization',
+    'provenance', case when requester_email is null
+      then 'legacy_unavailable' else 'membership_backfill' end
+  );
+  return NEW;
+end;
+$$;
+
+create trigger "request_requester_snapshot_legacy_insert"
+  before insert on "vasi_engine"."request_instance"
+  for each row execute function "vasi_engine"."request_requester_snapshot_legacy_insert"();
+
 create function "vasi_engine"."request_requester_snapshot_immutable"()
 returns trigger language plpgsql as $$
 begin

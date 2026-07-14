@@ -56,6 +56,9 @@ describe("engine migration ledger", () => {
     expect(source).toContain("request_requester_snapshot_immutable");
     expect(source).toContain('"requesterSnapshot" ?& array[');
     expect(source).toContain('"requesterSnapshot" - array[');
+    expect(source).toContain("request_requester_snapshot_legacy_insert");
+    expect(source).toContain("then 'legacy_unavailable' else 'membership_backfill'");
+    expect(source).toContain('before insert on "vasi_engine"."request_instance"');
     expect(source).toContain('before update on "vasi_engine"."request_instance"');
   });
 });

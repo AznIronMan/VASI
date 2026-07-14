@@ -28,6 +28,13 @@ or issued evidence event, then from a matching membership if necessary. A
 legacy-unavailable marker is retained rather than inventing an email when no
 authoritative value exists.
 
+Migration `0014` also keeps the immediately preceding engine release usable as
+a bounded rollback. If that release inserts a request without the new column,
+a database trigger derives an explicitly marked `membership_backfill` snapshot
+from the active company membership or records `legacy_unavailable`; it never
+labels rollback data as an authenticated issuance capture. Current code always
+supplies `authenticated_actor_at_issuance` directly.
+
 The snapshot is independent of the notification sender mailbox. The requesting
 user is the accountable company actor; a Graph or SMTP mailbox is only the
 configured delivery transport identity.

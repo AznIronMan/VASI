@@ -157,6 +157,9 @@ issuance evidence where possible, then freezes it. New issuance requires an
 authenticated actor email. The snapshot identifies the accountable user and is
 separate from the configured Graph or SMTP sender mailbox. See the
 [requester provenance decision](architecture/requester-provenance-and-participant-disclosure.md).
+The migration retains a bounded prior-release insert trigger so a full rollback
+can still issue requests; those fallback snapshots are labeled
+`membership_backfill` or `legacy_unavailable`, never authenticated issuance.
 
 Document scanning also starts with a disabled per-tenant
 `document.malware_scan` binding. An operator must add
