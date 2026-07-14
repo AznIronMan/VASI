@@ -44,4 +44,14 @@ describe("settings CLI", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toBe("Input must be a valid JSON object.\n");
   });
+
+  it("requires explicit confirmation before a recovery endpoint rebind", () => {
+    const result = spawnSync(process.execPath, [script, "--scope", "engine", "rebind-database", "-"], {
+      encoding: "utf8",
+      input: JSON.stringify({ databaseURL: "postgresql://recovery@database.example/vasi" }),
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toBe("Database recovery rebind requires --confirm-recovery-endpoint.\n");
+  });
 });

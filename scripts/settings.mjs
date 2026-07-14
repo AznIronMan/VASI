@@ -12,10 +12,13 @@ import {
   loadBootstrapSettings,
   parseEnvironmentFile,
   parseEnvironmentText,
+  rebindBootstrapSettings,
+  recordBootstrapRebind,
   runtimeSettingNames,
   runtimeSettingScopes,
   settingDefinition,
   unsetRuntimeSetting,
+  validateBootstrapBinding,
   writeRuntimeSettings,
 } from "./settings-core.mjs";
 
@@ -47,6 +50,12 @@ try {
       break;
     case "list":
       await listConfigured(scope);
+      break;
+    case "rebind-database":
+      await rebindDatabase(args[0], args[1], scope);
+      break;
+    case "validate":
+      await validateConfigured(scope);
       break;
     default:
       printUsage();
@@ -226,6 +235,36 @@ async function listConfigured(selectedScope) {
   }
 }
 
+async function rebindDatabase(source, confirmation, selectedScope) {
+  if (source !== "-") throw new Error("Recovery database settings must be streamed as JSON on standard input.");
+  if (confirmation !== "--confirm-recovery-endpoint") {
+    throw new Error("Database recovery rebind requires --confirm-recovery-endpoint.");
+  }
+  const payload = parseJSONObject(await readStandardInput());
+  const unknown = Object.keys(payload).filter((name) => !["databasePoolMax", "databaseSSL", "databaseURL"].includes(name));
+  if (unknown.length) throw new Error(`Unknown recovery database fields: ${unknown.join(", ")}.`);
+  if (typeof payload.databaseURL !== "string" || !payload.databaseURL.trim()) {
+    throw new Error("Recovery databaseURL is required.");
+  }
+  const current = loadBootstrapSettings();
+  const candidate = {
+    ...current,
+    databasePoolMax: Number(payload.databasePoolMax ?? current.databasePoolMax),
+    databaseSSL: payload.databaseSSL ?? current.databaseSSL,
+    databaseURL: payload.databaseURL,
+  };
+  await validateBootstrapBinding({ bootstrap: candidate, scope: selectedScope });
+  const rebound = rebindBootstrapSettings(candidate);
+  await recordBootstrapRebind({ bootstrap: rebound, scope: selectedScope });
+  console.info(`VASI ${selectedScope} database endpoint rebound after restored-settings validation. No values were printed.`);
+}
+
+async function validateConfigured(selectedScope) {
+  const bootstrap = loadBootstrapSettings();
+  await validateBootstrapBinding({ bootstrap, scope: selectedScope });
+  console.info(`VASI ${selectedScope} bootstrap and encrypted runtime settings validated. No values were printed.`);
+}
+
 function parseJSONObject(contents) {
   let value;
   try {
@@ -324,5 +363,7 @@ function printUsage() {
   node scripts/settings.mjs import-env /secure/path/to/legacy.env
   node scripts/settings.mjs [--scope gateway|engine] set SETTING_NAME
   node scripts/settings.mjs [--scope gateway|engine] unset SETTING_NAME
-  node scripts/settings.mjs [--scope gateway|engine] list`);
+  node scripts/settings.mjs [--scope gateway|engine] list
+  node scripts/settings.mjs [--scope gateway|engine] validate
+  node scripts/settings.mjs [--scope gateway|engine] rebind-database - --confirm-recovery-endpoint`);
 }

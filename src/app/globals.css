@@ -52,9 +52,15 @@ a {
 
 button:focus-visible,
 a:focus-visible,
-input:focus-visible {
-  outline: 3px solid rgba(74, 139, 116, 0.34);
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--green-700);
   outline-offset: 2px;
+}
+
+.story-panel :focus-visible {
+  outline-color: #c4e5d9;
 }
 
 a {
@@ -202,10 +208,14 @@ a {
 
 .eyebrow {
   margin: 0 0 18px;
-  color: #a9c9bd;
+  color: var(--green-700);
   font-size: 11px;
   font-weight: 760;
   letter-spacing: 0.22em;
+}
+
+.story-panel .eyebrow {
+  color: #a9c9bd;
 }
 
 .eyebrow--green {
@@ -364,7 +374,7 @@ a {
   min-height: 38px;
   border: 0;
   border-radius: 8px;
-  color: #68736f;
+  color: var(--ink-soft);
   background: transparent;
   cursor: pointer;
   font-size: 13px;

@@ -4,7 +4,7 @@ import { resolveDatabaseConnectionOptions } from "@/lib/database-config";
 
 describe("database connection configuration", () => {
   it("leaves the connection string unchanged when no SSL mode is set", () => {
-    const connectionString = "postgresql://user:pass@database.example/vasi?application_name=vasi";
+    const connectionString = "postgresql://user@database.example/vasi?application_name=vasi";
 
     expect(resolveDatabaseConnectionOptions(connectionString, undefined)).toEqual({
       connectionString,
@@ -14,7 +14,7 @@ describe("database connection configuration", () => {
 
   it("overrides URL-level SSL hints when SSL is disabled", () => {
     const options = resolveDatabaseConnectionOptions(
-      "postgresql://user:pass@database.example/vasi?sslmode=prefer&application_name=vasi",
+      "postgresql://user@database.example/vasi?sslmode=prefer&application_name=vasi",
       "disable",
     );
 
@@ -24,7 +24,7 @@ describe("database connection configuration", () => {
 
   it("uses full certificate verification when SSL is required", () => {
     const options = resolveDatabaseConnectionOptions(
-      "postgresql://user:pass@database.example/vasi?sslmode=disable",
+      "postgresql://user@database.example/vasi?sslmode=disable",
       "require",
     );
 
@@ -35,7 +35,7 @@ describe("database connection configuration", () => {
   it("rejects unsupported SSL modes", () => {
     expect(() =>
       resolveDatabaseConnectionOptions(
-        "postgresql://user:pass@database.example/vasi",
+        "postgresql://user@database.example/vasi",
         "prefer",
       ),
     ).toThrow("The PostgreSQL SSL mode must be either require or disable.");

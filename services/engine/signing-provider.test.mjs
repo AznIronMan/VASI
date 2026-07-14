@@ -39,13 +39,47 @@ describe("replaceable evidence signing provider", () => {
     await ensureSigningKeys(client, provider);
     expect(queries.some((sql) => sql.includes('"evidence_seal_key_status_event"'))).toBe(true);
   });
+
+  it("fails closed for mismatched integrity keys and partial certificate custody", () => {
+    const first = generateKeyPairSync("ed25519");
+    const second = generateKeyPairSync("ed25519");
+    expect(() => createSigningProvider({
+      EVIDENCE_SEAL_KEY_ID: "mismatched-key",
+      EVIDENCE_SEAL_PRIVATE_JWK: JSON.stringify(first.privateKey.export({ format: "jwk" })),
+      EVIDENCE_SEAL_PUBLIC_JWK: JSON.stringify(second.publicKey.export({ format: "jwk" })),
+    })).toThrow("do not match");
+
+    const valid = providerSettings("partial-certificate");
+    expect(() => createSigningProvider({
+      ...valid,
+      EVIDENCE_CERTIFICATE_KEY_ID: "certificate-without-custody",
+    })).toThrow("requires its key ID, private key, and certificate chain");
+  });
+
+  it("rejects a reused key ID whose registered fingerprint conflicts", async () => {
+    const provider = providerFixture();
+    const client = {
+      async query(sql) {
+        if (sql.includes("on conflict")) return { rowCount: 0, rows: [] };
+        if (sql.includes('select "sealRole"')) {
+          return { rowCount: 1, rows: [{ algorithm: "Ed25519", fingerprint: "0".repeat(64), sealRole: "vasi_integrity" }] };
+        }
+        return { rowCount: 0, rows: [] };
+      },
+    };
+    await expect(ensureSigningKeys(client, provider)).rejects.toThrow("conflicts with runtime custody");
+  });
 });
 
 function providerFixture() {
+  return createSigningProvider(providerSettings("test-key"));
+}
+
+function providerSettings(keyId) {
   const { privateKey, publicKey } = generateKeyPairSync("ed25519");
-  return createSigningProvider({
-    EVIDENCE_SEAL_KEY_ID: "test-key",
+  return {
+    EVIDENCE_SEAL_KEY_ID: keyId,
     EVIDENCE_SEAL_PRIVATE_JWK: JSON.stringify(privateKey.export({ format: "jwk" })),
     EVIDENCE_SEAL_PUBLIC_JWK: JSON.stringify(publicKey.export({ format: "jwk" })),
-  });
+  };
 }

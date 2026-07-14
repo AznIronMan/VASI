@@ -1,6 +1,6 @@
 {
   "name": "vasi",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "description": "Verified Authorized Signing Infrastructure",
   "engines": {
@@ -27,6 +27,11 @@
     "engine:probe:reports": "node scripts/probe-evidence-reports.mjs",
     "engine:probe:lifecycle": "node scripts/probe-lifecycle-governance.mjs",
     "engine:probe:productization": "node scripts/probe-productization.mjs",
+    "assurance:source": "node scripts/release-assurance.mjs source",
+    "assurance:images": "node scripts/release-assurance.mjs images",
+    "assurance:load": "node scripts/probe-readiness-load.mjs",
+    "assurance:accessibility": "node scripts/probe-accessibility.mjs",
+    "assurance:keys": "node scripts/probe-key-lifecycle.mjs",
     "deployment:profile": "node scripts/deployment-profile.mjs",
     "tenant:transfer": "node scripts/tenant-transfer.mjs",
     "backup": "node scripts/backup.mjs",
@@ -45,6 +50,7 @@
     "react-dom": "19.2.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
     "@types/node": "26.1.1",
     "@types/nodemailer": "8.0.1",
     "@types/pg": "8.20.0",
@@ -52,8 +58,10 @@
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.5",
     "eslint-config-next": "16.2.10",
+    "playwright-core": "1.61.1",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "yaml": "2.9.0"
   },
   "overrides": {
     "postcss": "8.5.18"

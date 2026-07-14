@@ -1,0 +1,41 @@
+{
+  "schema": "vasi-assurance-policy/v1",
+  "accessibility": {
+    "routes": [
+      "/",
+      "/forgot-password",
+      "/invite",
+      "/verify"
+    ],
+    "tags": [
+      "wcag2a",
+      "wcag2aa",
+      "wcag21a",
+      "wcag21aa"
+    ]
+  },
+  "images": {
+    "failSeverities": [
+      "HIGH",
+      "CRITICAL"
+    ],
+    "scannerImage": "aquasec/trivy@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f"
+  },
+  "load": {
+    "concurrency": 20,
+    "endpoints": [
+      "/api/health",
+      "/api/brand"
+    ],
+    "maximumErrorRate": 0,
+    "maximumP95Milliseconds": 1000,
+    "requests": 200,
+    "timeoutMilliseconds": 5000
+  },
+  "source": {
+    "failAuditSeverities": [
+      "high",
+      "critical"
+    ]
+  }
+}

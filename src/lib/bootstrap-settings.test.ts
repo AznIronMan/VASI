@@ -39,7 +39,7 @@ describe("VASI bootstrap settings", () => {
       values (1, 1, ?, ?, 'require', 12, ?)
     `).run(
       "4af8f8bf-3109-45c6-91fa-273257a321d8",
-      "postgresql://vasi:secret@database.example/vasi",
+      "postgresql://vasi@database.example/vasi",
       Buffer.alloc(32, 7),
     );
     sqlite.close();

@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.11.0`
+Version: `0.12.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -96,6 +96,18 @@ adapter revision and outcome. Sanitized self-hosted/SaaS profiles, matched
 backup verification, and encrypted tenant export/import support portable
 deployments without environment files or customer-specific source forks.
 
+Version 0.12.0 adds a first-party assurance and pilot-readiness gate. Release
+tooling now rejects tracked private/runtime material, known secret signatures,
+version drift, weakened Compose boundaries, blocking dependency or image
+vulnerabilities, and dirty release source; it emits hashed source/image
+inventories, npm audit evidence, and CycloneDX SBOMs outside the repository. A
+digest-pinned scanner examines exact image tar exports without receiving the
+Docker socket. Browser-rendered WCAG automation and a bounded read-only load
+probe cover the public readiness surface. Runtime images no longer contain the
+unused npm toolchain, reducing their attack surface. The threat model and pilot
+contract explicitly separate first-party evidence from independent security,
+legal/privacy, accessibility, custody, and customer approvals.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -172,6 +184,10 @@ milestones.
 - A participant record-history workspace and organization-scoped data-request
   review that produces a privacy-redacted, sealed, bounded PostgreSQL JSON
   export with audited access and automatic content expiry.
+- A release assurance gate with tracked-source policy, complete and production
+  dependency audits, CycloneDX source/image SBOMs, digest-pinned image scanning,
+  runtime version alignment, sanitized Compose hardening checks, browser WCAG
+  automation, and bounded read-only readiness load testing.
 
 ## Configuration model
 
@@ -190,6 +206,14 @@ Keep the file at mode `0600` and its directory private.
 Settings are loaded once per application process. Restart the app after a
 settings change. The settings listing command reports names and versions but
 never values.
+
+Disaster recovery to a different PostgreSQL endpoint uses the confirmed
+`settings rebind-database - --confirm-recovery-endpoint` command on a copy of
+the matched backup bootstrap after the database restore. It validates required
+encrypted settings against the recovered database before atomically changing
+only connection fields; run `settings validate` before starting services. See
+the productized deployment decision for the exact recovery order and custody
+requirements.
 
 ## Local setup
 
@@ -315,6 +339,12 @@ immutability, isolation, and lifecycle-chain integrity.
 `npm run engine:probe:productization` verifies profile revisions, tenant
 isolation, transactional quotas, exact destination allowlists, integration
 credential redaction/kill-switch behavior, and evidence-bound tenant policy.
+Run `npm run assurance:source -- /new/protected/directory` from a clean release
+commit to create the source assurance manifest. Run
+`npm run assurance:images -- /new/protected/directory IMAGE...` on a Docker host
+to export and scan exact images without mounting the Docker socket into the
+scanner. The output directories must not already exist and must remain outside
+the repository.
 
 See [Authentication setup](docs/authentication.md) for callbacks, provider and
 mailer settings, administration behavior, and the release checklist. See
@@ -339,3 +369,7 @@ operational approvals.
 The [productized tenancy and integration decision](docs/architecture/productized-tenancy-and-integrations.md)
 defines profile revisions, quotas, outbound isolation, deployment profiles,
 backup/restore, and tenant transfer constraints.
+The [assurance and pilot-readiness contract](docs/assurance-and-pilot-readiness.md)
+defines the threat register, repeatable release evidence, recovery/key drills,
+observability limits, and the first-party, independent, legal, and customer
+approval gates for a bounded pilot.

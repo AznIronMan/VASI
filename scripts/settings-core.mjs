@@ -2,9 +2,16 @@ import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:
 import {
   chownSync,
   chmodSync,
+  closeSync,
+  constants,
+  copyFileSync,
   existsSync,
+  fsyncSync,
   mkdirSync,
+  openSync,
   readFileSync,
+  renameSync,
+  rmSync,
   statSync,
 } from "node:fs";
 import path from "node:path";
@@ -118,6 +125,102 @@ export function loadBootstrapSettings(settingsPath = defaultSettingsPath()) {
     return settings;
   } finally {
     sqlite.close();
+  }
+}
+
+export function rebindBootstrapSettings({
+  databasePoolMax,
+  databaseSSL,
+  databaseURL,
+  settingsPath = defaultSettingsPath(),
+}) {
+  const current = loadBootstrapSettings(settingsPath);
+  const replacement = {
+    databasePoolMax: Number(databasePoolMax),
+    databaseSSL,
+    databaseURL,
+  };
+  validateDatabaseSettings(replacement);
+  const metadata = statSync(settingsPath);
+  const temporary = `${settingsPath}.rebind-${randomUUID()}`;
+  try {
+    copyFileSync(settingsPath, temporary, constants.COPYFILE_EXCL);
+    chmodSync(temporary, 0o600);
+    const sqlite = new DatabaseSync(temporary);
+    try {
+      sqlite.exec("begin immediate");
+      const updated = sqlite.prepare(`
+        update "vasi_bootstrap"
+        set "databaseURL" = ?, "databaseSSL" = ?, "databasePoolMax" = ?
+        where "id" = 1 and "installationId" = ?
+      `).run(
+        replacement.databaseURL,
+        replacement.databaseSSL,
+        replacement.databasePoolMax,
+        current.installationId,
+      );
+      if (Number(updated.changes) !== 1) throw new Error("The VASI bootstrap recovery record could not be updated.");
+      sqlite.exec("commit");
+    } catch (error) {
+      try {
+        sqlite.exec("rollback");
+      } catch {
+        // Preserve the original update failure when no transaction was opened.
+      }
+      throw error;
+    } finally {
+      sqlite.close();
+    }
+    if (process.getuid?.() === 0) chownSync(temporary, metadata.uid, metadata.gid);
+    const fileDescriptor = openSync(temporary, "r");
+    try {
+      fsyncSync(fileDescriptor);
+    } finally {
+      closeSync(fileDescriptor);
+    }
+    renameSync(temporary, settingsPath);
+    const directoryDescriptor = openSync(path.dirname(settingsPath), "r");
+    try {
+      fsyncSync(directoryDescriptor);
+    } finally {
+      closeSync(directoryDescriptor);
+    }
+    return loadBootstrapSettings(settingsPath);
+  } catch (error) {
+    rmSync(temporary, { force: true });
+    throw error;
+  }
+}
+
+export async function validateBootstrapBinding({ bootstrap, scope }) {
+  await readRuntimeSettings({ bootstrap, scope });
+  const pool = createSettingsPool(bootstrap);
+  try {
+    const result = await pool.query(
+      `select count(*)::integer as "count"
+       from "vasi_runtime_setting"
+       where "installationId" = $1 and "scope" = $2`,
+      [bootstrap.installationId, scope],
+    );
+    if (!Number(result.rows[0]?.count)) {
+      throw new Error(`The restored database has no VASI ${scope} settings for this installation.`);
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function recordBootstrapRebind({ bootstrap, scope }) {
+  const pool = createSettingsPool(bootstrap);
+  try {
+    await pool.query(
+      `insert into "vasi_runtime_setting_audit"
+        ("id", "installationId", "scope", "name", "action", "version", "source")
+       values ($1, $2, $3, '__bootstrap_database_endpoint__', 'rebind', null, 'recovery-rebind')`,
+      [randomUUID(), bootstrap.installationId, scope],
+    );
+  } finally {
+    await pool.end();
   }
 }
 

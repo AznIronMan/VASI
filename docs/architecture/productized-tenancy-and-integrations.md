@@ -111,6 +111,25 @@ values. `verify` checks files and the PostgreSQL custom archive. `restore` is de
 on the maintenance host, and the resulting directory must be stored in an
 encrypted backup system.
 
+For recovery onto a replacement PostgreSQL endpoint, first restore with a
+temporary destination bootstrap. Then replace that temporary file with a copy
+of the matched backup's `VASI.settings` and stream the new `databaseURL`,
+`databaseSSL`, and `databasePoolMax` JSON fields to:
+
+```bash
+docker compose -f compose.engine.yaml --profile tools run --rm -T settings \
+  rebind-database - --confirm-recovery-endpoint
+docker compose -f compose.engine.yaml --profile tools run --rm -T settings validate
+```
+
+The rebind command proves the restored database contains the matching
+installation/scope and can authenticate its encrypted required settings before
+it atomically changes only the SQLite endpoint fields. It preserves the
+installation ID and settings key, writes no value to output, and appends a
+value-free PostgreSQL audit event. Stream the JSON from an approved secret
+manager or protected descriptor; never place a credentialed database URL in
+arguments, shell history, an environment file, or the repository.
+
 The `maintenance` Compose service packages the required PostgreSQL client. It
 has no destination volume by default; the operator must explicitly mount an
 encrypted backup or transfer location for each run and make it writable by the
