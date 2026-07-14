@@ -16,6 +16,7 @@ import {
   persistWorkflowMediaBindings,
   resolveWorkflowMediaBindings,
 } from "./media-store.mjs";
+import { assertTenantCapacity } from "./tenant-policy.mjs";
 
 export function createWorkflowStore(database, settings) {
   return Object.freeze({
@@ -45,6 +46,7 @@ export function createWorkflowStore(database, settings) {
       if (!input.name || !input.document || input.definitionId) invalidWorkflow();
       return transaction(database, async (client) => {
         await requirePermission(client, actor, input.tenantId, "workflow.manage");
+        await assertTenantCapacity(client, input.tenantId, "workflows", 1);
         const definitionId = randomUUID();
         const now = new Date();
         await client.query(
@@ -264,6 +266,18 @@ export function createWorkflowStore(database, settings) {
       const input = validateMembershipInput(payload);
       return transaction(database, async (client) => {
         await requirePermission(client, actor, input.tenantId, "member.manage");
+        if (input.status === "active") {
+          const existing = await client.query(
+            `select 1 from "vasi_engine"."tenant_membership_grant"
+             where "tenantId" = $1 and lower("email") = $2 and "status" = 'active'
+             union all
+             select 1 from "vasi_engine"."tenant_membership"
+             where "tenantId" = $1 and lower("email") = $2 and "status" = 'active'
+             limit 1`,
+            [input.tenantId, input.email],
+          );
+          if (!existing.rowCount) await assertTenantCapacity(client, input.tenantId, "members", 1);
+        }
         await client.query(
           `insert into "vasi_engine"."tenant_membership_grant"
             ("id", "tenantId", "email", "roles", "status", "createdByPrincipalId")

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { SocialIcon } from "@/components/social-icon";
+import { useProductBrand } from "@/components/brand-provider";
 import { authClient } from "@/lib/auth-client";
 import { isGenericOAuthProvider } from "@/lib/auth-providers";
 import type {
@@ -31,6 +32,7 @@ export function SsoOnboarding({
   inviteToken?: string;
   providers: AuthProviderAvailability[];
 }) {
+  const brand = useProductBrand();
   const [email, setEmail] = useState(initialEmail ?? "");
   const [stage, setStage] = useState<Stage>(initialEmail ? "checking" : "email");
   const [recommendation, setRecommendation] = useState<Recommendation>({
@@ -200,7 +202,7 @@ export function SsoOnboarding({
     return (
       <form className="credentials-form onboarding-manual" onSubmit={handleManualRegistration}>
         <div className="manual-account-note">
-          <strong>Manual V·Sign account</strong>
+          <strong>Manual {brand.productName} account</strong>
           <span>{email}</span>
         </div>
         <div className="form-row">
@@ -271,8 +273,8 @@ export function SsoOnboarding({
         <div className="provider-recommendation provider-recommendation--neutral">
           <h3>{recommendedProvider ? `${recommendedProvider.label} appears to manage this email` : "Choose a trusted account"}</h3>
           <p>{recommendedProvider && !recommendedProvider.configured
-            ? `${recommendedProvider.label} is not enabled for V·Sign yet. You can choose another active provider or continue manually.`
-            : "If your organization uses one of these providers, connect it so V·Sign does not need to store another password."}</p>
+            ? `${recommendedProvider.label} is not enabled for ${brand.productName} yet. You can choose another active provider or continue manually.`
+            : `If your organization uses one of these providers, connect it so ${brand.productName} does not need to store another password.`}</p>
         </div>
       )}
 

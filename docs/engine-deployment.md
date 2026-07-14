@@ -9,6 +9,8 @@ database and login role, a dedicated deployment directory, and a unique
 - `engine` exposes port 8080 only to its internal Docker network and has no host
   port mapping.
 - `worker` has no listener or host port.
+- `integration-gateway` has no host port and is the only application process
+  that decrypts delivery credentials or contacts external SMTP/webhook hosts.
 - `private-ingress` exposes only the approved route table and is the only host
   listener.
 - The tracked Compose binds the facade to loopback. Put a private address in an
@@ -23,6 +25,12 @@ Approved routes are:
 | `GET` | `/healthz` | Authenticated service health proof |
 | `POST` | `/v1/whoami` | Validate and return bounded actor context |
 | `GET/POST` | `/v1/owner/tenants` | List or create an authorized company space |
+| `POST` | `/v1/owner/tenant-profile-read` | Read the active immutable company profile |
+| `POST` | `/v1/owner/tenant-profiles` | Append/activate a branding or policy revision |
+| `POST` | `/v1/owner/tenant-usage` | Read transactionally calculated quota use |
+| `POST` | `/v1/owner/integration-list` | List redacted tenant integration bindings |
+| `POST` | `/v1/owner/integrations` | Append/activate an allowlisted binding revision |
+| `GET/POST` | `/v1/admin/installation-profile` | Read or revision the operator-controlled installation profile |
 | `POST` | `/v1/owner/member-list` | List engine-authorized company members and grants |
 | `POST` | `/v1/owner/members` | Grant or change company roles by verified email |
 | `POST` | `/v1/owner/retention-policy-list` | List system and tenant retention-policy revisions |
@@ -82,6 +90,8 @@ Complete these `engine` scope settings before startup:
 - `ENGINE_AUTHORIZED_CLIENT_CA_CERT`
 - `ENGINE_AUTHORIZED_CLIENT_FINGERPRINT_SHA256`
 - `ENGINE_OUTBOX_ENCRYPTION_SECRET`
+- `ENGINE_INTEGRATION_CONFIG_ENCRYPTION_SECRET`
+- `ENGINE_INTEGRATION_GATEWAY_HMAC_SECRET`
 - `EVIDENCE_SEAL_PRIVATE_JWK`
 - `EVIDENCE_SEAL_PUBLIC_JWK`
 - `EVIDENCE_SEAL_KEY_ID`
@@ -106,13 +116,14 @@ material. Use signing material distinct from the service TLS identity. Local
 certificate verification proves the leaf signature and key match, not public
 chain trust, revocation status, qualified-signature status, or trusted time.
 
-Notification delivery defaults to `ENGINE_NOTIFICATION_MODE=disabled`, which
-records a suppressed terminal attempt. To enable generic delivery, configure
-either `webhook` with an HTTPS URL and a 32-byte-or-longer HMAC secret, or
-`smtp` with host/from and optional credentials. Set `ENGINE_PARTICIPANT_ORIGIN`
-when SMTP issue/reminder messages should contain the VASI request link. These
-values are engine-scoped PostgreSQL settings; do not put them in environment
-files or Compose arguments.
+Notification delivery starts with a disabled per-tenant binding. An operator
+must first allow the exact SMTP or webhook host in the installation profile;
+an owner can then configure the binding in the company console. Credentials
+are encrypted in PostgreSQL and decrypted only by `integration-gateway`. Set
+`ENGINE_PARTICIPANT_ORIGIN` when SMTP issue/reminder messages should contain the
+VASI request link. Pre-0.11 global `ENGINE_NOTIFICATION_*` values are consumed
+only for one-time compatibility conversion and should be unset after the new
+binding is verified.
 
 Document storage defaults to `ENGINE_DOCUMENT_MAX_BYTES=26214400` (25 MiB) and
 `ENGINE_DOCUMENT_CHUNK_BYTES=262144` (256 KiB). The engine accepts only the
@@ -144,7 +155,7 @@ historical verification material.
 
 ```bash
 docker compose -f compose.engine.yaml --profile release run --rm --build migrate
-docker compose -f compose.engine.yaml up -d --build engine worker private-ingress
+docker compose -f compose.engine.yaml up -d --build engine integration-gateway worker private-ingress
 docker compose -f compose.engine.yaml ps
 ```
 
@@ -158,6 +169,7 @@ npm run engine:probe:documents # disposable conformance database only
 npm run engine:probe:media # disposable conformance database only
 npm run engine:probe:reports # disposable conformance database only
 npm run engine:probe:lifecycle # disposable conformance database only
+npm run engine:probe:productization # disposable conformance database only
 ```
 
 The proof verifies server trust, the V·Sign client certificate, engine health,
@@ -165,12 +177,21 @@ a signed actor identity, and rejection of a replayed assertion. Also verify:
 
 1. unauthenticated TLS fails;
 2. the public route remains unavailable;
-3. `docker port` is empty for engine and worker;
+3. `docker port` is empty for engine, integration gateway, and worker;
 4. the running containers contain no application secrets in their environment;
 5. the admin engine diagnostic is 404 on the public gateway host and requires
    an allowlisted administrator on the private host; and
 6. the bootstrap and PostgreSQL database are covered by matched backup/restore
    tests.
+
+For a containerized matched backup, prepare a protected destination writable
+by UID `1000`, then mount it only for that invocation:
+
+```bash
+docker compose -f compose.engine.yaml --profile tools run --rm \
+  -v /secure/vasi-backups:/backup maintenance \
+  scripts/backup.mjs create /backup/vasi-YYYYMMDD
+```
 
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.

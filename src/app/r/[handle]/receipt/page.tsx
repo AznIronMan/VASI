@@ -41,7 +41,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ handle
         <span className="receipt-seal" aria-hidden="true">✓</span>
         <p className="eyebrow eyebrow--green">VASI INTEGRITY VERIFIED</p>
         <h1>Response recorded</h1>
-        <p>{receipt.tenant.name} received your response to <strong>{receipt.request.title}</strong>.</p>
+        <p>{receipt.tenant.profile?.branding?.displayName || receipt.tenant.name} received your response to <strong>{receipt.request.title}</strong>.</p>
         <dl>
           <div><dt>Response</dt><dd>{receipt.request.response}</dd></div>
           <div><dt>Purpose</dt><dd>{receipt.request.purpose}</dd></div>

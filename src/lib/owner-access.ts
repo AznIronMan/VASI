@@ -25,7 +25,7 @@ export async function authorizeOwnerHeaders(headers: Headers) {
     return {
       ok: false as const,
       reason: "identity" as const,
-      response: Response.json({ error: "An active, verified V·Sign account is required." }, { status: 403 }),
+      response: Response.json({ error: "An active, verified account is required." }, { status: 403 }),
     };
   }
   return { ok: true as const, session: session as NonNullable<OwnerSession> };

@@ -19,10 +19,11 @@ import { createEvidenceStore, EvidenceStoreError } from "./evidence-store.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { createLifecycleStore } from "./lifecycle-store.mjs";
 import { createMediaStore } from "./media-store.mjs";
+import { createProductStore } from "./product-store.mjs";
 import { createReportStore } from "./report-store.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.10.0";
+const ENGINE_VERSION = "0.11.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -37,6 +38,8 @@ const media = createMediaStore(database, settings);
 const lifecycle = createLifecycleStore(database, settings);
 const reports = createReportStore(database, settings);
 const workflows = createWorkflowStore(database, settings);
+const product = createProductStore(database, settings, bootstrap.installationId);
+await product.initialize();
 const seenServiceRequests = new Map();
 
 const server = createServer(async (request, response) => {
@@ -189,7 +192,14 @@ function parseJSONBody(body) {
 function dispatchEvidence(action, actor, payload) {
   switch (action) {
     case "tenant.list": return workflows.listTenants(actor);
-    case "tenant.create": return evidence.createTenant(actor, payload);
+    case "tenant.create": return product.provisionTenant(actor, payload);
+    case "tenant.profile.read": return product.getTenantProfile(actor, payload);
+    case "tenant.profile.update": return product.updateTenantProfile(actor, payload);
+    case "tenant.usage.read": return product.getTenantUsage(actor, payload);
+    case "integration.list": return product.listIntegrations(actor, payload);
+    case "integration.update": return product.updateIntegration(actor, payload);
+    case "installation.profile.read": return product.getInstallationProfile(actor);
+    case "installation.profile.update": return product.updateInstallationProfile(actor, payload);
     case "membership.list": return workflows.listMembers(actor, payload);
     case "membership.update": return workflows.setMember(actor, payload);
     case "lifecycle.policy.list": return lifecycle.listPolicies(actor, payload);
@@ -248,6 +258,7 @@ function errorCode(error) {
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return "invalid_media_telemetry";
   if (error?.code === "INVALID_LIFECYCLE") return "invalid_lifecycle";
+  if (error?.code === "INVALID_PRODUCT_CONFIGURATION") return "invalid_product_configuration";
   if (error?.code === "AUTHORIZATION_FAILED" || String(error?.code || "").startsWith("ERR_JWT")) {
     return "authorization_failed";
   }
@@ -276,6 +287,7 @@ function errorStatus(error) {
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return 400;
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return 400;
   if (error?.code === "INVALID_LIFECYCLE") return 400;
+  if (error?.code === "INVALID_PRODUCT_CONFIGURATION") return 400;
   if (error instanceof EngineStoreError) return error.status;
   if (error?.code === "AUTHORIZATION_FAILED" || String(error?.code || "").startsWith("ERR_JWT")) return 401;
   return 500;
@@ -287,6 +299,7 @@ function publicErrorCode(error, status) {
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return "invalid_media_telemetry";
   if (error?.code === "INVALID_LIFECYCLE") return "invalid_lifecycle";
+  if (error?.code === "INVALID_PRODUCT_CONFIGURATION") return "invalid_product_configuration";
   if (error?.code === "INVALID_WORKFLOW") return "invalid_workflow";
   if (status === 413) return "request_too_large";
   if (status === 400) return "invalid_request";

@@ -10,6 +10,7 @@ import { hashCanonicalJSON } from "../../packages/engine-crypto/index.mjs";
 import { hasTenantPermission } from "../../packages/engine-domain/workflow.mjs";
 import { createDocumentInspector } from "./document-inspection.mjs";
 import { EngineStoreError } from "./errors.mjs";
+import { assertArtifactCapacity } from "./tenant-policy.mjs";
 
 export function createArtifactStore(database, settings) {
   const limits = documentLimits(settings);
@@ -18,6 +19,7 @@ export function createArtifactStore(database, settings) {
       const input = validateArtifactCreateInput(payload, limits);
       return transaction(database, async (client) => {
         await requireArtifactPermission(client, actor, input.tenantId, "artifact.manage");
+        await assertArtifactCapacity(client, input.tenantId, input.expectedByteLength);
         let familyId = randomUUID();
         let revision = 1;
         if (input.replacesArtifactId) {

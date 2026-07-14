@@ -9,20 +9,20 @@ import {
   loadBootstrapSettings,
   readRuntimeSettings,
 } from "../../scripts/settings-core.mjs";
-import { createNotificationDispatcher } from "./notification-adapters.mjs";
 import { createSigningProvider } from "../engine/signing-provider.mjs";
+import { createIntegrationGatewayClient } from "./integration-gateway-client.mjs";
 import {
   advanceOneRetentionLifecycle,
   expireOneParticipantDataRequest,
 } from "./retention-worker.mjs";
 
-const ENGINE_VERSION = "0.10.0";
+const ENGINE_VERSION = "0.11.0";
 const GENESIS_HASH = "0".repeat(64);
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
 const database = createSettingsPool(bootstrap);
 const pollMilliseconds = boundedPollMilliseconds(settings.ENGINE_WORKER_POLL_MS);
-const dispatchNotification = createNotificationDispatcher(settings);
+const dispatchNotification = createIntegrationGatewayClient(settings);
 const signingProvider = createSigningProvider(settings);
 let stopping = false;
 
@@ -73,9 +73,11 @@ export async function deliverJob(databaseClient, job, dispatch, encryptionSecret
     const payload = decryptJSONEnvelope(job.payload?.envelope, encryptionSecret);
     if (hashCanonicalJSON(payload) !== job.payloadHash) throw workerError("outbox_payload_mismatch");
     delivery = await dispatch({
+      attempt: job.attempts,
       id: job.id,
       idempotencyKey: job.idempotencyKey,
       payload,
+      tenantId: job.tenantId,
     });
   } catch (error) {
     delivery = {

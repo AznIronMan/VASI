@@ -64,10 +64,13 @@ are AES-256-GCM envelopes under a dedicated engine setting; plaintext paths are
 not stored in the assignment or outbox row. Terminal jobs redact the envelope
 while preserving its payload hash and immutable delivery attempts.
 
-The worker supports disabled/suppressed delivery, generic SMTP, and an HTTPS
-webhook signed with HMAC-SHA256 over its timestamp and canonical body. Claims use
-row locking, idempotency keys, bounded exponential retry, maximum attempts, and
-stale-lock recovery. Provider-specific mail or workflow products are not engine
+The worker submits a signed, bounded, versioned delivery contract to the
+internal integration gateway. That gateway resolves the tenant binding,
+decrypts credentials, rechecks the installation host allowlist, and supports
+disabled/suppressed delivery, generic SMTP, and an HTTPS webhook signed with
+HMAC-SHA256 over its timestamp and canonical body. Claims use row locking,
+idempotency keys, bounded exponential retry, maximum attempts, and stale-lock
+recovery. Provider-specific mail or workflow products are not engine
 dependencies.
 
 ## Authentication provenance

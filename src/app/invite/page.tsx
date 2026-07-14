@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { SsoOnboarding } from "@/components/auth/sso-onboarding";
 import { BrandMark } from "@/components/brand-mark";
 import { getLoginAuthProviderAvailability } from "@/lib/auth-providers";
+import { resolveProductBrand } from "@/lib/branding";
 import { getInvitation } from "@/lib/invitations";
 import { getRuntimeSettings } from "@/lib/runtime-settings";
 
@@ -22,6 +23,7 @@ export default async function InvitationPage({
     getInvitation(token),
     getRuntimeSettings(),
   ]);
+  const brand = resolveProductBrand(settings);
 
   return (
     <main className="invite-shell">
@@ -31,7 +33,7 @@ export default async function InvitationPage({
           <>
             <div className="invite-card__heading">
               <p className="eyebrow eyebrow--green">YOU’RE INVITED</p>
-              <h1>Join CNB V·Sign</h1>
+              <h1>Join {brand.displayName}</h1>
               <p>
                 Start with the trusted account for <strong>{invitation.email}</strong>.
                 Your invitation expires {new Date(invitation.expiresAt).toLocaleDateString()}.
@@ -52,7 +54,7 @@ export default async function InvitationPage({
           <div className="invite-card__heading invite-card__heading--invalid">
             <p className="eyebrow eyebrow--green">INVITATION UNAVAILABLE</p>
             <h1>This invitation is no longer valid</h1>
-            <p>It may have expired, already been used, or been replaced. Ask a V·Sign administrator for a new invitation.</p>
+            <p>It may have expired, already been used, or been replaced. Ask a {brand.productName} administrator for a new invitation.</p>
           </div>
         )}
       </section>

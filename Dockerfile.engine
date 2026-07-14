@@ -13,3 +13,8 @@ COPY services ./services
 FROM engine-tools AS engine-runtime
 USER node
 CMD ["node", "services/engine/server.mjs"]
+
+FROM engine-tools AS engine-maintenance
+RUN apk add --no-cache postgresql17-client
+USER node
+ENTRYPOINT ["node"]

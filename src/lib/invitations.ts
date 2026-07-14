@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { database } from "@/lib/database";
+import { resolveProductBrand } from "@/lib/branding";
 import { sendAuthEmail } from "@/lib/email";
 import { emailDomain } from "@/lib/provider-recommendation";
 import { getRuntimeSettings } from "@/lib/runtime-settings";
@@ -52,13 +53,14 @@ export async function createInvitation(emailValue: string, actorUserId: string) 
   }
 
   const { baseURL } = resolveServerSettings(await getRuntimeSettings());
+  const brand = resolveProductBrand(await getRuntimeSettings());
   try {
     await sendAuthEmail({
       to: email,
-      subject: "You are invited to CNB V·Sign",
-      heading: "Your V·Sign invitation",
+      subject: `You are invited to ${brand.displayName}`,
+      heading: `Your ${brand.productName} invitation`,
       message:
-        "Choose a trusted identity provider to join V·Sign. A manual password remains available if your organization does not support one.",
+        `Choose a trusted identity provider to join ${brand.productName}. A manual password remains available if your organization does not support one.`,
       actionLabel: "Accept invitation",
       actionUrl: `${baseURL}/invite?token=${encodeURIComponent(token)}`,
     });

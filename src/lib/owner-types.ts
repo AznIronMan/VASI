@@ -2,6 +2,87 @@ import type { EvidenceTenant, IssuedEvidenceRequest } from "@/lib/evidence-types
 
 export type OwnerTenant = EvidenceTenant & { permissions: string[] };
 
+export type TenantProfile = {
+  branding: {
+    accentColor: string;
+    displayName: string;
+    primaryColor: string;
+    shortName: string;
+    supportEmail: string | null;
+  };
+  policies: { defaultRetentionProfile: string };
+  quotas: {
+    maxActiveRequests: number;
+    maxArtifactBytes: number;
+    maxArtifactBytesPerArtifact: number;
+    maxIntegrations: number;
+    maxMembers: number;
+    maxWorkflows: number;
+  };
+  schema: "vasi-tenant-profile/v1";
+};
+
+export type OwnerTenantProfile = {
+  id: string;
+  profile: TenantProfile;
+  profileHash: string;
+  revision: number;
+};
+
+export type OwnerTenantUsage = {
+  profileHash: string;
+  profileRevision: number;
+  resources: Record<"activeRequests" | "artifactBytes" | "integrations" | "members" | "workflows", {
+    available: number;
+    limit: number;
+    used: number;
+  }>;
+  tenantId: string;
+};
+
+export type OwnerIntegration = {
+  adapterId: "disabled" | "smtp" | "webhook";
+  adapterVersion: string;
+  capability: "notification.delivery";
+  config: {
+    from?: string;
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    url?: string;
+    username?: string;
+  };
+  configHash: string;
+  configuredCredentials: boolean;
+  createdAt: string;
+  id: string;
+  revision: number;
+  status: "active" | "disabled";
+};
+
+export type InstallationProfile = {
+  adapters: {
+    allow: Array<"disabled" | "smtp" | "webhook">;
+    smtpAllowedHosts: string[];
+    webhookAllowedHosts: string[];
+  };
+  deployment: {
+    engineDatabaseBoundary: "dedicated";
+    mode: "self_hosted" | "saas";
+    publicIngress: "gateway_only";
+  };
+  product: { organizationName: string; productName: string; supportEmail: string };
+  provisioning: { maxTenants: number; mode: "administrators_only" };
+  schema: "vasi-installation-profile/v1";
+};
+
+export type AdminInstallationProfile = {
+  id: string;
+  profile: InstallationProfile;
+  profileHash: string;
+  revision: number;
+};
+
 export type OwnerArtifact = {
   byteLength?: number;
   chunkCount?: number;

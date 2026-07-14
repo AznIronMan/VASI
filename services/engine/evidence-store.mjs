@@ -36,6 +36,7 @@ import {
   persistIssueMediaSnapshots,
 } from "./media-store.mjs";
 import { createSigningProvider, ensureSigningKeys } from "./signing-provider.mjs";
+import { assertTenantCapacity } from "./tenant-policy.mjs";
 
 const GENESIS_HASH = "0".repeat(64);
 
@@ -108,6 +109,7 @@ export function createEvidenceStore(database, settings) {
       return transaction(database, async (client) => {
         await requireTenantRole(client, actor.principalId, input.tenantId, "owner");
         const tenant = await tenantById(client, input.tenantId);
+        const tenantProfile = await assertTenantCapacity(client, input.tenantId, "activeRequests", 1);
         const issuedAt = new Date();
         const workflowId = randomUUID();
         const requestId = randomUUID();
@@ -135,9 +137,13 @@ export function createEvidenceStore(database, settings) {
         await client.query(
           `insert into "vasi_engine"."request_instance"
             ("id", "tenantId", "workflowRevisionId", "createdByPrincipalId",
-             "purpose", "status", "issuedAt", "expiresAt")
-           values ($1, $2, $3, $4, $5, 'issued', $6, $7)`,
-          [requestId, input.tenantId, workflowId, actor.principalId, input.purpose, issuedAt, input.expiresAt],
+             "purpose", "status", "issuedAt", "expiresAt", "tenantProfileRevisionId",
+             "tenantProfileSnapshot", "tenantProfileHash", "tenantProfileBindingProvenance")
+           values ($1, $2, $3, $4, $5, 'issued', $6, $7, $8, $9, $10, 'issued')`,
+          [
+            requestId, input.tenantId, workflowId, actor.principalId, input.purpose, issuedAt,
+            input.expiresAt, tenantProfile.id, tenantProfile.profile, tenantProfile.profileHash,
+          ],
         );
         await client.query(
           `insert into "vasi_engine"."participant_assignment"
@@ -165,7 +171,7 @@ export function createEvidenceStore(database, settings) {
           payload: {
             expiresAt: input.expiresAt.toISOString(),
             intendedEmail: input.intendedEmail,
-            tenant: { id: tenant.id, name: tenant.name },
+            tenant: tenantEvidenceProjection(tenant, tenantProfile),
             workflow: {
               content: input.content,
               contentHash: input.contentHash,
@@ -395,7 +401,7 @@ export function createEvidenceStore(database, settings) {
           request: { id: record.requestId, purpose: record.purpose },
           response,
           startedAt: startedAt.toISOString(),
-          tenant: { id: record.tenantId, name: record.tenantName },
+          tenant: tenantEvidenceProjection(record),
           workflow: {
             content: record.content,
             contentHash: record.contentHash,
@@ -567,6 +573,7 @@ export function verifyEvidenceRecord(record, expectedPublicJWK) {
 
 async function issuePublishedRequest(client, actor, input, outboxEncryptionSecret) {
   await requireTenantPermission(client, actor.principalId, input.tenantId, "request.manage");
+  const tenantProfile = await assertTenantCapacity(client, input.tenantId, "activeRequests", 1);
   const revisionResult = await client.query(
     `select w."id", w."definitionId", w."revision", w."title", w."purpose", w."snapshot",
             w."snapshotHash", t."name" as "tenantName"
@@ -599,8 +606,10 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
   await client.query(
     `insert into "vasi_engine"."request_instance"
       ("id", "tenantId", "workflowRevisionId", "createdByPrincipalId", "purpose", "status",
-       "issuedAt", "scheduledFor", "dueAt", "expiresAt", "accessPolicy", "notificationPolicy")
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+       "issuedAt", "scheduledFor", "dueAt", "expiresAt", "accessPolicy", "notificationPolicy",
+       "tenantProfileRevisionId", "tenantProfileSnapshot", "tenantProfileHash",
+       "tenantProfileBindingProvenance")
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'issued')`,
     [
       requestId,
       input.tenantId,
@@ -614,6 +623,9 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
       expiresAt,
       revision.snapshot.access,
       revision.snapshot.notifications,
+      tenantProfile.id,
+      tenantProfile.profile,
+      tenantProfile.profileHash,
     ],
   );
   await client.query(
@@ -675,7 +687,7 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
       intendedEmail: input.intendedEmail,
       notificationPolicy: revision.snapshot.notifications,
       scheduledFor: scheduledFor.toISOString(),
-      tenant: { id: input.tenantId, name: revision.tenantName },
+      tenant: tenantEvidenceProjection({ id: input.tenantId, name: revision.tenantName }, tenantProfile),
       workflow: {
         definitionId: revision.definitionId,
         id: revision.id,
@@ -698,7 +710,10 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
         participantPath: `/r/${handle}`,
         recipient: input.intendedEmail,
         requestId,
-        tenant: { id: input.tenantId, name: revision.tenantName },
+        tenant: {
+          id: input.tenantId,
+          name: tenantProfile.profile.branding.displayName,
+        },
         title: revision.title,
       },
       requestId,
@@ -718,7 +733,10 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
         participantPath: `/r/${handle}`,
         recipient: input.intendedEmail,
         requestId,
-        tenant: { id: input.tenantId, name: revision.tenantName },
+        tenant: {
+          id: input.tenantId,
+          name: tenantProfile.profile.branding.displayName,
+        },
         title: revision.title,
       },
       requestId,
@@ -793,7 +811,7 @@ function workflowParticipantProjection(record, interaction, activity) {
     mediaSummary: activity.mediaSummary,
     savedResponse: activity.savedResponse,
     savedResponseLabel: activity.savedResponseLabel,
-    tenant: { id: record.tenantId, name: record.tenantName },
+    tenant: participantTenantProjection(record),
     title: projection.title,
     type: projection.type,
     workflowTitle: record.title,
@@ -1080,7 +1098,10 @@ async function respondToWorkflowActivity({
         eventType: "request.completed",
         recipient: actor.email,
         requestId: record.requestId,
-        tenant: { id: record.tenantId, name: record.tenantName },
+        tenant: {
+          id: record.tenantId,
+          name: record.tenantProfileSnapshot?.branding?.displayName || record.tenantName,
+        },
         title: record.title,
       },
       requestId: record.requestId,
@@ -1129,7 +1150,7 @@ function buildWorkflowManifest({ actor, completedAt, events, interaction, manife
       scheduledFor: record.scheduledFor ? new Date(record.scheduledFor).toISOString() : undefined,
     },
     schema: "vasi-evidence-manifest/v4",
-    tenant: { id: record.tenantId, name: record.tenantName },
+    tenant: tenantEvidenceProjection(record),
     timestamps: {
       completedAt: completedAt.toISOString(),
       issuedAt: new Date(record.issuedAt).toISOString(),
@@ -1422,7 +1443,8 @@ async function assignmentForHandle(client, handleDigest, lock) {
     `select a."id" as "assignmentId", a."tenantId", a."requestId", a."intendedEmail",
             a."principalId", a."participantEmail", a."status", a."issuedAt", a."firstOpenedAt",
             r."purpose", r."scheduledFor", r."dueAt", r."expiresAt", r."accessPolicy",
-            r."notificationPolicy", r."status" as "requestStatus",
+            r."notificationPolicy", r."tenantProfileRevisionId", r."tenantProfileSnapshot",
+            r."tenantProfileHash", r."tenantProfileBindingProvenance", r."status" as "requestStatus",
             w."id" as "workflowId", w."revision", w."title", w."responseMode",
             w."content", w."contentHash", w."definitionId", w."schemaVersion", w."snapshot",
             w."snapshotHash", t."name" as "tenantName"
@@ -1435,6 +1457,34 @@ async function assignmentForHandle(client, handleDigest, lock) {
   );
   if (!result.rowCount) notFound();
   return result.rows[0];
+}
+
+function tenantEvidenceProjection(record, activeProfile) {
+  const profile = activeProfile?.profile || record.tenantProfileSnapshot;
+  const profileHash = activeProfile?.profileHash || record.tenantProfileHash;
+  const profileRevisionId = activeProfile?.id || record.tenantProfileRevisionId;
+  const profileBindingProvenance = activeProfile ? "issued" : record.tenantProfileBindingProvenance;
+  const id = record.id || record.tenantId;
+  const name = record.name || record.tenantName;
+  if (!profile || !profileHash || !profileRevisionId) return { id, name };
+  return {
+    id,
+    name,
+    profile,
+    profileBindingProvenance,
+    profileHash,
+    ...(activeProfile?.revision ? { profileRevision: activeProfile.revision } : {}),
+    profileRevisionId,
+  };
+}
+
+function participantTenantProjection(record) {
+  const branding = record.tenantProfileSnapshot?.branding;
+  return {
+    id: record.tenantId,
+    name: record.tenantName,
+    ...(branding ? { branding } : {}),
+  };
 }
 
 async function participantArtifactRecord(client, handleDigest, input, lock) {
@@ -1504,7 +1554,7 @@ function participantProjection(record, interaction) {
     },
     purpose: record.purpose,
     responseMode: record.responseMode,
-    tenant: { id: record.tenantId, name: record.tenantName },
+    tenant: participantTenantProjection(record),
     title: record.title,
   };
 }

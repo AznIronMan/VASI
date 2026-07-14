@@ -4,19 +4,19 @@ import nodemailer from "nodemailer";
 
 import { canonicalJSON } from "../../packages/engine-crypto/index.mjs";
 
-export function createNotificationDispatcher(settings, dependencies = {}) {
-  const mode = settings.ENGINE_NOTIFICATION_MODE || "disabled";
-  if (!["disabled", "smtp", "webhook"].includes(mode)) {
-    throw new Error("ENGINE_NOTIFICATION_MODE must be disabled, smtp, or webhook.");
+export function createNotificationDispatcher(binding, dependencies = {}) {
+  const adapterId = binding.adapterId;
+  if (!["disabled", "smtp", "webhook"].includes(adapterId)) {
+    throw new Error("The notification adapter is unsupported.");
   }
-  if (mode === "disabled") {
+  if (binding.status === "disabled" || adapterId === "disabled") {
     return async () => ({ adapter: "disabled", outcome: "suppressed", responseMetadata: {} });
   }
-  if (mode === "webhook") {
-    const url = httpsURL(settings.ENGINE_NOTIFICATION_WEBHOOK_URL, "ENGINE_NOTIFICATION_WEBHOOK_URL");
-    const secret = required(settings, "ENGINE_NOTIFICATION_WEBHOOK_SECRET");
+  if (adapterId === "webhook") {
+    const url = httpsURL(binding.config.url, "webhook.url");
+    const secret = required(binding.credentials, "secret");
     if (Buffer.byteLength(secret, "utf8") < 32) {
-      throw new Error("ENGINE_NOTIFICATION_WEBHOOK_SECRET must contain at least 32 bytes.");
+      throw new Error("The webhook signing secret must contain at least 32 bytes.");
     }
     const fetchImplementation = dependencies.fetch || fetch;
     return async (job) => {
@@ -38,6 +38,7 @@ export function createNotificationDispatcher(settings, dependencies = {}) {
           "x-vasi-signature": `t=${timestamp},v1=${signature}`,
         },
         method: "POST",
+        redirect: "manual",
         signal: AbortSignal.timeout(10_000),
       });
       if (!response.ok) throw deliveryError("webhook_status", `Webhook returned ${response.status}.`);
@@ -49,17 +50,18 @@ export function createNotificationDispatcher(settings, dependencies = {}) {
     };
   }
 
-  const host = required(settings, "ENGINE_NOTIFICATION_SMTP_HOST");
-  const from = required(settings, "ENGINE_NOTIFICATION_SMTP_FROM");
-  const port = integer(settings.ENGINE_NOTIFICATION_SMTP_PORT || "587", 1, 65_535);
-  const secure = boolean(settings.ENGINE_NOTIFICATION_SMTP_SECURE || "false");
-  const origin = optionalHTTPSOrigin(settings.ENGINE_PARTICIPANT_ORIGIN);
+  const host = required(binding.config, "host");
+  const from = required(binding.config, "from");
+  const port = integer(binding.config.port, 1, 65_535);
+  const secure = binding.config.secure;
+  if (typeof secure !== "boolean") throw new Error("The SMTP secure setting must be boolean.");
+  const origin = optionalHTTPSOrigin(dependencies.participantOrigin);
   const createTransport = dependencies.createTransport || nodemailer.createTransport;
   const transporter = createTransport({
-    auth: settings.ENGINE_NOTIFICATION_SMTP_USER
+    auth: binding.config.username
       ? {
-          pass: required(settings, "ENGINE_NOTIFICATION_SMTP_PASSWORD"),
-          user: settings.ENGINE_NOTIFICATION_SMTP_USER,
+          pass: required(binding.credentials, "password"),
+          user: binding.config.username,
         }
       : undefined,
     host,
@@ -137,12 +139,6 @@ function integer(value, minimum, maximum) {
     throw new Error("The SMTP port is invalid.");
   }
   return parsed;
-}
-
-function boolean(value) {
-  if (value === "true") return true;
-  if (value === "false") return false;
-  throw new Error("The SMTP secure setting must be true or false.");
 }
 
 function deliveryError(code, message) {

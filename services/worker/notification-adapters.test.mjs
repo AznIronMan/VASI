@@ -18,7 +18,7 @@ const job = {
 
 describe("notification adapters", () => {
   it("suppresses deterministically when delivery is disabled", async () => {
-    const dispatch = createNotificationDispatcher({ ENGINE_NOTIFICATION_MODE: "disabled" });
+    const dispatch = createNotificationDispatcher({ adapterId: "disabled", config: {}, credentials: {}, status: "disabled" });
     await expect(dispatch(job)).resolves.toMatchObject({ adapter: "disabled", outcome: "suppressed" });
   });
 
@@ -31,12 +31,14 @@ describe("notification adapters", () => {
         .digest("base64url");
       expect(signature).toBe(`t=${timestamp},v1=${expected}`);
       expect(options.headers["x-vasi-idempotency-key"]).toBe(job.idempotencyKey);
+      expect(options.redirect).toBe("manual");
       return { ok: true, status: 202 };
     });
     const dispatch = createNotificationDispatcher({
-      ENGINE_NOTIFICATION_MODE: "webhook",
-      ENGINE_NOTIFICATION_WEBHOOK_SECRET: "s".repeat(48),
-      ENGINE_NOTIFICATION_WEBHOOK_URL: "https://events.example.test/vasi",
+      adapterId: "webhook",
+      config: { url: "https://events.example.test/vasi" },
+      credentials: { secret: "s".repeat(48) },
+      status: "active",
     }, { fetch: fetchMock });
     await expect(dispatch(job)).resolves.toMatchObject({ adapter: "webhook", outcome: "delivered" });
   });

@@ -1,7 +1,7 @@
 # Authentication setup
 
 The VASI portal uses Better Auth with a PostgreSQL datastore. The canonical
-public production origin is `https://vsign.cnb.llc`. A separately configured
+public production origin is installation-specific; examples below use `https://vsign.example.com`. A separately configured
 private HTTPS origin serves the internal administration console. Sessions are
 host-only and are not shared between the public and internal hosts.
 
@@ -51,17 +51,32 @@ engine at the same bootstrap database.
 build context, and mounted read-only into the app. Back it up securely together
 with PostgreSQL. Neither half is independently sufficient for recovery.
 
+Public gateway branding is installation configuration rather than source code.
+The sanitized defaults are VASI/V·Sign and `support@example.invalid`. Set these
+non-secret gateway values for a deployment, then restart the gateway:
+
+- `BRAND_ORGANIZATION_NAME`
+- `BRAND_PRODUCT_NAME`
+- `BRAND_PRODUCT_MARK`
+- `BRAND_SUPPORT_EMAIL`
+
+The public `/api/brand` endpoint returns only those presentation values so
+client-rendered marks can match server email/auth branding. It never returns
+provider configuration, origins, allowlists, or secrets. Company-specific
+branding within evidence is governed separately by the engine tenant profile
+and is snapshot-bound at request issuance.
+
 ## Identity provider callbacks
 
 Register these HTTPS redirect URIs with the corresponding provider:
 
 | Provider | Public callback | Internal callback path |
 | --- | --- | --- |
-| Microsoft Entra ID | `https://vsign.cnb.llc/api/auth/callback/microsoft` | `/api/auth/callback/microsoft` |
-| Google | `https://vsign.cnb.llc/api/auth/callback/google` | `/api/auth/callback/google` |
-| Apple | `https://vsign.cnb.llc/api/auth/callback/apple` | `/api/auth/callback/apple` |
-| Yahoo | `https://vsign.cnb.llc/api/auth/oauth2/callback/yahoo` | `/api/auth/oauth2/callback/yahoo` |
-| Zoho | `https://vsign.cnb.llc/api/auth/oauth2/callback/zoho` | `/api/auth/oauth2/callback/zoho` |
+| Microsoft Entra ID | `https://vsign.example.com/api/auth/callback/microsoft` | `/api/auth/callback/microsoft` |
+| Google | `https://vsign.example.com/api/auth/callback/google` | `/api/auth/callback/google` |
+| Apple | `https://vsign.example.com/api/auth/callback/apple` | `/api/auth/callback/apple` |
+| Yahoo | `https://vsign.example.com/api/auth/oauth2/callback/yahoo` | `/api/auth/oauth2/callback/yahoo` |
+| Zoho | `https://vsign.example.com/api/auth/oauth2/callback/zoho` | `/api/auth/oauth2/callback/zoho` |
 
 Prefix each internal callback path with the exact `VASI_ADMIN_ORIGIN` and
 register it with the provider before enabling that provider for internal admin
@@ -73,8 +88,8 @@ Local callbacks use the same paths on `http://localhost:3000`.
 ### Microsoft
 
 Create a web application registration in Microsoft Entra ID. `common` is the
-default tenant, allowing organizational CNB accounts and external Microsoft
-accounts. Set `MICROSOFT_TENANT_ID` to the CNB tenant ID later if policy should
+default tenant, allowing organizational accounts and external Microsoft
+accounts. Set `MICROSOFT_TENANT_ID` to an organization tenant ID if policy should
 restrict Microsoft sign-in to that tenant. Stable provider subject identifiers,
 not mutable email addresses, remain the identity anchor.
 
@@ -82,12 +97,12 @@ not mutable email addresses, remain the identity anchor.
 
 Create a Web application OAuth client and add both local and production redirect
 URIs. The portal requests only identity scopes. A Google Workspace hosted-domain
-restriction can be added later for a CNB-only entry path without affecting
+restriction can be added later for an organization-only entry path without affecting
 external signer accounts.
 
 ### Apple
 
-Create an Apple Service ID for the web portal and register `cnb.llc` plus the
+Create an Apple Service ID for the web portal and register the installation domain plus the
 production return URL. Apple requires a signed client-secret JWT. VASI supports
 either:
 

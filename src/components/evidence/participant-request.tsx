@@ -18,6 +18,7 @@ export function ParticipantRequest({ assignment, handle }: {
   const [message, setMessage] = useState<string>();
   const [strokes, setStrokes] = useState<SignatureStroke[]>([]);
   const type = assignment.type || "terms_response";
+  const branding = assignment.tenant.branding;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,8 +67,11 @@ export function ParticipantRequest({ assignment, handle }: {
   }
 
   return (
-    <article className="participant-card">
-      <p className="eyebrow eyebrow--green">{assignment.tenant.name}</p>
+    <article className="participant-card" style={branding ? {
+      borderTopColor: branding.primaryColor,
+      borderTopWidth: 4,
+    } : undefined}>
+      <p className="eyebrow eyebrow--green" style={branding ? { color: branding.accentColor } : undefined}>{branding?.displayName || assignment.tenant.name}</p>
       {assignment.progress && <p className="participant-progress">Step {assignment.progress.current} of {assignment.progress.total}{assignment.workflowTitle ? ` · ${assignment.workflowTitle}` : ""}</p>}
       <h1>{assignment.title}</h1>
       <p className="participant-purpose">{assignment.purpose}</p>

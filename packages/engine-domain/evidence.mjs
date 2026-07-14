@@ -79,7 +79,16 @@ export function buildEvidenceManifest({
     outcome: { response },
     request: { id: request.id, purpose: request.purpose },
     schema: "vasi-evidence-manifest/v1",
-    tenant: { id: tenant.id, name: tenant.name },
+    tenant: {
+      id: tenant.id,
+      name: tenant.name,
+      ...(tenant.profile ? {
+        profile: tenant.profile,
+        profileBindingProvenance: tenant.profileBindingProvenance,
+        profileHash: tenant.profileHash,
+        profileRevisionId: tenant.profileRevisionId,
+      } : {}),
+    },
     timestamps: { completedAt, issuedAt, startedAt },
     workflow: {
       content: workflow.content,

@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 
 import { SsoOnboarding } from "@/components/auth/sso-onboarding";
 import { BrandMark } from "@/components/brand-mark";
+import { useProductBrand } from "@/components/brand-provider";
 import { SocialIcon } from "@/components/social-icon";
 import { authClient } from "@/lib/auth-client";
 import { isGenericOAuthProvider } from "@/lib/auth-providers";
@@ -29,6 +30,7 @@ export function AuthPortal({
   oauthError?: boolean;
   providers: AuthProviderAvailability[];
 }) {
+  const brand = useProductBrand();
   const [mode, setMode] = useState<Mode>("sign-in");
   const [showOtherMethods, setShowOtherMethods] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -144,7 +146,7 @@ export function AuthPortal({
           </h1>
           <p className="story-panel__lead">
             One trusted identity for every agreement, approval, and signature
-            across the V·Sign workspace.
+            across the {brand.productName} workspace.
           </p>
 
           <div className="trust-list" aria-label="Platform assurances">
@@ -176,7 +178,7 @@ export function AuthPortal({
         <div className="portal-panel__mobile-brand"><BrandMark compact /></div>
         <div className="auth-card">
           <div className="auth-card__heading">
-            <p className="eyebrow eyebrow--green">V·SIGN ACCESS</p>
+            <p className="eyebrow eyebrow--green">{brand.productMark} ACCESS</p>
             <h2 id="portal-title">
               {mode === "register"
                 ? "Start with your email"
@@ -278,7 +280,7 @@ export function AuthPortal({
         </div>
 
         <p className="portal-panel__help">
-          Need access help? <a href="mailto:support@cnb.llc">Contact CNB support</a>
+          Need access help? <a href={`mailto:${brand.supportEmail}`}>Contact {brand.organizationName} support</a>
         </p>
       </section>
     </main>

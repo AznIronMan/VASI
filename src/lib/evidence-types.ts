@@ -13,6 +13,14 @@ export type IssuedEvidenceRequest = {
   tenantId: string;
 };
 
+export type TenantBranding = {
+  accentColor: string;
+  displayName: string;
+  primaryColor: string;
+  shortName: string;
+  supportEmail?: string | null;
+};
+
 export type ParticipantAssignment = {
   activityId?: string;
   assignmentId?: string;
@@ -29,7 +37,7 @@ export type ParticipantAssignment = {
   responseMode?: import("@/lib/owner-types").WorkflowActivity["responseMode"];
   savedResponse?: unknown;
   savedResponseLabel?: string;
-  tenant?: { id: string; name: string };
+  tenant?: { branding?: TenantBranding; id: string; name: string };
   title?: string;
   type?: import("@/lib/owner-types").WorkflowActivity["type"];
   workflowTitle?: string;
@@ -60,7 +68,11 @@ export type ParticipantReceipt = {
     responses?: Array<{ activityId: string; outcome?: string; response: unknown; responseLabel?: string; result?: unknown }>;
     title: string;
   };
-  tenant: { id: string; name: string };
+  tenant: {
+    id: string;
+    name: string;
+    profile?: { branding?: TenantBranding };
+  };
 };
 
 export type EngineErrorResponse = { error?: string };

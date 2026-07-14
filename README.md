@@ -2,9 +2,9 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.10.0`
+Version: `0.11.0`
 
-A CNB project maintained by Street Kings Productions.
+A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
 ## Current milestone
 
@@ -16,10 +16,11 @@ production client; Apple is implemented but hidden until Apple Developer
 approval is complete.
 
 This release includes the independently deployed private engine boundary behind
-that gateway: separate engine, private-ingress, and worker processes; an
-engine-owned PostgreSQL database/schema and migration history; mutual TLS from
-V·Sign; HMAC-authenticated ingress requests; and short-lived, replay-protected
-EdDSA actor assertions. The engine and worker publish no host ports.
+that gateway: separate engine, private-ingress, worker, and integration-gateway
+processes; an engine-owned PostgreSQL database/schema and migration history;
+mutual TLS from V·Sign; HMAC-authenticated service requests; and short-lived,
+replay-protected EdDSA actor assertions. The engine, worker, and integration
+gateway publish no host ports.
 
 Version 0.5.0 adds the first deliberately narrow evidence transaction. An
 authorized company owner can issue immutable text/terms with acknowledgement or
@@ -36,8 +37,9 @@ roles are separate from identity administration; owners and managers can create
 optimistically versioned drafts, publish immutable revisions, issue scheduled
 multi-step requests, use restricted forward-only response branches, and manage
 reminder, revocation, reissue, due, expiration, and post-completion access
-policies. The worker advances lifecycle state and a retry-safe encrypted outbox
-for generic SMTP or signed-webhook delivery. New V·Sign sessions also preserve
+policies. The worker advances lifecycle state and a retry-safe encrypted outbox;
+version 0.11 routes delivery through the isolated integration gateway. New
+V·Sign sessions also preserve
 session-specific authentication provenance rather than guessing from linked
 accounts.
 
@@ -83,14 +85,25 @@ policies, record lifecycle, holds, and privacy reviews. The participant
 workspace now shows request history and supports a reviewed, redacted, sealed,
 time-limited JSON export of the participant's own VASI data.
 
+Version 0.11.0 productizes the installation and tenant boundaries. Installation
+and company profiles are immutable, validated revisions with product-neutral
+branding, capacity limits, outbound adapter allowlists, and hash-chained audit
+events. Every request binds the governing tenant profile snapshot into its
+evidence. A separate internal integration gateway is now the only component
+that decrypts stored tenant delivery credentials or contacts SMTP/webhook endpoints;
+workers submit a narrow signed contract and immutable attempts record the exact
+adapter revision and outcome. Sanitized self-hosted/SaaS profiles, matched
+backup verification, and encrypted tenant export/import support portable
+deployments without environment files or customer-specific source forks.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
 verification alone does not establish chain trust, revocation status, trusted
-time, legal enforceability, or long-term validation. Productized integration
-gateways, comprehensive replaceable malware scanning, external KMS/HSM/TSA
-trust profiles, deployment-specific legal/privacy approval, and independent
-security assessment remain subsequent milestones.
+time, legal enforceability, or long-term validation. Comprehensive replaceable
+malware scanning, external KMS/HSM/TSA trust profiles, deployment-specific
+legal/privacy approval, and independent security assessment remain subsequent
+milestones.
 
 ## Included
 
@@ -113,8 +126,9 @@ security assessment remain subsequent milestones.
   read-only application filesystem, and explicit release migration.
 - Framework-independent engine contracts, service authorization, request
   signing, actor-assertion validation, and gateway-client packages.
-- Private engine and worker containers with no published ports, plus an mTLS
-  facade, PostgreSQL outbox baseline, and persistent assertion replay defense.
+- Private engine, worker, and integration-gateway containers with no published
+  ports, plus an mTLS facade, PostgreSQL outbox, and persistent assertion replay
+  defense.
 - An admin-host-only engine identity diagnostic at `/api/admin/engine`; it
   translates the authenticated V·Sign administrator session into a one-minute
   internal actor assertion without forwarding provider tokens or cookies.
@@ -127,8 +141,15 @@ security assessment remain subsequent milestones.
   activity execution, request lifecycle controls, and revision-bound access and
   notification policies.
 - AES-256-GCM encrypted outbox envelopes, immutable delivery-attempt records,
-  bounded retry and stale-lock recovery, generic SMTP and HMAC-signed HTTPS
-  webhook adapters, and session-level authentication provenance.
+  bounded retry and stale-lock recovery, tenant-scoped generic SMTP and
+  HMAC-signed HTTPS webhook adapters behind exact installation allowlists, and
+  session-level authentication provenance.
+- Revisioned installation/tenant profiles, transactional capacity enforcement,
+  evidence-bound branding/policy snapshots, encrypted integration credentials,
+  hash-chained configuration events, and owner/operator control panels.
+- Sanitized self-hosted/SaaS profiles, matched PostgreSQL/bootstrap backup and
+  restore verification, plus passphrase-authenticated streaming tenant archives
+  that re-encrypt credentials and establish a destination owner grant.
 - PostgreSQL-only authoritative non-media artifacts with bounded chunk upload
   and delivery, immutable source/derived/replacement revisions, SHA-256
   verification, quarantine/inspection, exact workflow binding, and access
@@ -204,7 +225,19 @@ npm run db:migrate
 npm run check
 npm run build
 npm run evidence:verify -- /path/to/vasi-evidence-bundle.zip
+npm run deployment:profile -- self-hosted
+npm run backup -- create /secure/backups/vasi-YYYYMMDD
+npm run tenant:transfer -- export TENANT_ID /secure/transfers/tenant
 ```
+
+The engine Compose file also provides a hardened maintenance image with the
+matching PostgreSQL client tools. Mount an operator-controlled encrypted
+destination when running backup or tenant-transfer commands; no backup or
+archive volume is attached by default. The mounted destination must be writable
+by the maintenance container user (UID `1000` by default).
+Tenant-transfer automation can use a read-only mode-`0600`
+`--passphrase-file`; the passphrase itself is never accepted in an argument or
+environment value.
 
 Secret values are accepted only through hidden interactive input. Do not place
 them in command arguments, shell history, source files, build arguments, or
@@ -248,11 +281,12 @@ gateway contract:
 install -d -m 700 data
 docker compose -f compose.engine.yaml --profile tools run --rm --build settings init
 docker compose -f compose.engine.yaml --profile release run --rm --build migrate
-docker compose -f compose.engine.yaml up -d --build engine worker private-ingress
+docker compose -f compose.engine.yaml up -d --build engine integration-gateway worker private-ingress
 ```
 
-`engine` and `worker` have no `ports` mappings. `private-ingress` is the narrow
-service facade and binds only `127.0.0.1:11121` in the sanitized template. A
+`engine`, `integration-gateway`, and `worker` have no `ports` mappings.
+`private-ingress` is the narrow service facade and binds only
+`127.0.0.1:11121` in the sanitized template. A
 deployment-specific, untracked Compose override may replace that with an
 approved private address. Never bind it to a public interface or configure a
 public reverse proxy to supply the V·Sign client certificate.
@@ -278,6 +312,9 @@ lookup privacy, isolation, and tamper rejection.
 legal-hold enforcement and release, sealed purge tombstones, retired public
 verification, participant history, reviewed data export, controlled expiry,
 immutability, isolation, and lifecycle-chain integrity.
+`npm run engine:probe:productization` verifies profile revisions, tenant
+isolation, transactional quotas, exact destination allowlists, integration
+credential redaction/kill-switch behavior, and evidence-bound tenant policy.
 
 See [Authentication setup](docs/authentication.md) for callbacks, provider and
 mailer settings, administration behavior, and the release checklist. See
@@ -299,3 +336,6 @@ The [lifecycle governance and participant data decision](docs/architecture/lifec
 defines independent retention horizons, hold-safe deletion, integrity
 tombstones, participant history, reviewed data access, and remaining legal and
 operational approvals.
+The [productized tenancy and integration decision](docs/architecture/productized-tenancy-and-integrations.md)
+defines profile revisions, quotas, outbound isolation, deployment profiles,
+backup/restore, and tenant transfer constraints.

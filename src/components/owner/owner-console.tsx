@@ -6,6 +6,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { OwnerGovernance } from "@/components/owner/owner-governance";
+import { OwnerProductSettings } from "@/components/owner/owner-product-settings";
 import type { IssuedEvidenceRequest } from "@/lib/evidence-types";
 import type {
   OwnerArtifact,
@@ -286,6 +287,7 @@ export function OwnerConsole({ baseURL, initialTenants }: {
       <header className="owner-header"><BrandMark compact /><div><p className="eyebrow eyebrow--green">PRIVATE COMPANY CONTROL PLANE</p><h1>Workflows and requests</h1></div><Link href="/admin">Identity administration</Link><SignOutButton /></header>
       <nav className="owner-tenant-nav"><label>Company<select value={tenantId} onChange={(event) => setTenantId(event.target.value)}>{initialTenants.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}</select></label><span>{tenant?.roles.join(" · ")}</span><button type="button" onClick={() => void refresh()} disabled={pending === "refresh"}>Refresh</button></nav>
       {message && <p className="admin-message" role="status">{message}</p>}
+      <OwnerProductSettings permissions={[...permissions]} tenantId={tenantId} />
 
       {permissions.has("artifact.read") && <section className="owner-grid">
         {permissions.has("artifact.manage") && <form className="evidence-panel" onSubmit={uploadArtifact}>

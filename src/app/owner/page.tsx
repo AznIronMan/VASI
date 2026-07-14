@@ -24,7 +24,7 @@ export default async function OwnerPage() {
       <main className="admin-denied"><section>
         <p className="eyebrow eyebrow--green">COMPANY ACCESS</p>
         <h1>A verified account is required</h1>
-        <p>Verify or reactivate this V·Sign account before using company workflows.</p>
+        <p>Verify or reactivate this account before using company workflows.</p>
         <Link href="/">Return to sign in</Link>
       </section></main>
     );

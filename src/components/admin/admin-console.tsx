@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { InstallationProfilePanel } from "@/components/admin/installation-profile-panel";
 import { BrandMark } from "@/components/brand-mark";
+import { useProductBrand } from "@/components/brand-provider";
 import { SocialIcon } from "@/components/social-icon";
 import type {
   AdminConnector,
@@ -22,6 +24,7 @@ export function AdminConsole({
   operatorId: string;
   users: AdminUser[];
 }) {
+  const brand = useProductBrand();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -126,11 +129,13 @@ export function AdminConsole({
         <AdminMetric label="Pending invitations" value={invitations.length} detail="Valid invitations" />
       </section>
 
+      <InstallationProfilePanel />
+
       <section className="admin-invite" aria-labelledby="invite-title">
         <div>
           <p className="eyebrow eyebrow--green">ONBOARDING</p>
           <h2 id="invite-title">Invite a user</h2>
-          <p>V·Sign will recommend the email domain’s SSO provider before showing the manual-password path.</p>
+          <p>{brand.productName} will recommend the email domain’s SSO provider before showing the manual-password path.</p>
         </div>
         <form onSubmit={handleInvite}>
           <label className="field">
@@ -280,7 +285,7 @@ export function AdminConsole({
             <h2 id="connector-dialog-title">Manage connectors</h2>
             <p className="connector-modal__user">{selectedUser.name} · {selectedUser.email}</p>
             <p className="connector-modal__explanation">
-              A connector links V·Sign to an identity held by Microsoft, Google, Apple, Yahoo, or Zoho. Force disconnect removes the V·Sign link and revokes V·Sign sessions; it does not delete the user’s provider account.
+              A connector links {brand.productName} to an identity held by Microsoft, Google, Apple, Yahoo, or Zoho. Force disconnect removes the {brand.productName} link and revokes {brand.productName} sessions; it does not delete the user’s provider account.
             </p>
             <div className="connector-modal__list">
               {selectedUser.connectors.map((connector) => (

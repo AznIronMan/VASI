@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 
 import { hasGraphEmailConfiguration, sendGraphEmail } from "@/lib/graph-email";
+import { resolveProductBrand } from "@/lib/branding";
 import { getRuntimeSettings } from "@/lib/runtime-settings";
 
 type AuthEmail = {
@@ -51,6 +52,7 @@ function escapeHtml(value: string) {
 
 export async function sendAuthEmail(email: AuthEmail) {
   const settings = await getRuntimeSettings();
+  const brand = resolveProductBrand(settings);
   const provider = resolveEmailProvider(settings);
   if (!provider) {
     if (process.env.NODE_ENV !== "production") {
@@ -65,11 +67,12 @@ export async function sendAuthEmail(email: AuthEmail) {
   const message = escapeHtml(email.message);
   const actionLabel = escapeHtml(email.actionLabel);
   const actionUrl = escapeHtml(email.actionUrl);
+  const brandHeader = escapeHtml(`${brand.organizationName} / ${brand.productMark}`);
 
   const html = `
       <div style="background:#f5f3ed;padding:40px 16px;font-family:Arial,sans-serif;color:#17231f">
         <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #dedbd2;border-radius:20px;padding:36px">
-          <p style="margin:0 0 28px;font-size:13px;font-weight:700;letter-spacing:.16em;color:#2e5b4e">CNB / V·SIGN</p>
+          <p style="margin:0 0 28px;font-size:13px;font-weight:700;letter-spacing:.16em;color:#2e5b4e">${brandHeader}</p>
           <h1 style="margin:0 0 16px;font-size:26px;line-height:1.2">${heading}</h1>
           <p style="margin:0 0 28px;font-size:16px;line-height:1.6;color:#52605b">${message}</p>
           <a href="${actionUrl}" style="display:inline-block;border-radius:10px;background:#183e34;color:#ffffff;text-decoration:none;padding:14px 22px;font-weight:700">${actionLabel}</a>

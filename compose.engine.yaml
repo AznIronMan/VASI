@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-tools
-    image: vasi-engine-tools:0.10.0
+    image: vasi-engine-tools:0.11.0
     entrypoint: ["node", "scripts/settings.mjs", "--scope", "engine"]
     command: ["list"]
     user: "0:0"
@@ -33,7 +33,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-runtime
-    image: vasi-engine:0.10.0
+    image: vasi-engine:0.11.0
     command: ["node", "scripts/engine-migrate.mjs"]
     user: "1000:1000"
     volumes:
@@ -50,12 +50,34 @@ services:
     profiles:
       - release
 
+  maintenance:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+      target: engine-maintenance
+    image: vasi-engine-maintenance:0.11.0
+    command: ["scripts/backup.mjs"]
+    user: "1000:1000"
+    volumes:
+      - ./data:/app/data:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - engine-data
+    profiles:
+      - tools
+
   engine:
     build:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-runtime
-    image: vasi-engine:0.10.0
+    image: vasi-engine:0.11.0
     command: ["node", "services/engine/server.mjs"]
     restart: unless-stopped
     init: true
@@ -85,7 +107,7 @@ services:
       start_period: 15s
 
   worker:
-    image: vasi-engine:0.10.0
+    image: vasi-engine:0.11.0
     command: ["node", "services/worker/worker.mjs"]
     restart: unless-stopped
     init: true
@@ -100,12 +122,48 @@ services:
       - no-new-privileges:true
     networks:
       - engine-data
+      - engine-integrations
     depends_on:
       engine:
         condition: service_healthy
+      integration-gateway:
+        condition: service_healthy
+
+  integration-gateway:
+    image: vasi-engine:0.11.0
+    command: ["node", "services/integration-gateway/server.mjs"]
+    restart: unless-stopped
+    init: true
+    volumes:
+      - ./data:/app/data:ro
+    expose:
+      - "8090"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - engine-data
+      - engine-integrations
+    depends_on:
+      engine:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8090/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   private-ingress:
-    image: vasi-engine:0.10.0
+    image: vasi-engine:0.11.0
     command: ["node", "services/private-ingress/server.mjs"]
     restart: unless-stopped
     init: true
@@ -129,5 +187,7 @@ services:
 
 networks:
   engine-private:
+    internal: true
+  engine-integrations:
     internal: true
   engine-data: {}

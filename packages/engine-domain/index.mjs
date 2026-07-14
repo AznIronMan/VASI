@@ -11,6 +11,10 @@ const serviceActions = Object.freeze({
     "artifact.participant.open",
     "artifact.participant.read",
     "engine.health",
+    "installation.profile.read",
+    "installation.profile.update",
+    "integration.list",
+    "integration.update",
     "membership.list",
     "membership.update",
     "lifecycle.hold.command",
@@ -39,6 +43,9 @@ const serviceActions = Object.freeze({
     "request.action",
     "tenant.create",
     "tenant.list",
+    "tenant.profile.read",
+    "tenant.profile.update",
+    "tenant.usage.read",
     "workflow.create",
     "workflow.draft.update",
     "workflow.list",
@@ -57,3 +64,4 @@ export function authorizeServiceAction(serviceId, action) {
 
 export * from "./media.mjs";
 export * from "./lifecycle.mjs";
+export * from "./productization.mjs";

@@ -2,6 +2,7 @@ import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { admin as adminPlugin, genericOAuth, username } from "better-auth/plugins";
 
 import { generateAppleClientSecret } from "@/lib/apple-secret";
+import { resolveProductBrand } from "@/lib/branding";
 import { resolveSessionAuthentication } from "@/lib/auth-provenance";
 import { database, getDatabase } from "@/lib/database";
 import { sendAuthEmail } from "@/lib/email";
@@ -22,6 +23,7 @@ export function getAuth() {
 
 async function createAuth() {
   const settings = await getRuntimeSettings();
+  const brand = resolveProductBrand(settings);
   const { adminEmails, adminOrigin, authSecret, baseURL } = resolveServerSettings(settings);
   const authenticationOrigins = [baseURL, adminOrigin];
   const allowedHosts = [...new Set(authenticationOrigins.map((origin) => new URL(origin).host))];
@@ -97,7 +99,7 @@ async function createAuth() {
     : undefined;
 
   return betterAuth({
-    appName: "CNB V·Sign",
+    appName: brand.displayName,
     baseURL: {
       allowedHosts,
       protocol: new URL(baseURL).protocol === "https:" ? "https" : "http",
@@ -116,7 +118,7 @@ async function createAuth() {
       }),
       adminPlugin({
         defaultRole: "user",
-        bannedUserMessage: "This V·Sign account is disabled. Contact CNB support for help.",
+        bannedUserMessage: `This ${brand.productName} account is disabled. Contact ${brand.organizationName} support for help.`,
       }),
       ...(genericOAuthPlugin ? [genericOAuthPlugin] : []),
     ],
@@ -181,7 +183,7 @@ async function createAuth() {
       sendResetPassword: async ({ user, url }) => {
         await sendAuthEmail({
           to: user.email,
-          subject: "Reset your V·Sign password",
+          subject: `Reset your ${brand.productName} password`,
           heading: "Reset your password",
           message: "Use the secure link below to choose a new password. This link expires in one hour.",
           actionLabel: "Reset password",
@@ -196,7 +198,7 @@ async function createAuth() {
       sendVerificationEmail: async ({ user, url }) => {
         await sendAuthEmail({
           to: user.email,
-          subject: "Verify your V·Sign account",
+          subject: `Verify your ${brand.productName} account`,
           heading: "Verify your email address",
           message: "Confirm that this address belongs to you before entering the signing workspace.",
           actionLabel: "Verify email",

@@ -1,0 +1,22 @@
+{
+  "adapters": {
+    "allow": ["disabled", "smtp", "webhook"],
+    "smtpAllowedHosts": [],
+    "webhookAllowedHosts": []
+  },
+  "deployment": {
+    "engineDatabaseBoundary": "dedicated",
+    "mode": "self_hosted",
+    "publicIngress": "gateway_only"
+  },
+  "product": {
+    "organizationName": "VASI",
+    "productName": "V·Sign",
+    "supportEmail": "support@example.invalid"
+  },
+  "provisioning": {
+    "maxTenants": 1000,
+    "mode": "administrators_only"
+  },
+  "schema": "vasi-installation-profile/v1"
+}

@@ -8,8 +8,8 @@ The evidence engine is an independently deployable private service. Public
 browsers, authentication providers, customer integrations, and public reverse
 proxies never connect to the engine container. V·Sign is the participant
 gateway and translates an authenticated session into a narrow internal actor
-assertion. Future owner and integration gateways use the same contract with
-different service identities and permissions.
+assertion. Owner actions use the same bounded service contract, while outbound
+delivery crosses a separate worker-to-integration-gateway contract.
 
 ```mermaid
 flowchart LR
@@ -19,12 +19,15 @@ flowchart LR
   facade -->|"HMAC service request"| engine["VASI engine"]
   engine --> database["Engine-owned PostgreSQL"]
   worker["VASI worker"] --> database
+  worker -->|"HMAC service request"| integrations["Integration gateway"]
+  integrations --> database
+  integrations --> external["Allowlisted SMTP / HTTPS"]
 ```
 
 Only the private-ingress facade may have a host listener. The sanitized
 contract binds it to loopback. A live deployment may bind it to an explicitly
-approved private address, but the engine and worker still have no published
-ports. The engine-facing Docker network is internal.
+approved private address, but the engine, worker, and integration gateway still
+have no published ports. The engine-facing Docker networks are internal.
 
 ## Layered service and actor trust
 
@@ -59,6 +62,8 @@ table; reuse is rejected even through a newly signed service request.
 - `services/engine` owns engine transport and persistence access.
 - `services/private-ingress` owns mTLS termination and the narrow route map.
 - `services/worker` owns durable background processing.
+- `services/integration-gateway` owns credential use and bounded outbound
+  adapter execution.
 
 These packages do not import Next.js, Better Auth, provider SDKs, Graph, SMTP,
 or customer code. The admin-only gateway diagnostic is an adapter around the
@@ -93,5 +98,6 @@ separately documented provider-hosted media and duration evidence, and VASI
 0.9.0 adds PostgreSQL-backed evidence reports, bundles, and fingerprint
 verification. VASI 0.10.0 adds engine-owned retention revisions, lifecycle
 chains, legal holds, sealed purge tombstones, participant history, and reviewed
-data exports. Productized third-party integration gateways and higher-assurance
-external trust adapters remain later milestones.
+data exports. VASI 0.11.0 adds revisioned installation/tenant policy and the
+separate allowlisted integration gateway. Higher-assurance external trust
+adapters remain later milestones.

@@ -4,8 +4,10 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
+import { useProductBrand } from "@/components/brand-provider";
 
 export function ForgotPasswordForm() {
+  const brand = useProductBrand();
   const [pending, setPending] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -40,7 +42,7 @@ export function ForgotPasswordForm() {
     <>
       <p className="eyebrow eyebrow--green">ACCOUNT RECOVERY</p>
       <h1>Reset your password</h1>
-      <p>Enter the email address connected to your V·Sign account.</p>
+      <p>Enter the email address connected to your {brand.productName} account.</p>
       <form className="credentials-form recovery-form" onSubmit={submit}>
         <label className="field">
           <span>Email address</span>
