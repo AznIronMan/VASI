@@ -2,26 +2,26 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.2.0`
+Version: `0.2.1`
 
 A CNB project maintained by Street Kings Productions.
 
 ## Current milestone
 
 The authentication portal is deployed and responding at
-`https://vsign.cnb.llc`. Microsoft and username/password sign-in are enabled in
-production. Transactional verification and password-recovery messages use a
-mailbox-scoped Microsoft Graph application, with SMTP retained as a fallback.
-Google, Apple, and Yahoo sign-in remain visible but disabled until their
-credentials are configured.
+`https://vsign.cnb.llc`. Microsoft, Google, Yahoo, and username/password sign-in
+are enabled in production. Transactional verification and password-recovery
+messages use a mailbox-scoped Microsoft Graph application, with SMTP retained
+as a fallback. The Apple connector implementation remains available, but Apple
+is hidden from login and onboarding while Developer Program approval is pending.
 
 The internal identity administration console is available at the configured
 private origin under `/admin`. It lists connector health, manual-password
 availability, and account state; supports invitations, password setup/reset,
 account enable/disable, and forced connector disconnection; and records each
 administrative change. Public account creation and invitation acceptance start
-with an email-domain check that recommends Microsoft, Google, Apple, or Yahoo
-before exposing the secondary manual-password path.
+with an email-domain check that recommends an available Microsoft, Google, or
+Yahoo connection before exposing the secondary manual-password path.
 
 The production container workflow includes a one-shot database migrator,
 restart policy, liveness monitoring, a read-only filesystem, and a configurable
@@ -36,7 +36,8 @@ the signing workspace must be added on top of the verified user session.
 - Next.js 16 App Router portal with accessible desktop and mobile layouts.
 - Better Auth 1.6 with PostgreSQL-backed users, accounts, sessions, verification
   tokens, and rate limits.
-- Built-in Microsoft, Google, and Apple OAuth/OIDC providers.
+- Built-in Microsoft, Google, and Apple OAuth/OIDC providers, with Apple login
+  exposure gated until its developer configuration is approved and verified.
 - Yahoo OpenID Connect through the generic OAuth authorization-code flow.
 - Username or email sign-in, registration, required email verification,
   password recovery, and session revocation after password reset.
@@ -65,11 +66,12 @@ npm run auth:migrate
 npm run dev
 ```
 
-Open `http://localhost:3000`. Without provider credentials, the four social
-buttons remain visible and identify that configuration is required. In
-development, verification and reset URLs are written to the server console when
-transactional email is not configured. Production intentionally rejects email
-delivery when the selected Graph or SMTP provider is incomplete.
+Open `http://localhost:3000`. Without provider credentials, the Microsoft,
+Google, and Yahoo buttons remain visible and identify that configuration is
+required. Apple remains hidden unless `APPLE_LOGIN_ENABLED=true`. In development,
+verification and reset URLs are written to the server console when transactional
+email is not configured. Production intentionally rejects email delivery when
+the selected Graph or SMTP provider is incomplete.
 
 For local administration, set `VASI_ADMIN_ORIGIN` to the local origin and add
 your test account to `VASI_ADMIN_EMAILS`. The admin plugin promotes an
@@ -96,6 +98,8 @@ configure:
 - A complete Microsoft Graph mailer configuration, or `AUTH_EMAIL_FROM`,
   `SMTP_HOST`, and any credentials required by an SMTP fallback
 - One complete client ID/client secret set for each social provider to enable
+- `APPLE_LOGIN_ENABLED=true` only after the Apple callback, signing key, and
+  Private Email Relay configuration have been approved and verified
 
 Generate the auth secret with `openssl rand -base64 48`. Never store production
 values in tracked files or build arguments.

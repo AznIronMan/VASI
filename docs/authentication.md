@@ -51,6 +51,11 @@ either:
 
 Store the `.p8` private key in the deployment secret store. If it is represented
 on one line, encode newlines as `\n`. Do not add the key file to the repository.
+Apple is excluded from public login and onboarding by default while Developer
+Program approval is pending. Set `APPLE_LOGIN_ENABLED=true` only after the
+Service ID, callback, signing key, and Private Email Relay configuration have
+been approved and verified. The dormant Apple integration and admin connector
+status remain available while the public option is hidden.
 
 ### Yahoo
 
@@ -62,10 +67,12 @@ database-backed OAuth state, and client-secret Basic authentication.
 ## Username and password
 
 Registration starts with an email address. Common consumer domains map directly
-to Microsoft, Google, Apple, or Yahoo. For custom domains, VASI performs a
-bounded DNS MX lookup and recognizes Microsoft 365 and Google Workspace mail
-infrastructure. This lookup describes a domain's likely identity provider and
-never checks whether a user account exists.
+to Microsoft, Google, Apple, or Yahoo. Provider visibility is then applied to the
+recommendation, so iCloud-family addresses are not presented with Apple while
+`APPLE_LOGIN_ENABLED` is false. For custom domains, VASI performs a bounded DNS
+MX lookup and recognizes Microsoft 365 and Google Workspace mail infrastructure.
+This lookup describes a domain's likely identity provider and never checks
+whether a user account exists.
 
 When a configured provider is found, its SSO action is the primary choice. The
 manual-password action remains keyboard-accessible but visually secondary. If

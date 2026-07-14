@@ -54,3 +54,13 @@ export function getAuthProviderAvailability(
     configured: isProviderConfigured(id, environment),
   }));
 }
+
+export function getLoginAuthProviderAvailability(
+  environment: PublicEnvironment = process.env,
+): AuthProviderAvailability[] {
+  const appleLoginEnabled = environment.APPLE_LOGIN_ENABLED?.trim().toLowerCase() === "true";
+
+  return getAuthProviderAvailability(environment).filter(
+    (provider) => provider.id !== "apple" || appleLoginEnabled,
+  );
+}

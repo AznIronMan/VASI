@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getAuthProviderAvailability,
+  getLoginAuthProviderAvailability,
   isProviderConfigured,
 } from "@/lib/auth-providers";
 
@@ -34,7 +35,7 @@ describe("authentication provider configuration", () => {
     ).toBe(true);
   });
 
-  it("returns a stable public provider list without exposing secrets", () => {
+  it("returns a stable connector list without exposing secrets", () => {
     const providers = getAuthProviderAvailability({
       YAHOO_CLIENT_ID: "client-id",
       YAHOO_CLIENT_SECRET: "client-secret",
@@ -47,5 +48,19 @@ describe("authentication provider configuration", () => {
       { id: "yahoo", label: "Yahoo", configured: true },
     ]);
     expect(JSON.stringify(providers)).not.toContain("client-secret");
+  });
+
+  it("hides Apple from login until explicitly enabled", () => {
+    expect(getLoginAuthProviderAvailability({}).map((provider) => provider.id)).toEqual([
+      "microsoft",
+      "google",
+      "yahoo",
+    ]);
+
+    expect(
+      getLoginAuthProviderAvailability({ APPLE_LOGIN_ENABLED: "true" }).map(
+        (provider) => provider.id,
+      ),
+    ).toEqual(["microsoft", "google", "apple", "yahoo"]);
   });
 });

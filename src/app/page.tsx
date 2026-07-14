@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 
 import { AuthPortal } from "@/components/auth/auth-portal";
-import { getAuthProviderAvailability } from "@/lib/auth-providers";
+import { getLoginAuthProviderAvailability } from "@/lib/auth-providers";
 import { isRequestForOrigin } from "@/lib/host-policy";
 import { resolveServerEnvironment } from "@/lib/server-environment";
 
@@ -19,7 +19,7 @@ export default async function Home({
     <AuthPortal
       allowRegistration={!internalAdminHost}
       callbackURL={internalAdminHost ? "/admin" : "/workspace"}
-      providers={getAuthProviderAvailability()}
+      providers={getLoginAuthProviderAvailability()}
       oauthError={Boolean(error)}
     />
   );

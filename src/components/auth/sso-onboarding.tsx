@@ -181,7 +181,7 @@ export function SsoOnboarding({
           </span>
         </label>
         <p className="onboarding-email__hint">
-          We’ll check whether your email uses Microsoft, Google, Apple, or Yahoo so you can avoid another password.
+          We’ll check whether your email uses Microsoft, Google, or Yahoo so you can avoid another password.
         </p>
         <button className="primary-button" type="submit" disabled={stage === "checking"}>
           <span>{stage === "checking" ? "Checking your domain…" : "Continue"}</span>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { SsoOnboarding } from "@/components/auth/sso-onboarding";
 import { BrandMark } from "@/components/brand-mark";
-import { getAuthProviderAvailability } from "@/lib/auth-providers";
+import { getLoginAuthProviderAvailability } from "@/lib/auth-providers";
 import { getInvitation } from "@/lib/invitations";
 
 export const metadata: Metadata = {
@@ -39,7 +39,7 @@ export default async function InvitationPage({
             <SsoOnboarding
               initialEmail={invitation.email}
               inviteToken={token}
-              providers={getAuthProviderAvailability()}
+              providers={getLoginAuthProviderAvailability()}
             />
           </>
         ) : (

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
-  getAuthProviderAvailability,
-  type AuthProviderId,
+  getLoginAuthProviderAvailability,
 } from "@/lib/auth-providers";
 import {
   emailDomain,
@@ -18,14 +17,14 @@ export async function GET(request: Request) {
   }
 
   const provider = await recommendProviderForEmail(email);
-  const availability = getAuthProviderAvailability();
+  const availability = getLoginAuthProviderAvailability();
   const selected = provider
     ? availability.find((item) => item.id === provider)
     : undefined;
 
   return NextResponse.json(
     {
-      provider: provider as AuthProviderId | undefined,
+      provider: selected?.id,
       label: selected?.label,
       configured: selected?.configured ?? false,
     },
