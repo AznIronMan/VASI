@@ -24,7 +24,7 @@ import { hasTenantPermission } from "../../packages/engine-domain/workflow.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { createSigningProvider } from "./signing-provider.mjs";
 
-const ENGINE_VERSION = "0.21.2";
+const ENGINE_VERSION = "0.21.3";
 const GENESIS_HASH = "0".repeat(64);
 const DATA_EXPORT_SCHEMA = "vasi-participant-data-export/v1";
 

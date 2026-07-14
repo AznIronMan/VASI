@@ -66,11 +66,15 @@ docker compose -f compose.production.yaml --profile tools run --rm \
   scripts/probe-deployment-readiness.mjs https://vasi.example \
   --scope gateway --storage /monitored
 
-docker compose -f compose.engine.yaml --profile tools run --rm \
-  -v /secure/vasi-engine-storage:/monitored:ro maintenance \
-  scripts/probe-deployment-readiness.mjs https://vasi.example \
-  --scope engine --storage /monitored
+sudo node scripts/probe-deployment-readiness.mjs https://vasi.example \
+  --scope engine --storage /secure/vasi-engine-storage
 ```
+
+The engine form runs on the trusted host because its maintenance container is
+restricted to exact PostgreSQL egress and the perimeter probe must also reach
+the public health and TLS origin. Do not broaden a private engine container for
+this operational check. The host process reads the same protected bootstrap,
+emits the same bounded schema, and receives no credential in its arguments.
 
 Schedule each deployment scope independently and alert on every nonzero exit.
 Retain only the bounded result under the installation's monitoring policy. A

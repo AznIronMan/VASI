@@ -334,15 +334,19 @@ installation-selected monitor; do not add participant fields or secrets to
 alert labels.
 
 Run the deployment-perimeter probe separately on both the gateway and engine
-hosts. On the engine host, mount the operator-selected storage boundary
-read-only and use engine scope:
+hosts. The engine's maintenance container is deliberately limited to exact
+database egress, while this probe must also reach the public health/TLS origin.
+Run the engine scope from the trusted host with root access to the protected
+bootstrap and pass the operator-selected host storage path directly:
 
 ```bash
-docker compose -f compose.engine.yaml --profile tools run --rm \
-  -v /secure/vasi-engine-storage:/monitored:ro maintenance \
-  scripts/probe-deployment-readiness.mjs https://vasi.example \
-  --scope engine --storage /monitored
+sudo node scripts/probe-deployment-readiness.mjs https://vasi.example \
+  --scope engine --storage /secure/vasi-engine-storage
 ```
+
+Do not attach provider/public egress to `maintenance` to make this check work.
+The trusted host is already inside the deployment boundary and must protect
+the probe output and selected path under the installation's operations policy.
 
 The versioned defaults require 30 certificate days, 5 GiB free, and no more
 than 85 percent filesystem use. The result exposes only aggregate versions,
@@ -418,7 +422,7 @@ encrypted off-host custody or establish an RPO/RTO.
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.
 
-For rollback, first stop the complete 0.21.2 engine stack. Disable its two
+For rollback, first stop the complete 0.21.3 engine stack. Disable its two
 timers, remove the policy with
 `sudo /bin/sh scripts/apply-database-egress-policy.sh remove`, switch the whole
 release—not selected files—to the prior verified version, and follow that

@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.21.2`
+Version: `0.21.3`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -239,6 +239,12 @@ traffic from that bridge and rejects every new forwarded flow. The recurring
 boundary proof now requires both host chains, four private-service denial
 canaries, a reachable published listener, integration egress, runtime health,
 and database transport.
+
+Version 0.21.3 corrects the engine deployment-perimeter runbook: that probe
+must contact the public health/TLS origin, so engine scope runs from the
+trusted host with protected bootstrap access. The maintenance container keeps
+its exact-database-only egress boundary; no private container is broadened for
+an operational check.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
