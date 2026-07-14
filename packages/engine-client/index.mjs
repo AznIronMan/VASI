@@ -12,8 +12,11 @@ export async function createActorAssertion(settings, actor, now = Math.floor(Dat
     authenticated_at: actor.authenticatedAt,
     authentication: {
       method: actor.authentication.method,
+      provenance: actor.authentication.provenance,
       provider: actor.authentication.provider,
       provider_subject: actor.authentication.providerSubject,
+      linked_provider: actor.authentication.linkedProvider,
+      linked_provider_subject: actor.authentication.linkedProviderSubject,
     },
     email: actor.email,
     gateway_session_id: actor.gatewaySessionId,

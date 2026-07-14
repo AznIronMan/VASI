@@ -15,8 +15,9 @@ import {
 } from "../../scripts/settings-core.mjs";
 import { readRequestBody, sendJSON } from "../shared/http.mjs";
 import { createEvidenceStore, EvidenceStoreError } from "./evidence-store.mjs";
+import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.5.0";
+const ENGINE_VERSION = "0.6.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -26,6 +27,7 @@ const assertionPublicKey = await importJWK(
 );
 const database = createSettingsPool(bootstrap);
 const evidence = createEvidenceStore(database, settings);
+const workflows = createWorkflowStore(database);
 const seenServiceRequests = new Map();
 
 const server = createServer(async (request, response) => {
@@ -164,9 +166,17 @@ function parseJSONBody(body) {
 
 function dispatchEvidence(action, actor, payload) {
   switch (action) {
-    case "tenant.list": return evidence.listTenants(actor);
+    case "tenant.list": return workflows.listTenants(actor);
     case "tenant.create": return evidence.createTenant(actor, payload);
+    case "membership.list": return workflows.listMembers(actor, payload);
+    case "membership.update": return workflows.setMember(actor, payload);
+    case "workflow.list": return workflows.listWorkflows(actor, payload);
+    case "workflow.create": return workflows.createWorkflow(actor, payload);
+    case "workflow.draft.update": return workflows.updateDraft(actor, payload);
+    case "workflow.publish": return workflows.publishWorkflow(actor, payload);
     case "request.issue": return evidence.issueRequest(actor, payload);
+    case "request.list": return evidence.listRequests(actor, payload);
+    case "request.action": return evidence.requestAction(actor, payload);
     case "record.read": return evidence.ownerRecord(actor, payload);
     case "participant.open": return evidence.openAssignment(actor, payload);
     case "participant.respond": return evidence.respond(actor, payload);
@@ -184,12 +194,14 @@ function errorCode(error) {
   if (error?.code === "BODY_LIMIT") return "body_limit";
   if (error instanceof EvidenceStoreError) return error.code;
   if (error?.code === "INVALID_JSON") return "invalid_json";
+  if (error?.code === "INVALID_WORKFLOW") return "invalid_workflow";
   return "authorization_failed";
 }
 
 function errorStatus(error) {
   if (error?.code === "BODY_LIMIT") return 413;
   if (error?.code === "INVALID_JSON") return 400;
+  if (error?.code === "INVALID_WORKFLOW") return 400;
   if (error instanceof EvidenceStoreError) return error.status;
   return 401;
 }

@@ -2,7 +2,14 @@ import { database } from "@/lib/database";
 import type { EngineActor } from "@/lib/engine-client";
 
 type SessionIdentity = {
-  session: { createdAt: Date | string; id: string };
+  session: {
+    authenticationAccountId?: string | null;
+    authenticationMethod?: string | null;
+    authenticationProvider?: string | null;
+    authenticationProvenance?: string | null;
+    createdAt: Date | string;
+    id: string;
+  };
   user: { email: string; id: string; role?: string | null };
 };
 
@@ -17,7 +24,8 @@ export async function buildEngineActor(
      limit 1`,
     [session.user.id],
   );
-  const providerId = provider.rows[0]?.providerId;
+  const linkedProviderId = provider.rows[0]?.providerId;
+  const sessionProvider = bounded(session.session.authenticationProvider);
   const roles = String(session.user.role || "user")
     .split(",")
     .map((role) => role.trim())
@@ -26,11 +34,14 @@ export async function buildEngineActor(
   return {
     authenticatedAt: Math.floor(new Date(session.session.createdAt).getTime() / 1000),
     authentication: {
-      method: providerId === "credential" ? "password" : providerId || "vsign-session",
-      provider: providerId && providerId !== "credential" ? providerId : undefined,
-      providerSubject: providerId && providerId !== "credential"
+      linkedProvider: linkedProviderId && linkedProviderId !== "credential" ? linkedProviderId : undefined,
+      linkedProviderSubject: linkedProviderId && linkedProviderId !== "credential"
         ? bounded(provider.rows[0]?.accountId)
         : undefined,
+      method: bounded(session.session.authenticationMethod) || "session_unspecified",
+      provenance: bounded(session.session.authenticationProvenance) || "session-record-unavailable/v1",
+      provider: sessionProvider,
+      providerSubject: sessionProvider ? bounded(session.session.authenticationAccountId) : undefined,
     },
     email: session.user.email.toLowerCase(),
     gatewaySessionId: session.session.id,

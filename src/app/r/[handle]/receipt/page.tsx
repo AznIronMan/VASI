@@ -49,6 +49,21 @@ export default async function ReceiptPage({ params }: { params: Promise<{ handle
           <div><dt>Seal</dt><dd>{receipt.integrity.profile} · {receipt.integrity.algorithm}</dd></div>
           <div><dt>Manifest fingerprint</dt><dd className="receipt-hash">{receipt.integrity.manifestHash}</dd></div>
         </dl>
+        {receipt.request.contentAccess?.available && receipt.request.activities && (
+          <section className="receipt-content">
+            <h2>Completed content</h2>
+            {receipt.request.activities.map((activity) => (
+              <article key={activity.id}>
+                <h3>{activity.title}</h3>
+                <div>{activity.content.terms}</div>
+                <p><strong>Prompt:</strong> {activity.content.prompt}</p>
+              </article>
+            ))}
+          </section>
+        )}
+        {receipt.request.contentAccess && !receipt.request.contentAccess.available && (
+          <p className="receipt-note">The company’s post-completion policy makes the original content unavailable here. Your receipt and transaction history remain available.</p>
+        )}
         <p className="receipt-note">This receipt is a participant-readable summary. The company’s authorized record includes the detailed event chain and available authentication, timing, browser, and network context.</p>
       </article>
     </main>

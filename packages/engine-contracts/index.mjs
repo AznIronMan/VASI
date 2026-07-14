@@ -6,7 +6,15 @@ const engineRoutes = Object.freeze([
   { action: "actor.identity", method: "POST", path: "/v1/whoami" },
   { action: "tenant.list", method: "GET", path: "/v1/owner/tenants" },
   { action: "tenant.create", method: "POST", path: "/v1/owner/tenants" },
+  { action: "membership.list", method: "POST", path: "/v1/owner/member-list" },
+  { action: "membership.update", method: "POST", path: "/v1/owner/members" },
+  { action: "workflow.list", method: "POST", path: "/v1/owner/workflow-list" },
+  { action: "workflow.create", method: "POST", path: "/v1/owner/workflows" },
+  { action: "workflow.draft.update", method: "POST", path: "/v1/owner/workflow-drafts" },
+  { action: "workflow.publish", method: "POST", path: "/v1/owner/workflow-publications" },
   { action: "request.issue", method: "POST", path: "/v1/owner/requests" },
+  { action: "request.list", method: "POST", path: "/v1/owner/request-list" },
+  { action: "request.action", method: "POST", path: "/v1/owner/request-actions" },
   { action: "record.read", method: "POST", path: "/v1/owner/records" },
   { action: "participant.open", method: "POST", path: "/v1/participant/open" },
   { action: "participant.respond", method: "POST", path: "/v1/participant/respond" },
@@ -36,10 +44,19 @@ export function validateActorAssertionClaims(payload, now = Math.floor(Date.now(
     throw new Error("The actor assertion authentication context is required.");
   }
   const method = requiredString(authentication.method, "authentication.method");
+  const provenance = optionalString(authentication.provenance, "authentication.provenance");
   const provider = optionalString(authentication.provider, "authentication.provider");
   const providerSubject = optionalString(
     authentication.provider_subject,
     "authentication.provider_subject",
+  );
+  const linkedProvider = optionalString(
+    authentication.linked_provider,
+    "authentication.linked_provider",
+  );
+  const linkedProviderSubject = optionalString(
+    authentication.linked_provider_subject,
+    "authentication.linked_provider_subject",
   );
   const roles = Array.isArray(payload.roles)
     ? payload.roles.map((role) => requiredString(role, "roles[]"))
@@ -49,7 +66,14 @@ export function validateActorAssertionClaims(payload, now = Math.floor(Date.now(
   return Object.freeze({
     assertionId,
     authenticatedAt: optionalInteger(payload.authenticated_at, "authenticated_at"),
-    authentication: Object.freeze({ method, provider, providerSubject }),
+    authentication: Object.freeze({
+      linkedProvider,
+      linkedProviderSubject,
+      method,
+      provenance,
+      provider,
+      providerSubject,
+    }),
     email: optionalEmail(payload.email),
     expiresAt,
     gatewaySessionId,

@@ -110,6 +110,7 @@ async function initializeEngineInteractively() {
       EVIDENCE_SEAL_PRIVATE_JWK: JSON.stringify(privateKey.export({ format: "jwk" })),
       EVIDENCE_SEAL_PUBLIC_JWK: JSON.stringify(publicKey.export({ format: "jwk" })),
       ENGINE_INTERNAL_HMAC_SECRET: randomBytes(48).toString("base64url"),
+      ENGINE_OUTBOX_ENCRYPTION_SECRET: randomBytes(32).toString("base64url"),
     },
   });
   console.info("VASI engine bootstrap initialized. Complete the required trust settings before startup.");

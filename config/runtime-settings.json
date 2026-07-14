@@ -41,6 +41,7 @@
   { "scope": "gateway", "name": "ENGINE_ASSERTION_AUDIENCE", "required": false, "secret": false },
 
   { "scope": "engine", "name": "ENGINE_INTERNAL_HMAC_SECRET", "required": true, "secret": true },
+  { "scope": "engine", "name": "ENGINE_OUTBOX_ENCRYPTION_SECRET", "required": true, "secret": true },
   { "scope": "engine", "name": "ENGINE_ASSERTION_PUBLIC_JWK", "required": true, "secret": false },
   { "scope": "engine", "name": "ENGINE_ASSERTION_ISSUER", "required": true, "secret": false },
   { "scope": "engine", "name": "ENGINE_ASSERTION_AUDIENCE", "required": true, "secret": false },
@@ -51,6 +52,16 @@
   { "scope": "engine", "name": "EVIDENCE_SEAL_PRIVATE_JWK", "required": true, "secret": true },
   { "scope": "engine", "name": "EVIDENCE_SEAL_PUBLIC_JWK", "required": true, "secret": false },
   { "scope": "engine", "name": "EVIDENCE_SEAL_KEY_ID", "required": true, "secret": false },
+  { "scope": "engine", "name": "ENGINE_NOTIFICATION_MODE", "required": false, "secret": false, "default": "disabled" },
+  { "scope": "engine", "name": "ENGINE_PARTICIPANT_ORIGIN", "required": false, "secret": false },
+  { "scope": "engine", "name": "ENGINE_NOTIFICATION_WEBHOOK_URL", "required": false, "secret": false },
+  { "scope": "engine", "name": "ENGINE_NOTIFICATION_WEBHOOK_SECRET", "required": false, "secret": true },
+  { "scope": "engine", "name": "ENGINE_NOTIFICATION_SMTP_HOST", "required": false, "secret": false },
+  { "scope": "engine", "name": "ENGINE_NOTIFICATION_SMTP_PORT", "required": false, "secret": false, "default": "587" },
+  { "scope": "engine", "name": "ENGINE_NOTIFICATION_SMTP_SECURE", "required": false, "secret": false, "default": "false" },
+  { "scope": "engine", "name": "ENGINE_NOTIFICATION_SMTP_USER", "required": false, "secret": false },
+  { "scope": "engine", "name": "ENGINE_NOTIFICATION_SMTP_PASSWORD", "required": false, "secret": true },
+  { "scope": "engine", "name": "ENGINE_NOTIFICATION_SMTP_FROM", "required": false, "secret": false },
   { "scope": "engine", "name": "ENGINE_INGRESS_SERVICE_ID", "required": false, "secret": false, "default": "vasi-private-ingress" },
   { "scope": "engine", "name": "ENGINE_WORKER_POLL_MS", "required": false, "secret": false, "default": "5000" }
 ]

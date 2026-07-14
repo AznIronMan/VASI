@@ -115,7 +115,8 @@ export function AdminConsole({
           <p className="eyebrow eyebrow--green">INTERNAL / PORTLAND</p>
           <h1>Identity administration</h1>
         </div>
-        <Link className="admin-header__evidence" href="/admin/evidence">Sealed evidence</Link>
+        <Link className="admin-header__evidence" href="/owner">Company workflows</Link>
+        <Link className="admin-header__evidence" href="/admin/evidence">First-slice tools</Link>
         <SignOutButton />
       </header>
 

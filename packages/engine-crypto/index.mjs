@@ -1,10 +1,13 @@
 import {
   createHash,
   createHmac,
+  createCipheriv,
+  createDecipheriv,
   createPrivateKey,
   createPublicKey,
   sign,
   timingSafeEqual,
+  randomBytes,
   verify,
 } from "node:crypto";
 
@@ -85,6 +88,52 @@ export function verifyIntegritySeal(manifest, seal) {
   } catch {
     return false;
   }
+}
+
+export function encryptJSONEnvelope(value, secret) {
+  const key = envelopeKey(secret);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const plaintext = Buffer.from(canonicalJSON(value), "utf8");
+  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  return Object.freeze({
+    algorithm: "A256GCM",
+    ciphertext: ciphertext.toString("base64url"),
+    iv: iv.toString("base64url"),
+    schema: "vasi-encrypted-envelope/v1",
+    tag: cipher.getAuthTag().toString("base64url"),
+  });
+}
+
+export function decryptJSONEnvelope(envelope, secret) {
+  if (
+    envelope?.schema !== "vasi-encrypted-envelope/v1" ||
+    envelope?.algorithm !== "A256GCM"
+  ) {
+    throw new Error("The encrypted VASI envelope is invalid.");
+  }
+  try {
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      envelopeKey(secret),
+      Buffer.from(envelope.iv, "base64url"),
+    );
+    decipher.setAuthTag(Buffer.from(envelope.tag, "base64url"));
+    const plaintext = Buffer.concat([
+      decipher.update(Buffer.from(envelope.ciphertext, "base64url")),
+      decipher.final(),
+    ]);
+    return JSON.parse(plaintext.toString("utf8"));
+  } catch {
+    throw new Error("The encrypted VASI envelope could not be authenticated.");
+  }
+}
+
+function envelopeKey(secret) {
+  if (typeof secret !== "string") throw new Error("The VASI envelope secret is invalid.");
+  const key = Buffer.from(secret, "base64url");
+  if (key.length !== 32) throw new Error("The VASI envelope secret must contain 32 bytes.");
+  return key;
 }
 
 function canonicalValue(value) {

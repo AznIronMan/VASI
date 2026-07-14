@@ -8,11 +8,19 @@ import {
 } from "../../packages/engine-domain/evidence.mjs";
 import {
   createIntegritySeal,
+  encryptJSONEnvelope,
   hashCanonicalJSON,
   verifyIntegritySeal,
 } from "../../packages/engine-crypto/index.mjs";
+import {
+  evaluateNextActivity,
+  hasTenantPermission,
+  participantActivityProjection,
+  validatePublishedIssueInput,
+  validateRequestAction,
+} from "../../packages/engine-domain/workflow.mjs";
 
-const ENGINE_VERSION = "0.5.0";
+const ENGINE_VERSION = "0.6.0";
 const GENESIS_HASH = "0".repeat(64);
 
 export class EvidenceStoreError extends Error {
@@ -35,6 +43,7 @@ export function createEvidenceStore(database, settings) {
   if (hashCanonicalJSON(keyProof.publicJWK) !== hashCanonicalJSON(sealPublicJWK)) {
     throw new Error("The VASI evidence seal private and public keys do not match.");
   }
+  const outboxEncryptionSecret = requiredSetting(settings, "ENGINE_OUTBOX_ENCRYPTION_SECRET");
 
   return Object.freeze({
     async createTenant(actor, payload) {
@@ -60,10 +69,17 @@ export function createEvidenceStore(database, settings) {
         }
         await client.query(
           `insert into "vasi_engine"."tenant_membership"
-            ("tenantId", "principalId", "roles") values ($1, $2, $3)`,
-          [tenantId, actor.principalId, ["owner"]],
+            ("tenantId", "principalId", "roles", "email", "source")
+           values ($1, $2, $3, $4, 'identity_admin_bootstrap')`,
+          [tenantId, actor.principalId, ["owner"], actor.email || null],
         );
-        return { id: tenantId, name: input.name, roles: ["owner"], slug: input.slug };
+        return {
+          id: tenantId,
+          name: input.name,
+          permissions: ["member.manage", "record.read", "request.manage", "workflow.manage"],
+          roles: ["owner"],
+          slug: input.slug,
+        };
       });
     },
 
@@ -82,6 +98,12 @@ export function createEvidenceStore(database, settings) {
 
     async issueRequest(actor, payload) {
       requireActor(actor);
+      if (payload?.workflowRevisionId) {
+        const input = validatePublishedIssueInput(payload);
+        return transaction(database, async (client) =>
+          issuePublishedRequest(client, actor, input, outboxEncryptionSecret),
+        );
+      }
       const input = validateIssueInput(payload);
       return transaction(database, async (client) => {
         await requireTenantRole(client, actor.principalId, input.tenantId, "owner");
@@ -171,6 +193,19 @@ export function createEvidenceStore(database, settings) {
         }
         assertAssignmentAvailable(record, now);
 
+        if (record.requestStatus === "scheduled") {
+          await client.query(
+            `update "vasi_engine"."request_instance" set "status" = 'issued' where "id" = $1`,
+            [record.requestId],
+          );
+          await client.query(
+            `update "vasi_engine"."participant_assignment" set "status" = 'issued' where "id" = $1`,
+            [record.assignmentId],
+          );
+          record.requestStatus = "issued";
+          record.status = "issued";
+        }
+
         if (!record.principalId) {
           await client.query(
             `update "vasi_engine"."participant_assignment"
@@ -183,6 +218,11 @@ export function createEvidenceStore(database, settings) {
           record.participantEmail = actor.email;
           record.status = "in_progress";
           record.firstOpenedAt ||= now;
+          await client.query(
+            `update "vasi_engine"."request_instance"
+             set "status" = 'in_progress' where "id" = $1 and "status" in ('issued', 'scheduled')`,
+            [record.requestId],
+          );
         }
 
         let interaction = await client.query(
@@ -226,6 +266,10 @@ export function createEvidenceStore(database, settings) {
           interaction = { rows: [{ id: interactionId, startedAt: now }] };
         }
 
+        if (record.snapshot) {
+          const activity = await currentActivity(client, record.assignmentId, now);
+          return workflowParticipantProjection(record, interaction.rows[0], activity);
+        }
         return participantProjection(record, interaction.rows[0]);
       });
     },
@@ -243,6 +287,21 @@ export function createEvidenceStore(database, settings) {
         assertAssignmentAvailable(record, new Date());
         if (record.status === "completed") {
           throw new EvidenceStoreError("response_replayed", 409);
+        }
+        if (record.snapshot) {
+          return respondToWorkflowActivity({
+            actor,
+            client,
+            clientContext,
+            commandId,
+            interactionId,
+            payload,
+            record,
+            sealKeyId,
+            sealPrivateJWK,
+            sealPublicJWK,
+            outboxEncryptionSecret,
+          });
         }
         const response = validateParticipantResponse(record.responseMode, payload?.response);
         const interaction = await client.query(
@@ -384,7 +443,7 @@ export function createEvidenceStore(database, settings) {
       const assignmentId = boundedToken(payload?.assignmentId, "assignmentId", 128);
       const client = await database.connect();
       try {
-        await requireTenantRole(client, actor.principalId, tenantId, "owner");
+        await requireTenantPermission(client, actor.principalId, tenantId, "record.read");
         const assignment = await client.query(
           `select "id" from "vasi_engine"."participant_assignment"
            where "id" = $1 and "tenantId" = $2`,
@@ -395,6 +454,41 @@ export function createEvidenceStore(database, settings) {
       } finally {
         client.release();
       }
+    },
+
+    async listRequests(actor, payload) {
+      requireActor(actor);
+      const tenantId = boundedToken(payload?.tenantId, "tenantId", 128);
+      const client = await database.connect();
+      try {
+        await requireTenantPermission(client, actor.principalId, tenantId, "request.manage");
+        const result = await client.query(
+          `select r."id" as "requestId", r."status", r."issuedAt", r."scheduledFor", r."dueAt",
+                  r."expiresAt", r."completedAt", r."reissuedFromRequestId",
+                  a."id" as "assignmentId", a."intendedEmail", a."status" as "assignmentStatus",
+                  w."id" as "workflowRevisionId", w."revision", w."title", w."snapshotHash"
+           from "vasi_engine"."request_instance" r
+           join "vasi_engine"."participant_assignment" a on a."requestId" = r."id"
+           join "vasi_engine"."workflow_revision" w on w."id" = r."workflowRevisionId"
+           where r."tenantId" = $1 order by r."issuedAt" desc, r."id" limit 250`,
+          [tenantId],
+        );
+        return result.rows.map((row) => ({
+          ...row,
+          revision: Number(row.revision),
+        }));
+      } finally {
+        client.release();
+      }
+    },
+
+    async requestAction(actor, payload) {
+      requireActor(actor);
+      const input = validateRequestAction(payload);
+      return transaction(database, async (client) => {
+        await requireTenantPermission(client, actor.principalId, input.tenantId, "request.manage");
+        return applyRequestAction(client, actor, input, outboxEncryptionSecret);
+      });
     },
   });
 }
@@ -428,6 +522,578 @@ export function verifyEvidenceRecord(record, expectedPublicJWK) {
     integrityFailure();
   }
   return true;
+}
+
+async function issuePublishedRequest(client, actor, input, outboxEncryptionSecret) {
+  await requireTenantPermission(client, actor.principalId, input.tenantId, "request.manage");
+  const revisionResult = await client.query(
+    `select w."id", w."definitionId", w."revision", w."title", w."purpose", w."snapshot",
+            w."snapshotHash", t."name" as "tenantName"
+     from "vasi_engine"."workflow_revision" w
+     join "vasi_engine"."tenant" t on t."id" = w."tenantId" and t."status" = 'active'
+     join "vasi_engine"."workflow_definition" d on d."id" = w."definitionId" and d."status" = 'active'
+     where w."id" = $1 and w."tenantId" = $2 and w."snapshot" is not null`,
+    [input.workflowRevisionId, input.tenantId],
+  );
+  if (!revisionResult.rowCount) notFound();
+  const revision = revisionResult.rows[0];
+  const now = new Date();
+  const scheduledFor = input.scheduledFor;
+  const dueAt = input.dueAt ?? new Date(
+    scheduledFor.getTime() + revision.snapshot.schedule.defaultDueDays * 86_400_000,
+  );
+  const expiresAt = input.expiresAt ?? new Date(
+    scheduledFor.getTime() + revision.snapshot.schedule.defaultExpirationDays * 86_400_000,
+  );
+  if (expiresAt < dueAt || expiresAt.getTime() > scheduledFor.getTime() + 365 * 86_400_000) {
+    throw new EvidenceStoreError("invalid_request_schedule", 400);
+  }
+  const requestId = randomUUID();
+  const assignmentId = randomUUID();
+  const handle = randomBytes(32).toString("base64url");
+  const handleDigest = createHash("sha256").update(handle, "utf8").digest();
+  const scheduled = scheduledFor.getTime() > now.getTime() + 1_000;
+  const status = scheduled ? "scheduled" : "issued";
+
+  await client.query(
+    `insert into "vasi_engine"."request_instance"
+      ("id", "tenantId", "workflowRevisionId", "createdByPrincipalId", "purpose", "status",
+       "issuedAt", "scheduledFor", "dueAt", "expiresAt", "accessPolicy", "notificationPolicy")
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    [
+      requestId,
+      input.tenantId,
+      revision.id,
+      actor.principalId,
+      revision.purpose,
+      status,
+      now,
+      scheduledFor,
+      dueAt,
+      expiresAt,
+      revision.snapshot.access,
+      revision.snapshot.notifications,
+    ],
+  );
+  await client.query(
+    `insert into "vasi_engine"."participant_assignment"
+      ("id", "tenantId", "requestId", "handleDigest", "intendedEmail", "status", "issuedAt")
+     values ($1, $2, $3, $4, $5, $6, $7)`,
+    [assignmentId, input.tenantId, requestId, handleDigest, input.intendedEmail, status, now],
+  );
+  await client.query(
+    `insert into "vasi_engine"."evidence_chain_head"
+      ("assignmentId", "lastSequence", "lastHash") values ($1, 0, $2)`,
+    [assignmentId, GENESIS_HASH],
+  );
+  for (const [ordinal, activity] of revision.snapshot.activities.entries()) {
+    await client.query(
+      `insert into "vasi_engine"."activity_instance"
+        ("id", "tenantId", "requestId", "assignmentId", "activityId", "ordinal", "activityType",
+         "contractVersion", "definition", "definitionHash", "status", "availableAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [
+        randomUUID(),
+        input.tenantId,
+        requestId,
+        assignmentId,
+        activity.id,
+        ordinal,
+        activity.type,
+        activity.contractVersion,
+        activity,
+        hashCanonicalJSON(activity),
+        ordinal === 0 ? "available" : "pending",
+        ordinal === 0 ? scheduledFor : null,
+      ],
+    );
+  }
+  await appendEvent(client, {
+    actor,
+    assignmentId,
+    eventType: scheduled ? "request.scheduled" : "request.issued",
+    payload: {
+      accessPolicy: revision.snapshot.access,
+      dueAt: dueAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      intendedEmail: input.intendedEmail,
+      notificationPolicy: revision.snapshot.notifications,
+      scheduledFor: scheduledFor.toISOString(),
+      tenant: { id: input.tenantId, name: revision.tenantName },
+      workflow: {
+        definitionId: revision.definitionId,
+        id: revision.id,
+        revision: Number(revision.revision),
+        snapshotHash: revision.snapshotHash,
+        title: revision.title,
+      },
+    },
+    receivedAt: now,
+    requestId,
+    tenantId: input.tenantId,
+  });
+  if (revision.snapshot.notifications.onIssue) {
+    await queueNotification(client, {
+      availableAt: scheduledFor,
+      idempotencyKey: `${requestId}:issued`,
+      outboxEncryptionSecret,
+      payload: {
+        eventType: "request.issued",
+        participantPath: `/r/${handle}`,
+        recipient: input.intendedEmail,
+        requestId,
+        tenant: { id: input.tenantId, name: revision.tenantName },
+        title: revision.title,
+      },
+      requestId,
+      tenantId: input.tenantId,
+    });
+  }
+  for (const hoursBeforeDue of revision.snapshot.notifications.reminderHoursBeforeDue) {
+    const availableAt = new Date(dueAt.getTime() - hoursBeforeDue * 3_600_000);
+    if (availableAt <= now) continue;
+    await queueNotification(client, {
+      availableAt,
+      idempotencyKey: `${requestId}:reminder:${hoursBeforeDue}`,
+      outboxEncryptionSecret,
+      payload: {
+        dueAt: dueAt.toISOString(),
+        eventType: "request.reminder",
+        participantPath: `/r/${handle}`,
+        recipient: input.intendedEmail,
+        requestId,
+        tenant: { id: input.tenantId, name: revision.tenantName },
+        title: revision.title,
+      },
+      requestId,
+      tenantId: input.tenantId,
+    });
+  }
+  return {
+    assignmentId,
+    dueAt: dueAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    participantPath: `/r/${handle}`,
+    requestId,
+    scheduledFor: scheduledFor.toISOString(),
+    status,
+    tenantId: input.tenantId,
+    workflowRevisionId: revision.id,
+  };
+}
+
+async function currentActivity(client, assignmentId, now) {
+  const result = await client.query(
+    `select "id", "activityId", "ordinal", "definition", "definitionHash", "openedAt"
+     from "vasi_engine"."activity_instance"
+     where "assignmentId" = $1 and "status" = 'available'
+     order by "ordinal" limit 1 for update`,
+    [assignmentId],
+  );
+  if (!result.rowCount) throw new EvidenceStoreError("activity_unavailable", 409);
+  if (!result.rows[0].openedAt) {
+    await client.query(
+      `update "vasi_engine"."activity_instance" set "openedAt" = $2 where "id" = $1`,
+      [result.rows[0].id, now],
+    );
+    result.rows[0].openedAt = now;
+  }
+  return result.rows[0];
+}
+
+function workflowParticipantProjection(record, interaction, activity) {
+  const projection = participantActivityProjection(activity.definition);
+  return {
+    activityId: activity.activityId,
+    assignmentId: record.assignmentId,
+    completed: false,
+    content: projection.content,
+    contentHash: activity.definitionHash,
+    contractVersion: projection.contractVersion,
+    expiresAt: new Date(record.expiresAt).toISOString(),
+    instructions: projection.instructions,
+    interaction: {
+      id: interaction.id,
+      startedAt: new Date(interaction.startedAt).toISOString(),
+    },
+    progress: {
+      current: Number(activity.ordinal) + 1,
+      total: record.snapshot.activities.length,
+    },
+    purpose: record.purpose,
+    responseMode: projection.responseMode,
+    tenant: { id: record.tenantId, name: record.tenantName },
+    title: projection.title,
+    workflowTitle: record.title,
+  };
+}
+
+async function respondToWorkflowActivity({
+  actor,
+  client,
+  clientContext,
+  commandId,
+  interactionId,
+  payload,
+  record,
+  sealKeyId,
+  sealPrivateJWK,
+  sealPublicJWK,
+  outboxEncryptionSecret,
+}) {
+  const interaction = await client.query(
+    `select "id", "startedAt" from "vasi_engine"."interaction_session"
+     where "id" = $1 and "assignmentId" = $2 and "principalId" = $3
+       and "completedAt" is null for update`,
+    [interactionId, record.assignmentId, actor.principalId],
+  );
+  if (!interaction.rowCount) throw new EvidenceStoreError("interaction_unavailable", 409);
+  const activity = await currentActivity(client, record.assignmentId, new Date());
+  if (payload?.activityId && payload.activityId !== activity.activityId) {
+    throw new EvidenceStoreError("activity_state_conflict", 409);
+  }
+  const response = validateParticipantResponse(activity.definition.responseMode, payload?.response);
+  const completedAt = new Date();
+  const responseId = randomUUID();
+  try {
+    await client.query(
+      `insert into "vasi_engine"."activity_response"
+        ("id", "tenantId", "requestId", "assignmentId", "activityInstanceId", "interactionId",
+         "commandId", "responseValue", "clientContext", "respondedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        responseId,
+        record.tenantId,
+        record.requestId,
+        record.assignmentId,
+        activity.id,
+        interactionId,
+        commandId,
+        JSON.stringify(response),
+        clientContext,
+        completedAt,
+      ],
+    );
+  } catch (error) {
+    if (error?.code === "23505") throw new EvidenceStoreError("response_replayed", 409);
+    throw error;
+  }
+  await client.query(
+    `update "vasi_engine"."activity_instance"
+     set "status" = 'completed', "completedAt" = $2 where "id" = $1`,
+    [activity.id, completedAt],
+  );
+  const nextActivityId = evaluateNextActivity(record.snapshot, activity.activityId, response);
+  let nextActivity;
+  if (nextActivityId) {
+    const target = record.snapshot.activities.findIndex((entry) => entry.id === nextActivityId);
+    await client.query(
+      `update "vasi_engine"."activity_instance"
+       set "status" = 'skipped', "completedAt" = $3
+       where "assignmentId" = $1 and "status" = 'pending' and "ordinal" < $2`,
+      [record.assignmentId, target, completedAt],
+    );
+    const activated = await client.query(
+      `update "vasi_engine"."activity_instance"
+       set "status" = 'available', "availableAt" = $3
+       where "assignmentId" = $1 and "activityId" = $2 and "status" = 'pending'
+       returning "id", "activityId", "ordinal", "definition", "definitionHash", "openedAt"`,
+      [record.assignmentId, nextActivityId, completedAt],
+    );
+    if (!activated.rowCount) throw new EvidenceStoreError("activity_state_conflict", 409);
+    nextActivity = activated.rows[0];
+  } else {
+    await client.query(
+      `update "vasi_engine"."activity_instance"
+       set "status" = 'skipped', "completedAt" = $2
+       where "assignmentId" = $1 and "status" = 'pending'`,
+      [record.assignmentId, completedAt],
+    );
+  }
+  await appendEvent(client, {
+    actor,
+    assignmentId: record.assignmentId,
+    eventType: "activity.responded",
+    payload: {
+      activity: {
+        definitionHash: activity.definitionHash,
+        id: activity.activityId,
+        ordinal: Number(activity.ordinal),
+        type: activity.definition.type,
+      },
+      clientContext,
+      interactionId,
+      nextActivityId,
+      response,
+      responseId,
+      serverDurationMilliseconds: Math.max(
+        0,
+        completedAt.getTime() - new Date(activity.openedAt).getTime(),
+      ),
+    },
+    receivedAt: completedAt,
+    requestId: record.requestId,
+    tenantId: record.tenantId,
+  });
+
+  if (nextActivity) {
+    return {
+      assignment: workflowParticipantProjection(record, interaction.rows[0], nextActivity),
+      completed: false,
+    };
+  }
+
+  await client.query(
+    `update "vasi_engine"."interaction_session" set "completedAt" = $2 where "id" = $1`,
+    [interactionId, completedAt],
+  );
+  await client.query(
+    `update "vasi_engine"."participant_assignment"
+     set "status" = 'completed', "completedAt" = $2 where "id" = $1`,
+    [record.assignmentId, completedAt],
+  );
+  await client.query(
+    `update "vasi_engine"."request_instance"
+     set "status" = 'completed', "completedAt" = $2 where "id" = $1`,
+    [record.requestId, completedAt],
+  );
+  const responses = await client.query(
+    `select i."activityId", i."ordinal", i."definitionHash", r."responseValue", r."respondedAt"
+     from "vasi_engine"."activity_response" r
+     join "vasi_engine"."activity_instance" i on i."id" = r."activityInstanceId"
+     where r."assignmentId" = $1 order by i."ordinal"`,
+    [record.assignmentId],
+  );
+  const events = await evidenceEvents(client, record.assignmentId);
+  const manifestId = randomUUID();
+  const manifest = buildWorkflowManifest({
+    actor,
+    completedAt,
+    events,
+    interaction: interaction.rows[0],
+    manifestId,
+    record,
+    responses: responses.rows,
+  });
+  const sealedRecord = await persistSeal(client, {
+    completedAt,
+    events,
+    manifest,
+    manifestId,
+    record,
+    sealKeyId,
+    sealPrivateJWK,
+    sealPublicJWK,
+  });
+  if (record.notificationPolicy?.onCompletion) {
+    await queueNotification(client, {
+      availableAt: completedAt,
+      idempotencyKey: `${record.requestId}:completed`,
+      outboxEncryptionSecret,
+      payload: {
+        eventType: "request.completed",
+        recipient: actor.email,
+        requestId: record.requestId,
+        tenant: { id: record.tenantId, name: record.tenantName },
+        title: record.title,
+      },
+      requestId: record.requestId,
+      tenantId: record.tenantId,
+    });
+  }
+  return participantReceipt(sealedRecord);
+}
+
+function buildWorkflowManifest({ actor, completedAt, events, interaction, manifestId, record, responses }) {
+  return {
+    assignment: {
+      id: record.assignmentId,
+      participantEmail: actor.email,
+      principalId: actor.principalId,
+    },
+    evidence: {
+      eventCount: events.length,
+      eventHashes: events.map((event) => event.eventHash),
+      firstSequence: events[0].sequence,
+      headHash: events.at(-1).eventHash,
+      lastSequence: events.at(-1).sequence,
+    },
+    manifestId,
+    outcome: {
+      activities: responses.map((row) => ({
+        activityId: row.activityId,
+        definitionHash: row.definitionHash,
+        ordinal: Number(row.ordinal),
+        respondedAt: new Date(row.respondedAt).toISOString(),
+        response: row.responseValue,
+      })),
+      status: "completed",
+    },
+    request: {
+      accessPolicy: record.accessPolicy,
+      dueAt: record.dueAt ? new Date(record.dueAt).toISOString() : undefined,
+      expiresAt: new Date(record.expiresAt).toISOString(),
+      id: record.requestId,
+      purpose: record.purpose,
+      scheduledFor: record.scheduledFor ? new Date(record.scheduledFor).toISOString() : undefined,
+    },
+    schema: "vasi-evidence-manifest/v2",
+    tenant: { id: record.tenantId, name: record.tenantName },
+    timestamps: {
+      completedAt: completedAt.toISOString(),
+      issuedAt: new Date(record.issuedAt).toISOString(),
+      startedAt: new Date(interaction.startedAt).toISOString(),
+    },
+    workflow: {
+      definitionId: record.definitionId,
+      id: record.workflowId,
+      revision: Number(record.revision),
+      snapshot: record.snapshot,
+      snapshotHash: record.snapshotHash,
+      title: record.title,
+    },
+  };
+}
+
+async function persistSeal(client, {
+  completedAt,
+  events,
+  manifest,
+  manifestId,
+  record,
+  sealKeyId,
+  sealPrivateJWK,
+  sealPublicJWK,
+}) {
+  const seal = createIntegritySeal({ keyId: sealKeyId, manifest, privateJWK: sealPrivateJWK });
+  if (hashCanonicalJSON(seal.publicJWK) !== hashCanonicalJSON(sealPublicJWK)) {
+    throw new EvidenceStoreError("seal_key_mismatch", 500);
+  }
+  await client.query(
+    `insert into "vasi_engine"."evidence_manifest"
+      ("id", "tenantId", "requestId", "assignmentId", "manifest", "manifestHash", "createdAt")
+     values ($1, $2, $3, $4, $5, $6, $7)`,
+    [manifestId, record.tenantId, record.requestId, record.assignmentId, manifest, seal.manifestHash, completedAt],
+  );
+  await client.query(
+    `insert into "vasi_engine"."evidence_seal"
+      ("id", "manifestId", "profile", "algorithm", "keyId", "publicJwk", "signature", "createdAt")
+     values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [randomUUID(), manifestId, seal.profile, seal.algorithm, seal.keyId, seal.publicJWK, seal.signature, completedAt],
+  );
+  const sealedRecord = { events, manifest, seal: { ...seal, createdAt: completedAt.toISOString() } };
+  verifyEvidenceRecord(sealedRecord, sealPublicJWK);
+  return sealedRecord;
+}
+
+async function applyRequestAction(client, actor, input, outboxEncryptionSecret) {
+  const replay = await client.query(
+    `select "eventData" from "vasi_engine"."request_lifecycle_event" where "idempotencyKey" = $1`,
+    [input.commandId],
+  );
+  if (replay.rowCount) throw new EvidenceStoreError("action_replayed", 409);
+  const result = await client.query(
+    `select r."id", r."status", r."workflowRevisionId", r."scheduledFor", r."dueAt", r."expiresAt",
+            a."id" as "assignmentId", a."intendedEmail"
+     from "vasi_engine"."request_instance" r
+     join "vasi_engine"."participant_assignment" a on a."requestId" = r."id"
+     where r."id" = $1 and r."tenantId" = $2 for update of r, a`,
+    [input.requestId, input.tenantId],
+  );
+  if (!result.rowCount) notFound();
+  const request = result.rows[0];
+  if (["completed", "expired"].includes(request.status)) {
+    throw new EvidenceStoreError("request_state_conflict", 409);
+  }
+  const now = new Date();
+  let actionResult = { action: input.action, requestId: input.requestId, status: request.status };
+  if (input.action === "revoke" || input.action === "reissue") {
+    if (request.status === "revoked") throw new EvidenceStoreError("request_state_conflict", 409);
+    await client.query(
+      `update "vasi_engine"."request_instance" set "status" = 'revoked' where "id" = $1`,
+      [input.requestId],
+    );
+    await client.query(
+      `update "vasi_engine"."participant_assignment" set "status" = 'revoked' where "id" = $1`,
+      [request.assignmentId],
+    );
+    await appendEvent(client, {
+      actor,
+      assignmentId: request.assignmentId,
+      eventType: input.action === "reissue" ? "request.reissued" : "request.revoked",
+      payload: { commandId: input.commandId, previousStatus: request.status },
+      receivedAt: now,
+      requestId: input.requestId,
+      tenantId: input.tenantId,
+    });
+    actionResult = { ...actionResult, status: "revoked" };
+  }
+  if (input.action === "reissue") {
+    const reissued = await issuePublishedRequest(client, actor, {
+      dueAt: undefined,
+      expiresAt: undefined,
+      intendedEmail: request.intendedEmail,
+      scheduledFor: now,
+      tenantId: input.tenantId,
+      workflowRevisionId: request.workflowRevisionId,
+    }, outboxEncryptionSecret);
+    await client.query(
+      `update "vasi_engine"."request_instance"
+       set "reissuedFromRequestId" = $2 where "id" = $1`,
+      [reissued.requestId, input.requestId],
+    );
+    actionResult = { ...reissued, action: input.action };
+  }
+  if (input.action === "remind") {
+    await queueNotification(client, {
+      availableAt: now,
+      idempotencyKey: `${input.requestId}:manual-reminder:${input.commandId}`,
+      outboxEncryptionSecret,
+      payload: {
+        eventType: "request.reminder",
+        recipient: request.intendedEmail,
+        requestId: input.requestId,
+      },
+      requestId: input.requestId,
+      tenantId: input.tenantId,
+    });
+    actionResult = { ...actionResult, queued: true };
+  }
+  await client.query(
+    `insert into "vasi_engine"."request_lifecycle_event"
+      ("id", "tenantId", "requestId", "eventType", "actorPrincipalId", "idempotencyKey", "eventData", "createdAt")
+     values ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      randomUUID(),
+      input.tenantId,
+      input.requestId,
+      `request.${input.action}`,
+      actor.principalId,
+      input.commandId,
+      { action: input.action, resultingStatus: actionResult.status || "issued" },
+      now,
+    ],
+  );
+  return actionResult;
+}
+
+async function queueNotification(client, {
+  availableAt,
+  idempotencyKey,
+  outboxEncryptionSecret,
+  payload,
+  requestId,
+  tenantId,
+}) {
+  const envelope = encryptJSONEnvelope(payload, outboxEncryptionSecret);
+  await client.query(
+    `insert into "vasi_engine"."outbox_job"
+      ("id", "jobType", "tenantId", "requestId", "idempotencyKey", "payload", "payloadHash",
+       "status", "availableAt")
+     values ($1, 'notification', $2, $3, $4, $5, $6, 'pending', $7)
+     on conflict ("idempotencyKey") where "idempotencyKey" is not null do nothing`,
+    [randomUUID(), tenantId, requestId, idempotencyKey, { envelope }, hashCanonicalJSON(payload), availableAt],
+  );
 }
 
 async function appendEvent(client, {
@@ -530,6 +1196,15 @@ async function loadEvidenceRecord(client, assignmentId, expectedPublicJWK) {
 
 function participantReceipt(record) {
   const manifest = record.manifest;
+  const activityOutcomes = manifest.outcome.activities;
+  const response = activityOutcomes
+    ? activityOutcomes.map((activity) => `${activity.activityId}: ${activity.response}`).join("; ")
+    : manifest.outcome.response;
+  const postCompletion = manifest.request.accessPolicy?.postCompletion || "receipt_only";
+  const contentAvailable = postCompletion === "content_always" || (
+    postCompletion === "content_until_expiration" &&
+    manifest.request.expiresAt && new Date(manifest.request.expiresAt) > new Date()
+  );
   return {
     assignmentId: manifest.assignment.id,
     completedAt: manifest.timestamps.completedAt,
@@ -542,8 +1217,11 @@ function participantReceipt(record) {
     },
     issuedAt: manifest.timestamps.issuedAt,
     request: {
+      activities: contentAvailable ? manifest.workflow.snapshot?.activities : undefined,
+      contentAccess: { available: Boolean(contentAvailable), policy: postCompletion },
       purpose: manifest.request.purpose,
-      response: manifest.outcome.response,
+      response,
+      responses: activityOutcomes,
       title: manifest.workflow.title,
     },
     tenant: manifest.tenant,
@@ -554,9 +1232,11 @@ async function assignmentForHandle(client, handleDigest, lock) {
   const result = await client.query(
     `select a."id" as "assignmentId", a."tenantId", a."requestId", a."intendedEmail",
             a."principalId", a."participantEmail", a."status", a."issuedAt", a."firstOpenedAt",
-            r."purpose", r."expiresAt", r."status" as "requestStatus",
+            r."purpose", r."scheduledFor", r."dueAt", r."expiresAt", r."accessPolicy",
+            r."notificationPolicy", r."status" as "requestStatus",
             w."id" as "workflowId", w."revision", w."title", w."responseMode",
-            w."content", w."contentHash", t."name" as "tenantName"
+            w."content", w."contentHash", w."definitionId", w."schemaVersion", w."snapshot",
+            w."snapshotHash", t."name" as "tenantName"
      from "vasi_engine"."participant_assignment" a
      join "vasi_engine"."request_instance" r on r."id" = a."requestId"
      join "vasi_engine"."workflow_revision" w on w."id" = r."workflowRevisionId"
@@ -602,6 +1282,9 @@ function assertAssignmentAvailable(record, now) {
   if (new Date(record.expiresAt) <= now || record.status === "expired" || record.requestStatus === "expired") {
     throw new EvidenceStoreError("assignment_expired", 410);
   }
+  if (record.scheduledFor && new Date(record.scheduledFor) > now) {
+    throw new EvidenceStoreError("assignment_not_yet_available", 425);
+  }
 }
 
 async function requireTenantRole(client, principalId, tenantId, role) {
@@ -611,6 +1294,17 @@ async function requireTenantRole(client, principalId, tenantId, role) {
     [tenantId, principalId],
   );
   if (!membership.rowCount || !membership.rows[0].roles.includes(role)) deny();
+}
+
+async function requireTenantPermission(client, principalId, tenantId, permission) {
+  const membership = await client.query(
+    `select "roles" from "vasi_engine"."tenant_membership"
+     where "tenantId" = $1 and "principalId" = $2 and "status" = 'active'
+       and "validFrom" <= CURRENT_TIMESTAMP
+       and ("expiresAt" is null or "expiresAt" > CURRENT_TIMESTAMP)`,
+    [tenantId, principalId],
+  );
+  if (!membership.rowCount || !hasTenantPermission(membership.rows[0].roles, permission)) deny();
 }
 
 async function tenantById(client, tenantId) {

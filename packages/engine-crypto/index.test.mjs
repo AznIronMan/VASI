@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalJSON,
   createIntegritySeal,
+  decryptJSONEnvelope,
+  encryptJSONEnvelope,
   signServiceRequest,
   verifyIntegritySeal,
   verifyServiceRequest,
@@ -56,5 +58,16 @@ describe("canonical evidence and integrity seals", () => {
 
     expect(verifyIntegritySeal(manifest, seal)).toBe(true);
     expect(verifyIntegritySeal({ ...manifest, value: "no" }, seal)).toBe(false);
+  });
+
+  it("encrypts and authenticates sensitive outbox envelopes", () => {
+    const secret = Buffer.alloc(32, 7).toString("base64url");
+    const value = { participantPath: "/r/opaque", recipient: "person@example.test" };
+    const envelope = encryptJSONEnvelope(value, secret);
+    expect(JSON.stringify(envelope)).not.toContain("opaque");
+    expect(decryptJSONEnvelope(envelope, secret)).toEqual(value);
+    expect(() => decryptJSONEnvelope({ ...envelope, tag: "invalid" }, secret)).toThrow(
+      /authenticated/,
+    );
   });
 });

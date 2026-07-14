@@ -189,17 +189,20 @@ store only a SHA-256 token digest, and are single-use. Administrative changes
 are recorded in `vasi_admin_audit`; audit metadata never contains invitation
 tokens, provider tokens, credentials, or message bodies.
 
-The `/admin/evidence` first-slice console is an internal adapter for creating a
+The `/admin/evidence` first-slice console is a compatibility adapter for creating a
 company evidence space and issuing the narrow terms/response transaction. The
 engine creates a separate tenant membership and enforces it for every issue and
 record query. Identity-administrator status is used only to bootstrap that
 membership; it is not treated as cross-tenant evidence authorization. The
-general owner roles and control plane are a later milestone.
+`/owner` control plane accepts any active, verified account on the private
+origin, then relies exclusively on engine-owned company roles. An identity
+`admin` role alone grants no workflow, request, or evidence access.
 
 For the sealed slice, V·Sign signs and forwards bounded engine context from the
-authenticated session: stable principal and session IDs, verified email,
-available provider method/subject, authentication time, roles, and available
-gateway-observed IP headers, user agent, language, and browser client hints.
+authenticated session: stable principal and session IDs, verified email, the
+session-specific authentication method/provider/subject and capture provenance,
+separately labeled linked-provider context, authentication time, roles, and
+available gateway-observed IP headers, user agent, language, and browser client hints.
 These fields are contextual evidence with stated provenance. VASI does not
 collect raw keystrokes, browser plugin inventories, hidden camera/microphone
 data, or invasive device fingerprints, and does not claim that a user agent or

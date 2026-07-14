@@ -19,6 +19,10 @@ const migrations = [
     name: "0003_engine_evidence_slice",
     path: path.join(repositoryRoot, "database", "engine-evidence-slice.sql"),
   },
+  {
+    name: "0004_engine_workflow_control_plane",
+    path: path.join(repositoryRoot, "database", "engine-workflow-control-plane.sql"),
+  },
 ];
 
 export async function runEngineMigrations(bootstrap = loadBootstrapSettings()) {

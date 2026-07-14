@@ -2,6 +2,7 @@ import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { admin as adminPlugin, genericOAuth, username } from "better-auth/plugins";
 
 import { generateAppleClientSecret } from "@/lib/apple-secret";
+import { resolveSessionAuthentication } from "@/lib/auth-provenance";
 import { database, getDatabase } from "@/lib/database";
 import { sendAuthEmail } from "@/lib/email";
 import { isProviderConfigured } from "@/lib/auth-providers";
@@ -122,14 +123,31 @@ async function createAuth() {
     databaseHooks: {
       session: {
         create: {
-          before: async (session) => {
+          before: async (session, context) => {
             await database.query(
               `update "user"
                set "role" = 'admin', "updatedAt" = CURRENT_TIMESTAMP
                where "id" = $1 and lower("email") = any($2::text[])`,
               [session.userId, adminEmails],
             );
-            return { data: session };
+            const authentication = resolveSessionAuthentication(context);
+            const account = authentication.provider
+              ? await database.query<{ accountId: string }>(
+                  `select "accountId" from "account"
+                   where "userId" = $1 and "providerId" = $2
+                   order by "updatedAt" desc limit 1`,
+                  [session.userId, authentication.provider],
+                )
+              : undefined;
+            return {
+              data: {
+                ...session,
+                authenticationAccountId: account?.rows[0]?.accountId,
+                authenticationMethod: authentication.method,
+                authenticationProvider: authentication.provider,
+                authenticationProvenance: authentication.provenance,
+              },
+            };
           },
         },
       },
@@ -187,6 +205,12 @@ async function createAuth() {
       },
     },
     session: {
+      additionalFields: {
+        authenticationAccountId: { type: "string", required: false, input: false },
+        authenticationMethod: { type: "string", required: false, input: false },
+        authenticationProvider: { type: "string", required: false, input: false },
+        authenticationProvenance: { type: "string", required: false, input: false },
+      },
       expiresIn: 60 * 60 * 12,
       updateAge: 60 * 60,
       freshAge: 10 * 60,

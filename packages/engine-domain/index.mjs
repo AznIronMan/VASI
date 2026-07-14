@@ -2,13 +2,21 @@ const serviceActions = Object.freeze({
   "vasi-private-ingress": new Set([
     "actor.identity",
     "engine.health",
+    "membership.list",
+    "membership.update",
     "participant.open",
     "participant.receipt",
     "participant.respond",
     "record.read",
     "request.issue",
+    "request.list",
+    "request.action",
     "tenant.create",
     "tenant.list",
+    "workflow.create",
+    "workflow.draft.update",
+    "workflow.list",
+    "workflow.publish",
   ]),
 });
 

@@ -2011,6 +2011,139 @@ input:disabled {
   overflow-wrap: anywhere;
 }
 
+.owner-shell {
+  min-height: 100vh;
+  padding: 34px clamp(20px, 4vw, 64px) 70px;
+  background: var(--canvas);
+}
+
+.owner-header,
+.owner-tenant-nav,
+.owner-actions,
+.owner-workflow,
+.owner-request,
+.owner-member {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.owner-header {
+  margin-bottom: 24px;
+}
+
+.owner-header > div:nth-child(2) {
+  flex: 1;
+}
+
+.owner-header h1,
+.owner-empty h1 {
+  margin: 2px 0 0;
+}
+
+.owner-tenant-nav {
+  padding: 14px 18px;
+  justify-content: space-between;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--white);
+}
+
+.owner-tenant-nav label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.owner-tenant-nav select {
+  min-width: 220px;
+}
+
+.owner-grid {
+  display: grid;
+  margin-top: 24px;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.owner-builder {
+  grid-row: span 2;
+}
+
+.owner-activity {
+  display: grid;
+  margin: 18px 0;
+  padding: 18px;
+  gap: 13px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.owner-activity legend {
+  padding: 0 8px;
+  font-weight: 800;
+}
+
+.owner-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  line-height: 1.45;
+}
+
+.owner-workflow,
+.owner-request,
+.owner-member {
+  padding: 14px 0;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+
+.owner-workflow > div,
+.owner-request > div,
+.owner-member {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.owner-workflow > div:last-child,
+.owner-request > div:last-child {
+  align-items: flex-end;
+}
+
+.owner-empty {
+  max-width: 640px;
+  margin: 10vh auto;
+  padding: 34px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--white);
+}
+
+.participant-progress {
+  color: var(--green-700);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.receipt-content {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.receipt-content article {
+  margin-top: 16px;
+  padding: 18px;
+  border-radius: 12px;
+  background: #f7f7f2;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 760px) {
   .evidence-admin-grid {
     grid-template-columns: 1fr;
@@ -2026,6 +2159,16 @@ input:disabled {
   .evidence-issued dl div,
   .receipt-card dl div {
     grid-template-columns: 1fr;
+  }
+
+  .owner-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-header,
+  .owner-tenant-nav {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

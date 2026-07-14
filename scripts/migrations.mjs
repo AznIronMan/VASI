@@ -19,6 +19,10 @@ const migrations = [
     name: "0003_encrypted_runtime_settings",
     path: path.join(repositoryRoot, "database", "settings-schema.sql"),
   },
+  {
+    name: "0004_auth_session_provenance",
+    path: path.join(repositoryRoot, "database", "auth-session-provenance.sql"),
+  },
 ];
 
 export async function runMigrations(bootstrap = loadBootstrapSettings()) {

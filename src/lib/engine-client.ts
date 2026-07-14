@@ -8,7 +8,10 @@ import { getRuntimeSettings, type RuntimeSettings } from "@/lib/runtime-settings
 export type EngineActor = {
   authenticatedAt?: number;
   authentication: {
+    linkedProvider?: string;
+    linkedProviderSubject?: string;
     method: string;
+    provenance?: string;
     provider?: string;
     providerSubject?: string;
   };
@@ -39,8 +42,11 @@ export async function createEngineActorAssertion(
     authenticated_at: actor.authenticatedAt,
     authentication: {
       method: actor.authentication.method,
+      provenance: actor.authentication.provenance,
       provider: actor.authentication.provider,
       provider_subject: actor.authentication.providerSubject,
+      linked_provider: actor.authentication.linkedProvider,
+      linked_provider_subject: actor.authentication.linkedProviderSubject,
     },
     email: actor.email,
     gateway_session_id: actor.gatewaySessionId,

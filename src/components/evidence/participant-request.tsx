@@ -30,15 +30,16 @@ export function ParticipantRequest({
           },
           commandId: crypto.randomUUID(),
           handle,
+          activityId: assignment.activityId,
           interactionId: assignment.interaction.id,
           response: form.get("response"),
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      const result = await response.json() as { error?: string };
+      const result = await response.json() as { completed?: boolean; error?: string };
       if (!response.ok) throw new Error(result.error || "Your response could not be recorded.");
-      window.location.assign(`/r/${handle}/receipt`);
+      window.location.assign(result.completed === false ? `/r/${handle}` : `/r/${handle}/receipt`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Your response could not be recorded.");
       setPending(false);
@@ -48,8 +49,10 @@ export function ParticipantRequest({
   return (
     <article className="participant-card">
       <p className="eyebrow eyebrow--green">{assignment.tenant.name}</p>
+      {assignment.progress && <p className="participant-progress">Step {assignment.progress.current} of {assignment.progress.total}{assignment.workflowTitle ? ` · ${assignment.workflowTitle}` : ""}</p>}
       <h1>{assignment.title}</h1>
       <p className="participant-purpose">{assignment.purpose}</p>
+      {assignment.instructions && <p className="participant-purpose">{assignment.instructions}</p>}
       <section className="participant-terms" aria-labelledby="terms-heading">
         <h2 id="terms-heading">Terms presented to you</h2>
         <div>{assignment.content.terms}</div>
@@ -69,7 +72,7 @@ export function ParticipantRequest({
         </fieldset>
         <p>Submitting records your authenticated account, response, server timing, available browser/network context, and the exact content shown above in a tamper-evident VASI record.</p>
         {message && <p className="form-message form-message--error" role="alert">{message}</p>}
-        <button className="primary-button" disabled={pending} type="submit">{pending ? "Sealing your response…" : "Submit and seal response"}</button>
+        <button className="primary-button" disabled={pending} type="submit">{pending ? "Recording your response…" : assignment.progress && assignment.progress.current < assignment.progress.total ? "Record and continue" : "Submit and seal response"}</button>
       </form>
       <footer>Request expires {new Date(assignment.expiresAt).toLocaleString()}.</footer>
     </article>

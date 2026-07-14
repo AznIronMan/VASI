@@ -23,7 +23,15 @@ Approved routes are:
 | `GET` | `/healthz` | Authenticated service health proof |
 | `POST` | `/v1/whoami` | Validate and return bounded actor context |
 | `GET/POST` | `/v1/owner/tenants` | List or create an authorized company space |
-| `POST` | `/v1/owner/requests` | Issue the first immutable evidence request |
+| `POST` | `/v1/owner/member-list` | List engine-authorized company members and grants |
+| `POST` | `/v1/owner/members` | Grant or change company roles by verified email |
+| `POST` | `/v1/owner/workflow-list` | List authorized workflow drafts and publications |
+| `POST` | `/v1/owner/workflows` | Create a validated workflow draft |
+| `POST` | `/v1/owner/workflow-drafts` | Update a draft with optimistic version control |
+| `POST` | `/v1/owner/workflow-publications` | Publish an immutable workflow revision |
+| `POST` | `/v1/owner/requests` | Issue an immutable revision now or on a schedule |
+| `POST` | `/v1/owner/request-list` | List tenant-authorized request lifecycle state |
+| `POST` | `/v1/owner/request-actions` | Remind, revoke, or reissue idempotently |
 | `POST` | `/v1/owner/records` | Verify and return an owner-authorized structured record |
 | `POST` | `/v1/participant/open` | Bind/open an opaque participant assignment |
 | `POST` | `/v1/participant/respond` | Record one authoritative response and seal its manifest |
@@ -54,9 +62,18 @@ Complete these `engine` scope settings before startup:
 - `ENGINE_INGRESS_TLS_KEY`
 - `ENGINE_AUTHORIZED_CLIENT_CA_CERT`
 - `ENGINE_AUTHORIZED_CLIENT_FINGERPRINT_SHA256`
+- `ENGINE_OUTBOX_ENCRYPTION_SECRET`
 - `EVIDENCE_SEAL_PRIVATE_JWK`
 - `EVIDENCE_SEAL_PUBLIC_JWK`
 - `EVIDENCE_SEAL_KEY_ID`
+
+Notification delivery defaults to `ENGINE_NOTIFICATION_MODE=disabled`, which
+records a suppressed terminal attempt. To enable generic delivery, configure
+either `webhook` with an HTTPS URL and a 32-byte-or-longer HMAC secret, or
+`smtp` with host/from and optional credentials. Set `ENGINE_PARTICIPANT_ORIGIN`
+when SMTP issue/reminder messages should contain the VASI request link. These
+values are engine-scoped PostgreSQL settings; do not put them in environment
+files or Compose arguments.
 
 The gateway scope needs the corresponding `ENGINE_ORIGIN`, server CA, client
 certificate/key, assertion private JWK/key ID, issuer, and audience. PEM values
@@ -88,6 +105,7 @@ Run the gateway proof after every trust, key, network, or engine release:
 ```bash
 npm run engine:probe
 npm run engine:probe:evidence # disposable conformance database only
+npm run engine:probe:workflow # disposable conformance database only
 ```
 
 The proof verifies server trust, the V·Sign client certificate, engine health,

@@ -14,17 +14,21 @@ export type IssuedEvidenceRequest = {
 };
 
 export type ParticipantAssignment = {
+  activityId?: string;
   assignmentId?: string;
   completed: boolean;
   content?: { prompt: string; terms: string };
   contentHash?: string;
   expiresAt?: string;
   interaction?: { id: string; startedAt: string };
+  instructions?: string;
+  progress?: { current: number; total: number };
   purpose?: string;
   receiptAvailable?: boolean;
   responseMode?: "acknowledgement" | "yes_no";
   tenant?: { id: string; name: string };
   title?: string;
+  workflowTitle?: string;
 };
 
 export type OpenParticipantAssignment = ParticipantAssignment & Required<Pick<
@@ -44,7 +48,14 @@ export type ParticipantReceipt = {
     verified: boolean;
   };
   issuedAt: string;
-  request: { purpose: string; response: string; title: string };
+  request: {
+    activities?: Array<{ content: { prompt: string; terms: string }; id: string; title: string }>;
+    contentAccess?: { available: boolean; policy: string };
+    purpose: string;
+    response: string;
+    responses?: Array<{ activityId: string; response: string }>;
+    title: string;
+  };
   tenant: { id: string; name: string };
 };
 

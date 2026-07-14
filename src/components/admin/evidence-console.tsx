@@ -95,11 +95,11 @@ export function EvidenceConsole({
     <main className="evidence-admin-shell">
       <header className="evidence-admin-header">
         <div>
-          <p className="eyebrow eyebrow--green">PRIVATE ENGINE / FIRST SLICE</p>
-          <h1>Sealed evidence requests</h1>
-          <p>Issue immutable terms with acknowledgement or yes/no response. Broader workflow design arrives in the owner control-plane milestone.</p>
+          <p className="eyebrow eyebrow--green">PRIVATE ENGINE / COMPATIBILITY TOOL</p>
+          <h1>First-slice evidence requests</h1>
+          <p>This narrow issuer remains for compatibility. Use the company control plane for draft, publication, branching, scheduling, and lifecycle management.</p>
         </div>
-        <Link href="/admin">Identity administration</Link>
+        <div><Link href="/owner">Company workflows</Link> · <Link href="/admin">Identity administration</Link></div>
       </header>
 
       <section className="evidence-admin-grid">

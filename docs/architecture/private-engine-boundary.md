@@ -75,8 +75,8 @@ The engine uses a dedicated PostgreSQL database where possible. At minimum it
 must use a dedicated login role, schema, migration history, and bootstrap; the
 gateway never queries engine tables. Version 0.4.0 creates the private
 `vasi_engine` schema, persistent actor-assertion replay table, and PostgreSQL
-outbox-job baseline. Domain evidence tables arrive through later engine-only
-migrations.
+outbox-job baseline. Versions 0.5.0 and 0.6.0 add the evidence transaction and
+workflow/control-plane domain tables through engine-only migrations.
 
 Engine runtime configuration uses the `engine` settings scope. The gateway's
 client certificate/key and assertion private key use the `gateway` scope. Every
@@ -86,7 +86,7 @@ value remains encrypted and bound to its installation, scope, and name.
 
 This boundary proves authenticated service identity, actor context, replay
 defense, process isolation, database ownership, and deployment posture. VASI
-0.5.0 adds the separately documented first sealed terms/response slice. The
-general workflow/control plane, document and media activities, reports/bundles,
-retention, legal hold, participant data requests, and productized integrations
-remain later milestones.
+0.5.0 adds the separately documented first sealed terms/response slice, and
+VASI 0.6.0 adds the general workflow and company control plane. Document and
+media activities, reports/bundles, retention, legal hold, participant data
+requests, and productized integrations remain later milestones.

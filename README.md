@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.5.0`
+Version: `0.6.0`
 
 A CNB project maintained by Street Kings Productions.
 
@@ -31,12 +31,22 @@ then signs a deterministic manifest with the standard VASI integrity seal.
 Participants receive a readable receipt; authorized owners can retrieve the
 verified structured record.
 
+Version 0.6.0 adds the VASI-owned workflow and company control plane. Company
+roles are separate from identity administration; owners and managers can create
+optimistically versioned drafts, publish immutable revisions, issue scheduled
+multi-step requests, use restricted forward-only response branches, and manage
+reminder, revocation, reissue, due, expiration, and post-completion access
+policies. The worker advances lifecycle state and a retry-safe encrypted outbox
+for generic SMTP or signed-webhook delivery. New V·Sign sessions also preserve
+session-specific authentication provenance rather than guessing from linked
+accounts.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. It is not yet an independent
 CA identity, trusted timestamp, legal conclusion, or long-term validation
-profile. General workflow design, documents, media, reports/bundles, retention,
-participant data requests, and optional CA/TSA adapters remain subsequent
-milestones.
+profile. Documents and richer electronic activities, media, reports/bundles,
+retention, participant data requests, productized owner/integration gateways,
+and optional CA/TSA adapters remain subsequent milestones.
 
 ## Included
 
@@ -68,6 +78,13 @@ milestones.
   request paths under `/r/`, authenticated participant response/receipt pages,
   tenant membership enforcement, immutable workflow snapshots, append-only
   evidence chains, deterministic manifests, and Ed25519 VASI integrity seals.
+- A private-origin company console at `/owner` with engine-owned roles,
+  structured workflow drafts, immutable publication, ordered/conditional
+  activity execution, request lifecycle controls, and revision-bound access and
+  notification policies.
+- AES-256-GCM encrypted outbox envelopes, immutable delivery-attempt records,
+  bounded retry and stale-lock recovery, generic SMTP and HMAC-signed HTTPS
+  webhook adapters, and session-level authentication provenance.
 
 ## Configuration model
 
@@ -180,7 +197,9 @@ encrypted in the appropriate PostgreSQL settings scope. Run
 `npm run engine:probe` from the gateway deployment to verify mTLS, actor
 identity, and replay rejection. The disposable conformance environment also
 runs `npm run engine:probe:evidence` for issuance, isolation, response, receipt,
-seal, replay, and tamper checks.
+seal, replay, and tamper checks, plus `npm run engine:probe:workflow` for roles,
+drafts, immutable revisions, branching, lifecycle, encrypted outbox, and
+multi-step sealing.
 
 See [Authentication setup](docs/authentication.md) for callbacks, provider and
 mailer settings, administration behavior, and the release checklist. See
@@ -188,4 +207,6 @@ mailer settings, administration behavior, and the release checklist. See
 [engine boundary decision](docs/architecture/private-engine-boundary.md) for
 the service trust and deployment contract. The
 [sealed evidence slice](docs/architecture/sealed-evidence-slice.md) defines the
-first transaction, record, and assurance limits.
+first transaction, record, and assurance limits. The
+[workflow control plane](docs/architecture/workflow-control-plane.md) defines
+the company roles, state machine, publication, lifecycle, and outbox contracts.
