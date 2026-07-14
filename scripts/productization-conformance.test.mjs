@@ -54,9 +54,10 @@ describe("productized deployment and transfer conformance", () => {
 
   it("keeps PostgreSQL passwords out of backup arguments and environment values", async () => {
     const source = await readFile(path.join(root, "scripts", "backup.mjs"), "utf8");
-    expect(source).toContain('PGPASSFILE: "/dev/fd/3"');
+    expect(source).toContain("PGPASSFILE: passfile");
     expect(source).not.toContain("PGPASSWORD");
     expect(source).toContain('parsed.password = ""');
-    expect(source).toContain('["ECONNRESET", "EPIPE"]');
+    expect(source).toContain('{ mode: 0o600 }');
+    expect(source).toContain('await rm(temporary, { force: true, recursive: true })');
   });
 });

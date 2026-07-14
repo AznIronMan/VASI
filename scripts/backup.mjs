@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { copyFile, mkdir, readFile, rm, stat, writeFile, chmod } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile, chmod } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
@@ -52,7 +53,7 @@ async function createBackup(destination) {
       schema: BACKUP_SCHEMA,
     };
     await writeFile(path.join(temporary, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 });
-    await (await import("node:fs/promises")).rename(temporary, target);
+    await rename(temporary, target);
     console.info("Matched PostgreSQL and VASI.settings backup created. Store this directory in an encrypted backup system.");
   } catch (error) {
     await rm(temporary, { force: true, recursive: true }).catch(() => undefined);
@@ -103,18 +104,21 @@ async function runPostgresTool(command, argumentsList, databaseURL) {
   const pgpass = [parsed.hostname, parsed.port || "5432", parsed.pathname.slice(1), decodeURIComponent(parsed.username), password]
     .map(escapePgpass)
     .join(":");
-  await new Promise((resolve, reject) => {
-    const child = spawn(command, [`--dbname=${parsed.toString()}`, ...argumentsList], {
-      env: { ...process.env, PGPASSFILE: "/dev/fd/3" },
-      stdio: ["ignore", "inherit", "inherit", "pipe"],
+  const temporary = await mkdtemp(path.join(tmpdir(), "vasi-pgpass-"));
+  const passfile = path.join(temporary, "pgpass");
+  await writeFile(passfile, `${pgpass}\n`, { mode: 0o600 });
+  try {
+    await new Promise((resolve, reject) => {
+      const child = spawn(command, [`--dbname=${parsed.toString()}`, ...argumentsList], {
+        env: { ...process.env, PGPASSFILE: passfile },
+        stdio: ["ignore", "inherit", "inherit"],
+      });
+      child.once("error", reject);
+      child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`${command} exited with status ${code}.`)));
     });
-    child.once("error", reject);
-    child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`${command} exited with status ${code}.`)));
-    child.stdio[3].on("error", (error) => {
-      if (!["ECONNRESET", "EPIPE"].includes(error?.code)) reject(error);
-    });
-    child.stdio[3].end(`${pgpass}\n`);
-  });
+  } finally {
+    await rm(temporary, { force: true, recursive: true });
+  }
 }
 
 async function runCommand(command, argumentsList) {

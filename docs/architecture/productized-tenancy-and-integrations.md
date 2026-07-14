@@ -103,9 +103,10 @@ the settings/profile controls and must never be committed.
 A recoverable installation requires a matched PostgreSQL dump and its exact
 `data/VASI.settings`; either half alone is insufficient. `npm run backup --
 create DIRECTORY` writes both at mode `0600`, adds SHA-256 checksums, and passes
-the PostgreSQL password to `pg_dump` over a private file descriptor rather than
-arguments or environment values. `verify` checks files and the PostgreSQL
-custom archive. `restore` is deliberately destructive and requires the literal
+the PostgreSQL password to `pg_dump` through a randomly named mode-`0600` file
+inside the maintenance process's temporary filesystem. The file is removed in
+a `finally` block; the password never appears in arguments or environment
+values. `verify` checks files and the PostgreSQL custom archive. `restore` is deliberately destructive and requires the literal
 `--confirm-replace-database` argument. PostgreSQL client tools must be installed
 on the maintenance host, and the resulting directory must be stored in an
 encrypted backup system.
