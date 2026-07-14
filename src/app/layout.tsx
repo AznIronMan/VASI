@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
 
 import { BrandProvider } from "@/components/brand-provider";
+import { resolveProductBrand } from "@/lib/branding";
+import { getRuntimeSettings } from "@/lib/runtime-settings";
 
 import "./globals.css";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: {
@@ -17,10 +21,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const brand = resolveProductBrand(await getRuntimeSettings());
   return (
     <html lang="en">
-      <body><BrandProvider>{children}</BrandProvider></body>
+      <body><BrandProvider initialBrand={brand}>{children}</BrandProvider></body>
     </html>
   );
 }

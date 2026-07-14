@@ -6,8 +6,8 @@ import { DEFAULT_PRODUCT_BRAND, type ProductBrand } from "@/lib/branding";
 
 const ProductBrandContext = createContext<ProductBrand>(DEFAULT_PRODUCT_BRAND);
 
-export function BrandProvider({ children }: { children: React.ReactNode }) {
-  const [brand, setBrand] = useState(DEFAULT_PRODUCT_BRAND);
+export function BrandProvider({ children, initialBrand }: { children: React.ReactNode; initialBrand: ProductBrand }) {
+  const [brand, setBrand] = useState(initialBrand);
   useEffect(() => {
     let active = true;
     const timeout = window.setTimeout(() => {

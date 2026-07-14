@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.12.0`
+Version: `0.12.1`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -96,7 +96,9 @@ adapter revision and outcome. Sanitized self-hosted/SaaS profiles, matched
 backup verification, and encrypted tenant export/import support portable
 deployments without environment files or customer-specific source forks.
 
-Version 0.12.0 adds a first-party assurance and pilot-readiness gate. Release
+Version 0.12.1 supplies configured branding during server rendering and repairs
+the release workflow version-output step. Version 0.12.0 added a first-party
+assurance and pilot-readiness gate. Release
 tooling now rejects tracked private/runtime material, known secret signatures,
 version drift, weakened Compose boundaries, blocking dependency or image
 vulnerabilities, and dirty release source; it emits hashed source/image
