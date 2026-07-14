@@ -13,6 +13,8 @@ const engineRoutes = Object.freeze([
   { action: "integration.update", method: "POST", path: "/v1/owner/integrations" },
   { action: "installation.profile.read", method: "GET", path: "/v1/admin/installation-profile" },
   { action: "installation.profile.update", method: "POST", path: "/v1/admin/installation-profile" },
+  { action: "tenant.admission.list", method: "GET", path: "/v1/admin/tenant-admissions" },
+  { action: "tenant.admission.update", method: "POST", path: "/v1/admin/tenant-admissions" },
   { action: "operations.read", method: "GET", path: "/v1/admin/operations" },
   { action: "membership.list", method: "POST", path: "/v1/owner/member-list" },
   { action: "membership.update", method: "POST", path: "/v1/owner/members" },

@@ -7,6 +7,7 @@ const summary = {
   activeIntegrityKeys: 1,
   activeOptionalKeys: 0,
   activeTenants: 2,
+  admittedTenants: 2,
   configurationChanges24Hours: 3,
   delivered24Hours: 4,
   deliveryFailures24Hours: 0,
@@ -23,6 +24,7 @@ const summary = {
   observedAt: new Date("2026-07-14T14:00:00.000Z"),
   pendingDataRequests: 0,
   pendingJobs: 0,
+  pendingAdmissionTenants: 0,
   purgeBlocked24Hours: 0,
   purgeDueRecords: 0,
   runningJobs: 0,
@@ -112,7 +114,7 @@ describe("operational readiness store", () => {
       lifecycle: { purgeBlocked24Hours: 0 },
       queue: { failed24Hours: 0, staleRunning: 0 },
       signing: { activeIntegrityKeys: 1 },
-      tenancy: { active: 0 },
+      tenancy: { active: 0, pendingAdmission: 0 },
     });
     expect(assessment).toEqual({
       reasons: ["no_active_tenants", "no_active_delivery_binding"],

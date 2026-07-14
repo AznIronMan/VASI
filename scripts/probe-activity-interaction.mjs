@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createActorAssertion, requestEngine } from "../packages/engine-client/index.mjs";
 import { verifyEvidenceRecord } from "../services/engine/evidence-store.mjs";
 import { readRuntimeSettings } from "./settings-core.mjs";
+import { admitConformanceTenant } from "./probe-tenant-admission.mjs";
 
 const settings = await readRuntimeSettings({ scope: "gateway" });
 const now = Math.floor(Date.now() / 1_000);
@@ -15,6 +16,7 @@ const tenant = await call(owner, "POST", "/v1/owner/tenants", {
   slug: `interaction-${randomUUID()}`,
 });
 expectStatus(tenant, 200, "interaction tenant creation");
+await admitConformanceTenant(call, owner, tenant.body.id);
 
 const created = await call(owner, "POST", "/v1/owner/workflows", {
   document: workflowDocument(),
@@ -122,7 +124,7 @@ const record = await call(owner, "POST", "/v1/owner/records", {
 expectStatus(record, 200, "interaction owner record");
 const evidence = record.body.manifest.activityInteraction;
 if (
-  record.body.manifest.schema !== "vasi-evidence-manifest/v8" ||
+  record.body.manifest.schema !== "vasi-evidence-manifest/v9" ||
   evidence.batches.length !== 2 || evidence.events.length !== 12 || evidence.summaries.length !== 2 ||
   evidence.summaries.at(-1).summary.events.count !== evidence.events.length ||
   !record.body.events.some((entry) => entry.eventData?.eventType === "activity.interaction.recorded") ||

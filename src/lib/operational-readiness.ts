@@ -54,5 +54,5 @@ export type OperationalSnapshot = {
     untrustedKeys: number;
   };
   status: "attention" | "critical" | "ready";
-  tenancy: { active: number; disabled: number };
+  tenancy: { active: number; admitted: number; disabled: number; pendingAdmission: number };
 };

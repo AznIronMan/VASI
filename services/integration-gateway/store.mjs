@@ -11,6 +11,7 @@ import {
   validateIntegrationBindingCommand,
 } from "../../packages/engine-domain/productization.mjs";
 import { createNotificationDispatcher } from "../worker/notification-adapters.mjs";
+import { assertTenantAdmitted } from "../engine/tenant-admission.mjs";
 import { scanArtifactWithHTTPS } from "./malware-scanner.mjs";
 
 export function createIntegrationGatewayStore(database, settings, installationId, dependencies = {}) {
@@ -55,7 +56,7 @@ export function createIntegrationGatewayStore(database, settings, installationId
           delivery = {
             adapter: binding.adapterId,
             errorCode: boundedErrorCode(bindingFailure.code),
-            outcome: "failed",
+            outcome: bindingFailure.code === "tenant_not_admitted" ? "suppressed" : "failed",
             responseMetadata: {},
           };
         } else try {
@@ -217,6 +218,7 @@ export function createIntegrationGatewayStore(database, settings, installationId
 }
 
 async function loadBinding(client, command, credentialSecret, installationId) {
+  await assertTenantAdmitted(client, command.tenantId, { lock: true });
   const selected = await client.query(
     `select r.*, a."manifest", a."manifestHash", a."conformanceStatus"
      from "vasi_engine"."integration_binding_pointer" p

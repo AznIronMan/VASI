@@ -6,13 +6,17 @@ import {
   hashCanonicalJSON,
 } from "../../packages/engine-crypto/index.mjs";
 import {
+  applyTenantAdmissionDecision,
   BUILT_IN_ADAPTERS,
   defaultInstallationProfile,
+  defaultTenantAdmission,
   defaultTenantProfile,
   integrationDestinationAllowed,
   validateInstallationProfile,
   validateInstallationProfileCommand,
   validateIntegrationBindingCommand,
+  validateTenantAdmission,
+  validateTenantAdmissionDecisionCommand,
   validateTenantProfileCommand,
   validateTenantProvisionInput,
   validateTenantReference,
@@ -20,6 +24,11 @@ import {
 import { hasTenantPermission, permissionsForRoles } from "../../packages/engine-domain/workflow.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { activeTenantProfile, assertTenantCapacity, tenantUsage } from "./tenant-policy.mjs";
+import {
+  activeTenantAdmission,
+  assertTenantAdmitted,
+  tenantAdmissionProjection,
+} from "./tenant-admission.mjs";
 
 const GENESIS_HASH = "0".repeat(64);
 
@@ -39,8 +48,7 @@ export function createProductStore(database, settings, installationId) {
         for (const tenant of tenants.rows) {
           await createTenantProfile(client, tenant.id, defaultTenantProfile(tenant.name), "vasi-migration");
           await ensureInitialIntegrations(client, tenant.id, credentialSecret, "vasi-migration", {
-            migrateLegacy: true,
-            settings,
+            migrateLegacy: false,
           });
           await appendConfigurationEvent(client, {
             actorPrincipalId: "vasi-migration",
@@ -50,14 +58,15 @@ export function createProductStore(database, settings, installationId) {
             scopeType: "tenant",
             tenantId: tenant.id,
           });
+          await ensureTenantAdmission(client, tenant.id, "vasi-migration");
         }
         const existingTenants = await client.query(
           `select t."id" from "vasi_engine"."tenant" t order by t."id" for update of t`,
         );
         for (const tenant of existingTenants.rows) {
+          await ensureTenantAdmission(client, tenant.id, "vasi-migration");
           await ensureInitialIntegrations(client, tenant.id, credentialSecret, "vasi-migration", {
-            migrateLegacy: true,
-            settings,
+            migrateLegacy: false,
           });
         }
         await client.query(
@@ -122,7 +131,9 @@ export function createProductStore(database, settings, installationId) {
           scopeType: "tenant",
           tenantId,
         });
+        const admission = await ensureTenantAdmission(client, tenantId, actor.principalId);
         return {
+          admission,
           id: tenantId,
           name: input.name,
           permissions: permissionsForRoles(["owner"]),
@@ -226,6 +237,9 @@ export function createProductStore(database, settings, installationId) {
       const input = validateIntegrationBindingCommand(payload);
       return transaction(database, async (client) => {
         await requirePermission(client, actor, input.tenantId, "integration.manage");
+        if (input.status === "active") {
+          await assertTenantAdmitted(client, input.tenantId, { lock: true });
+        }
         const installation = await activeInstallationProfile(client, installationId, false);
         if (input.status === "active" && !installation.profile.adapters.allow.includes(input.adapterId)) {
           throw new EngineStoreError("integration_adapter_not_allowed", 403);
@@ -351,6 +365,78 @@ export function createProductStore(database, settings, installationId) {
         return next;
       });
     },
+
+    async listTenantAdmissions(actor) {
+      requireAdministrator(actor);
+      const result = await database.query(
+        `select p."revision", r."id", r."admission", r."admissionHash",
+                r."createdByPrincipalId", r."createdAt",
+                t."id" as "tenantId", t."name" as "tenantName", t."slug" as "tenantSlug"
+         from "vasi_engine"."tenant" t
+         join "vasi_engine"."tenant_admission_pointer" p on p."tenantId" = t."id"
+         join "vasi_engine"."tenant_admission_revision" r
+           on r."id" = p."activeRevisionId" and r."tenantId" = p."tenantId"
+         order by t."name", t."id"`,
+      );
+      return result.rows.map(admissionWithTenantProjection);
+    },
+
+    async updateTenantAdmission(actor, payload) {
+      requireAdministrator(actor);
+      const input = validateTenantAdmissionDecisionCommand(payload);
+      return transaction(database, async (client) => {
+        const current = await activeTenantAdmission(client, input.tenantId, { lock: "update" });
+        if (current.revision !== input.expectedRevision) {
+          throw new EngineStoreError("tenant_admission_revision_conflict", 409);
+        }
+        const admission = applyTenantAdmissionDecision(current.admission, input, new Date());
+        const admissionHash = hashCanonicalJSON(admission);
+        if (admissionHash === current.admissionHash) {
+          throw new EngineStoreError("tenant_admission_decision_unchanged", 409);
+        }
+        const next = await createTenantAdmissionRevision(
+          client,
+          input.tenantId,
+          admission,
+          current.revision + 1,
+          actor.principalId,
+        );
+        const updated = await client.query(
+          `update "vasi_engine"."tenant_admission_pointer"
+           set "activeRevisionId" = $3, "revision" = $4,
+               "updatedByPrincipalId" = $5, "updatedAt" = CURRENT_TIMESTAMP
+           where "tenantId" = $1 and "revision" = $2 returning "tenantId"`,
+          [input.tenantId, input.expectedRevision, next.id, next.revision, actor.principalId],
+        );
+        if (!updated.rowCount) throw new EngineStoreError("tenant_admission_revision_conflict", 409);
+        await appendConfigurationEvent(client, {
+          actorPrincipalId: actor.principalId,
+          eventData: {
+            admissionHash: next.admissionHash,
+            gateId: input.gateId,
+            previousStatus: current.status,
+            revision: next.revision,
+            status: next.status,
+          },
+          eventType: input.decision === "approved"
+            ? "tenant.admission.approved"
+            : "tenant.admission.revoked",
+          scopeId: input.tenantId,
+          scopeType: "tenant",
+          tenantId: input.tenantId,
+        });
+        const tenant = await client.query(
+          `select "name" as "tenantName", "slug" as "tenantSlug"
+           from "vasi_engine"."tenant" where "id" = $1`,
+          [input.tenantId],
+        );
+        return admissionWithTenantProjection({
+          ...next,
+          tenantId: input.tenantId,
+          ...tenant.rows[0],
+        });
+      });
+    },
   });
 }
 
@@ -461,6 +547,61 @@ async function createTenantProfileRevision(client, tenantId, profile, revision, 
     [id, tenantId, revision, profile, profileHash, actorPrincipalId],
   );
   return Object.freeze({ id, profile, profileHash, revision });
+}
+
+async function ensureTenantAdmission(client, tenantId, actorPrincipalId) {
+  const pointer = await client.query(
+    `select 1 from "vasi_engine"."tenant_admission_pointer" where "tenantId" = $1`,
+    [tenantId],
+  );
+  if (pointer.rowCount) return activeTenantAdmission(client, tenantId);
+  const admission = await createTenantAdmissionRevision(
+    client,
+    tenantId,
+    defaultTenantAdmission(),
+    1,
+    actorPrincipalId,
+  );
+  await client.query(
+    `insert into "vasi_engine"."tenant_admission_pointer"
+      ("tenantId", "activeRevisionId", "revision", "updatedByPrincipalId")
+     values ($1, $2, 1, $3)`,
+    [tenantId, admission.id, actorPrincipalId],
+  );
+  await appendConfigurationEvent(client, {
+    actorPrincipalId,
+    eventData: {
+      admissionHash: admission.admissionHash,
+      revision: admission.revision,
+      status: admission.status,
+    },
+    eventType: "tenant.admission.created",
+    scopeId: tenantId,
+    scopeType: "tenant",
+    tenantId,
+  });
+  return admission;
+}
+
+async function createTenantAdmissionRevision(client, tenantId, admission, revision, actorPrincipalId) {
+  const id = randomUUID();
+  const normalized = validateTenantAdmission(admission);
+  const admissionHash = hashCanonicalJSON(normalized);
+  const createdAt = new Date();
+  await client.query(
+    `insert into "vasi_engine"."tenant_admission_revision"
+      ("id", "tenantId", "revision", "admission", "admissionHash", "createdByPrincipalId", "createdAt")
+     values ($1, $2, $3, $4, $5, $6, $7)`,
+    [id, tenantId, revision, normalized, admissionHash, actorPrincipalId, createdAt],
+  );
+  return tenantAdmissionProjection({
+    admission: normalized,
+    admissionHash,
+    createdAt,
+    createdByPrincipalId: actorPrincipalId,
+    id,
+    revision,
+  });
 }
 
 async function ensureInitialIntegrations(
@@ -694,6 +835,20 @@ function integrationProjection(row) {
     id: row.id,
     revision: Number(row.revision),
     status: row.status,
+  });
+}
+
+function admissionWithTenantProjection(row) {
+  const admission = row.admission && row.admissionHash && row.id
+    ? tenantAdmissionProjection(row)
+    : row;
+  return Object.freeze({
+    ...admission,
+    tenant: Object.freeze({
+      id: row.tenantId,
+      name: row.tenantName,
+      slug: row.tenantSlug,
+    }),
   });
 }
 

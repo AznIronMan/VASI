@@ -10,6 +10,11 @@ import {
   withParticipantContextProvenance,
 } from "../engine-domain/context.mjs";
 import { NOTIFICATION_DELIVERY_LIMITATIONS } from "../engine-domain/notifications.mjs";
+import {
+  applyTenantAdmissionDecision,
+  defaultTenantAdmission,
+  TENANT_ADMISSION_GATES,
+} from "../engine-domain/productization.mjs";
 
 export function sealedTestRecord() {
   const { privateKey } = generateKeyPairSync("ed25519");
@@ -17,7 +22,8 @@ export function sealedTestRecord() {
   const activityInteraction = interactionEvidence();
   const participantContext = contextEvidence();
   const notificationDelivery = notificationEvidence();
-  const firstData = eventData(1, "0".repeat(64), "request.issued", "owner", "owner@example.test", {}, "2026-01-01T00:00:00.000Z");
+  const admission = admissionEvidence();
+  const firstData = eventData(1, "0".repeat(64), "request.issued", "owner", "owner@example.test", { admission: structuredClone(admission) }, "2026-01-01T00:00:00.000Z");
   const first = eventRecord(firstData);
   const secondData = eventData(2, first.eventHash, "participant.opened", "participant", "person@example.test", {}, "2026-01-01T00:00:10.000Z");
   const second = eventRecord(secondData);
@@ -73,6 +79,7 @@ export function sealedTestRecord() {
   const fifth = eventRecord(fifthData);
   const events = [first, second, third, fourth, fifth];
   const manifest = {
+    admission,
     activityInteraction,
     assignment: { id: "assignment-1", participantEmail: "person@example.test", principalId: "participant" },
     evidence: {
@@ -105,7 +112,7 @@ export function sealedTestRecord() {
       relationship: "requesting_organization",
       schema: "vasi-requester-snapshot/v1",
     },
-    schema: "vasi-evidence-manifest/v8",
+    schema: "vasi-evidence-manifest/v9",
     tenant: { id: "tenant-1", name: "Example Company" },
     timestamps: {
       completedAt: "2026-01-01T00:02:00.000Z",
@@ -128,6 +135,28 @@ export function sealedTestRecord() {
   return {
     privateJWK,
     record: { events, manifest, seal, seals: [seal] },
+  };
+}
+
+function admissionEvidence() {
+  let admission = defaultTenantAdmission();
+  for (const gateId of TENANT_ADMISSION_GATES) {
+    admission = applyTenantAdmissionDecision(admission, {
+      decision: "approved",
+      evidenceDigest: hashCanonicalJSON({ gateId }),
+      evidenceReference: `fixture:${gateId}`,
+      expectedRevision: 1,
+      gateId,
+      reviewerReference: `reviewer:${gateId}`,
+      tenantId: "tenant-1",
+    }, new Date("2025-12-31T12:00:00.000Z"));
+  }
+  return {
+    admission,
+    admissionHash: hashCanonicalJSON(admission),
+    bindingProvenance: "issued",
+    revision: 9,
+    revisionId: "admission-revision-9",
   };
 }
 

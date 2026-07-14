@@ -53,4 +53,15 @@ describe("portable evidence record verification", () => {
     expect(result.verified).toBe(false);
     expect(result.errors).toContain("requester_email_binding_invalid");
   });
+
+  it("binds a fully approved tenant admission revision to the issuance event", () => {
+    const { record } = sealedTestRecord();
+    expect(verifyEvidenceRecord(record).checks.tenantAdmission).toBe(true);
+    const altered = structuredClone(record);
+    altered.manifest.admission.admission.gates[0].evidenceReference = "different:evidence";
+    const result = verifyEvidenceRecord(altered);
+    expect(result.verified).toBe(false);
+    expect(result.errors).toContain("tenant_admission_hash_invalid");
+    expect(result.errors).toContain("tenant_admission_issuance_binding_invalid");
+  });
 });

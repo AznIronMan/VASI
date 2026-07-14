@@ -41,6 +41,8 @@ const TABLES = Object.freeze([
   direct("tenant", '"id"', '"id"'),
   direct("tenant_profile_revision", '"tenantId"', '"revision"'),
   direct("tenant_profile_pointer", '"tenantId"', '"tenantId"'),
+  direct("tenant_admission_revision", '"tenantId"', '"revision"'),
+  direct("tenant_admission_pointer", '"tenantId"', '"tenantId"'),
   direct("tenant_membership", '"tenantId"', '"principalId"'),
   direct("tenant_membership_grant", '"tenantId"', '"createdAt", "id"'),
   direct("retention_policy_revision", '"tenantId"', '"name", "revision"'),
@@ -200,6 +202,7 @@ async function importTenant(source, ownerEmail, passphraseFile) {
     const client = await database.connect();
     try {
       await client.query("begin");
+      await client.query("set local vasi.tenant_import = 'on'");
       await insertRows(client, "tenant", tenantRows);
       for (const metadata of manifest.tables) {
         if (metadata.table === "tenant") continue;

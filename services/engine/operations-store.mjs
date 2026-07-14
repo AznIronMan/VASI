@@ -14,6 +14,20 @@ const SUMMARY_QUERY = `
     CURRENT_TIMESTAMP as "observedAt",
     (select count(*)::integer from "vasi_engine"."tenant" where "status" = 'active') as "activeTenants",
     (select count(*)::integer from "vasi_engine"."tenant" where "status" = 'disabled') as "disabledTenants",
+    (select count(*)::integer
+      from "vasi_engine"."tenant" t
+      join "vasi_engine"."tenant_admission_pointer" p on p."tenantId" = t."id"
+      join "vasi_engine"."tenant_admission_revision" r
+        on r."id" = p."activeRevisionId" and r."tenantId" = p."tenantId"
+      where t."status" = 'active' and r."admission"->>'status' = 'admitted') as "admittedTenants",
+    (select count(*)::integer
+      from "vasi_engine"."tenant" t
+      where t."status" = 'active' and not exists (
+        select 1 from "vasi_engine"."tenant_admission_pointer" p
+        join "vasi_engine"."tenant_admission_revision" r
+          on r."id" = p."activeRevisionId" and r."tenantId" = p."tenantId"
+        where p."tenantId" = t."id" and r."admission"->>'status' = 'admitted'
+      )) as "pendingAdmissionTenants",
     (select count(*)::integer from "vasi_engine"."outbox_job" where "status" = 'pending') as "pendingJobs",
     (select count(*)::integer from "vasi_engine"."outbox_job" where "status" = 'running') as "runningJobs",
     (select count(*)::integer from "vasi_engine"."outbox_job"
@@ -173,7 +187,9 @@ export async function collectOperationalSnapshot(database, {
     },
     tenancy: {
       active: safeNumber(row.activeTenants),
+      admitted: safeNumber(row.admittedTenants),
       disabled: safeNumber(row.disabledTenants),
+      pendingAdmission: safeNumber(row.pendingAdmissionTenants),
     },
   };
   const assessment = operationalAssessment(snapshot);
@@ -195,6 +211,7 @@ export function operationalAssessment(snapshot) {
   if (snapshot.lifecycle.purgeBlocked24Hours > 0) attention.push("recent_purge_blocks");
   if (snapshot.database.pool.waiting > 0) attention.push("database_pool_waiting");
   if (snapshot.tenancy.active < 1) attention.push("no_active_tenants");
+  if (snapshot.tenancy.pendingAdmission > 0) attention.push("tenants_pending_admission");
   if ((snapshot.delivery.activeDeliveryBindings ?? snapshot.delivery.activeBindings) < 1) {
     attention.push("no_active_delivery_binding");
   }

@@ -34,6 +34,7 @@ describe("engine migration ledger", () => {
     expect(source).toContain("0012_engine_document_malware_scanning");
     expect(source).toContain("0013_engine_notification_delivery");
     expect(source).toContain("0014_engine_requester_provenance");
+    expect(source).toContain("0015_engine_tenant_admission");
   });
 
   it("extends tombstone-authorized retention purge to integration gateway attempts", async () => {

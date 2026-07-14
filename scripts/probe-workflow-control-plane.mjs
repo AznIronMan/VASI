@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createActorAssertion, requestEngine } from "../packages/engine-client/index.mjs";
 import { verifyEvidenceRecord } from "../services/engine/evidence-store.mjs";
 import { readRuntimeSettings } from "./settings-core.mjs";
+import { admitConformanceTenant } from "./probe-tenant-admission.mjs";
 
 const settings = await readRuntimeSettings({ scope: "gateway" });
 const now = Math.floor(Date.now() / 1_000);
@@ -16,6 +17,7 @@ const tenant = await call(owner, "POST", "/v1/owner/tenants", {
   slug: `workflow-${randomUUID()}`,
 });
 expectStatus(tenant, 200, "workflow tenant creation");
+await admitConformanceTenant(call, owner, tenant.body.id);
 const retention = await call(owner, "POST", "/v1/owner/retention-policies", {
   expectedRevision: 0,
   name: "workflow_conformance",
@@ -125,7 +127,7 @@ const record = await call(auditor, "POST", "/v1/owner/records", {
 });
 expectStatus(record, 200, "auditor record access");
 if (
-  record.body.manifest?.schema !== "vasi-evidence-manifest/v8" ||
+  record.body.manifest?.schema !== "vasi-evidence-manifest/v9" ||
   record.body.manifest.requester?.email !== manager.email ||
   record.body.manifest.requester?.principalId !== manager.principalId ||
   record.body.manifest.workflow.snapshot.title !== "Published revision one" ||

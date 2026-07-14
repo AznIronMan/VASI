@@ -30,7 +30,7 @@ authorized for the action, and the engine separately requires the actor's
 - active standard/optional signing-key and untrusted historical-key counts;
 - installation-profile presence/revision and aggregate configuration/settings
   change recency; and
-- active/disabled company-tenant counts.
+- active, admitted, pending-admission, and disabled company-tenant counts.
 
 The engine derives `ready`, `attention`, or `critical` from structural
 conditions. Migration drift, a missing installation profile, an unavailable
@@ -38,6 +38,8 @@ standard integrity key, or a stale worker lock is critical. Recent delivery or
 scanner failures, scanner threat verdicts, retryable quarantines, purge blocks,
 pool waiting, or an installation with no active tenant/delivery binding receives
 attention without inventing a customer impact claim.
+An active tenant without a complete current production admission also receives
+attention; the aggregate does not reveal which tenant or any gate evidence.
 
 ## Privacy boundary
 

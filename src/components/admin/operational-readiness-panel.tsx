@@ -55,7 +55,7 @@ export function OperationalReadinessPanel() {
         <OperationsMetric label="Document scanning" value={snapshot.scanning.retryable} detail={`${snapshot.scanning.failed24Hours} failed · ${snapshot.scanning.threats24Hours} threats (24h)`} />
         <OperationsMetric label="Integrity keys" value={snapshot.signing.activeIntegrityKeys} detail={`${snapshot.signing.activeOptionalKeys} optional active`} />
         <OperationsMetric label="Lifecycle" value={snapshot.lifecycle.purgeDueRecords} detail={`${snapshot.lifecycle.purgeBlocked24Hours} purge blocks · ${snapshot.lifecycle.pendingDataRequests} data requests`} />
-        <OperationsMetric label="Company tenants" value={snapshot.tenancy.active} detail={`${snapshot.delivery.activeDeliveryBindings} delivery · ${snapshot.scanning.activeBindings} scanner bindings`} />
+        <OperationsMetric label="Company tenants" value={snapshot.tenancy.active} detail={`${snapshot.tenancy.admitted} admitted · ${snapshot.tenancy.pendingAdmission} pending`} />
       </div>
       <div className="operations-footnote">
         <span>Database check {snapshot.database.queryMilliseconds.toFixed(2)} ms · pool {snapshot.database.pool.total}/{snapshot.database.pool.maximum} · {snapshot.database.pool.waiting} waiting</span>
@@ -99,6 +99,7 @@ function reasonLabel(reason: string) {
     recent_purge_blocks: "retention purge attempts were blocked",
     recent_scan_failures: "document scanner calls failed in the last 24 hours",
     stale_running_jobs: "a worker job exceeded its lock window",
+    tenants_pending_admission: "one or more company tenants are not admitted for production work",
   };
   return labels[reason] || "an unrecognized operational condition was reported";
 }

@@ -251,6 +251,16 @@ privileged mode, and host networking. Target-host `systemd-analyze verify` and
 manual first runs remain mandatory. Alert delivery and named response ownership
 remain installation gates.
 
+VASI 0.25.0 turns the pilot table below into an enforced tenant control plane.
+Every provisioned tenant starts pending. Administrators record one immutable,
+digest-bound, attributable decision per gate; VASI derives admission only when
+all eight are approved. Request issuance, active integration revisions, and
+outbound gateway execution fail closed while pending. The operational snapshot
+reports pending admission as attention, and manifest version 9 binds the exact
+admitted revision for offline verification. These controls preserve decisions;
+they do not allow VASI to self-approve independent, legal, accessibility,
+custody, or customer-owner work.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

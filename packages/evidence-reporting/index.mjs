@@ -42,6 +42,7 @@ function buildReport(profile, context) {
     },
     integrity: context.integrity,
     ...(context.notificationDelivery ? { notificationDelivery: context.notificationDelivery } : {}),
+    ...(context.productionAdmission ? { productionAdmission: context.productionAdmission } : {}),
     profile,
     schema: EVIDENCE_REPORT_TEMPLATE,
     transaction: context.transaction,
@@ -76,7 +77,7 @@ function buildReport(profile, context) {
   if (profile === "technical") {
     return Object.freeze({
       ...common,
-      explanation: "This forensic report preserves complete event, manifest, authentication, server-observed request context, privacy-bounded browser-reported participant context, generalized activity-interaction, notification-delivery, media, artifact, response-revision, and seal data available in the sealed record.",
+      explanation: "This forensic report preserves complete event, manifest, tenant-admission, authentication, server-observed request context, privacy-bounded browser-reported participant context, generalized activity-interaction, notification-delivery, media, artifact, response-revision, and seal data available in the sealed record.",
       events: context.record.events,
       limitations: context.limitations,
       manifest: context.manifest,
@@ -115,6 +116,7 @@ function reportContext(record) {
   const limitations = evidenceLimitations(manifest);
   const contextEvidence = participantContextSummary(manifest);
   const notificationDelivery = notificationDeliverySummary(manifest.notificationDelivery);
+  const productionAdmission = tenantAdmissionSummary(manifest.admission);
   const activityTiming = latestActivityInteractionSummaries(manifest).map((entry) => Object.freeze({
     activityId: entry.activityId,
     confidence: entry.summary?.confidence?.level,
@@ -157,6 +159,7 @@ function reportContext(record) {
     manifest,
     manifestHash: primarySeal.manifestHash,
     notificationDelivery,
+    productionAdmission,
     outcomes: Object.freeze(outcomes.map((activity) => Object.freeze({
       activityId: activity.activityId,
       outcome: activity.outcome,
@@ -208,6 +211,9 @@ function evidenceLimitations(manifest) {
     "The VASI integrity seal proves that the sealed record has not changed since sealing; it does not by itself decide legal enforceability.",
     "Authentication and browser evidence identify the recorded session but cannot prove a person's attention, comprehension, or freedom from coercion.",
   ];
+  if (manifest.admission) {
+    limitations.push("A tenant admission record proves which accountable approvals VASI bound at issuance; it does not replace the underlying legal, security, accessibility, recovery, or pilot review.");
+  }
   for (const descriptor of manifest.media?.descriptors || []) {
     for (const limitation of descriptor.descriptor?.limitations || []) limitations.push(limitation);
   }
@@ -220,16 +226,28 @@ function evidenceLimitations(manifest) {
   for (const limitation of manifest.participantContext?.policy?.limitations || []) {
     limitations.push(limitation);
   }
-  if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8"].includes(manifest.schema) &&
+  if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema) &&
       !(manifest.activityInteraction?.events || []).length) {
     limitations.push("No browser-reported generalized activity-presence events were available when the record was sealed.");
   }
-  if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8"].includes(manifest.schema) &&
+  if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema) &&
       !(manifest.participantContext?.snapshots || []).length) {
     limitations.push("No privacy-bounded browser/device context snapshot was available when the record was sealed.");
   }
   for (const limitation of manifest.notificationDelivery?.limitations || []) limitations.push(limitation);
   return Object.freeze([...new Set(limitations)]);
+}
+
+function tenantAdmissionSummary(value) {
+  if (!value?.admission || value.admission.status !== "admitted") return undefined;
+  const gates = Array.isArray(value.admission.gates) ? value.admission.gates : [];
+  return Object.freeze({
+    admissionHash: value.admissionHash,
+    approvedGates: gates.filter((gate) => gate?.state === "approved").length,
+    requiredGates: gates.length,
+    revision: value.revision,
+    status: value.admission.status,
+  });
 }
 
 function notificationDeliverySummary(value) {
@@ -293,6 +311,16 @@ function reportText(report) {
   ];
   if (report.requester) {
     lines.push("", "REQUESTER", `Company: ${report.requester.tenant?.name || "Unspecified"}`, `Email: ${report.requester.email || "Unspecified"}`);
+  }
+  if (report.productionAdmission) {
+    lines.push(
+      "",
+      "PRODUCTION ADMISSION",
+      `Status: ${statusText(report.productionAdmission.status)}`,
+      `Required gates: ${report.productionAdmission.approvedGates}/${report.productionAdmission.requiredGates} approved`,
+      `Revision: ${report.productionAdmission.revision}`,
+      `Admission fingerprint: ${report.productionAdmission.admissionHash}`,
+    );
   }
   if (report.identity) {
     lines.push("", "PARTICIPANT IDENTITY", `Email: ${report.identity.email || "Unspecified"}`, `Authentication: ${authenticationText(report.identity.authentication)}`);

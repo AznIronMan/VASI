@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createActorAssertion, requestEngine } from "../packages/engine-client/index.mjs";
 import { verifyEvidenceRecord } from "../services/engine/evidence-store.mjs";
 import { readRuntimeSettings } from "./settings-core.mjs";
+import { admitConformanceTenant } from "./probe-tenant-admission.mjs";
 
 const settings = await readRuntimeSettings({ scope: "gateway" });
 const now = Math.floor(Date.now() / 1000);
@@ -16,6 +17,7 @@ const tenant = await call(owner, "POST", "/v1/owner/tenants", {
   slug: `proof-${randomUUID()}`,
 });
 expectStatus(tenant, 200, "tenant creation");
+await admitConformanceTenant(call, owner, tenant.body.id);
 
 const outsiderTenant = await call(outsider, "POST", "/v1/owner/tenants", {
   name: "VASI Isolation Proof",

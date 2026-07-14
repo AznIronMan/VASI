@@ -27,7 +27,7 @@ import { createReportStore } from "./report-store.mjs";
 import { initializeSigningKeys } from "./signing-provider.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.24.0";
+const ENGINE_VERSION = "0.25.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -201,6 +201,8 @@ function dispatchEvidence(action, actor, payload) {
   switch (action) {
     case "tenant.list": return workflows.listTenants(actor);
     case "tenant.create": return product.provisionTenant(actor, payload);
+    case "tenant.admission.list": return product.listTenantAdmissions(actor);
+    case "tenant.admission.update": return product.updateTenantAdmission(actor, payload);
     case "tenant.profile.read": return product.getTenantProfile(actor, payload);
     case "tenant.profile.update": return product.updateTenantProfile(actor, payload);
     case "tenant.usage.read": return product.getTenantUsage(actor, payload);

@@ -91,6 +91,40 @@ export type AdminInstallationProfile = {
   revision: number;
 };
 
+export type TenantAdmissionGateId =
+  | "exact_release"
+  | "isolation_integrity"
+  | "identity_delivery"
+  | "privacy_legal"
+  | "accessibility"
+  | "malware_content"
+  | "recovery_custody"
+  | "capacity_support";
+
+export type TenantAdmissionGate = {
+  decidedAt?: string;
+  evidenceDigest?: string;
+  evidenceReference?: string;
+  id: TenantAdmissionGateId;
+  reviewerReference?: string;
+  state: "approved" | "pending";
+};
+
+export type AdminTenantAdmission = {
+  admission: {
+    gates: TenantAdmissionGate[];
+    schema: "vasi-tenant-admission/v1";
+    status: "admitted" | "pending";
+  };
+  admissionHash: string;
+  createdAt: string;
+  createdByPrincipalId: string;
+  id: string;
+  revision: number;
+  status: "admitted" | "pending";
+  tenant: { id: string; name: string; slug: string };
+};
+
 export type OwnerArtifact = {
   byteLength?: number;
   chunkCount?: number;

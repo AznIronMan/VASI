@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createActorAssertion, requestEngine } from "../packages/engine-client/index.mjs";
 import { verifyEvidenceRecord } from "../services/engine/evidence-store.mjs";
 import { readRuntimeSettings } from "./settings-core.mjs";
+import { admitConformanceTenant } from "./probe-tenant-admission.mjs";
 
 const settings = await readRuntimeSettings({ scope: "gateway" });
 const now = Math.floor(Date.now() / 1_000);
@@ -15,6 +16,7 @@ const tenant = await call(owner, "POST", "/v1/owner/tenants", {
   slug: `documents-${randomUUID()}`,
 });
 expectStatus(tenant, 200, "document tenant creation");
+await admitConformanceTenant(call, owner, tenant.body.id);
 
 const bytes = Buffer.from(`${"Bounded PostgreSQL artifact proof.\n".repeat(10_000)}Final line.`, "utf8");
 const artifact = await uploadArtifact(owner, tenant.body.id, bytes, {
@@ -161,7 +163,7 @@ const approval = outcomes.find((entry) => entry.activityId === "approval");
 const freeform = outcomes.find((entry) => entry.activityId === "freeform");
 const test = outcomes.find((entry) => entry.activityId === "test");
 if (
-  record.body.manifest.schema !== "vasi-evidence-manifest/v8" ||
+  record.body.manifest.schema !== "vasi-evidence-manifest/v9" ||
   record.body.manifest.workflow.snapshot.activities[0].content.artifact.sha256 !== artifact.sha256 ||
   outcomes.length !== 7 || approval.revisions.length !== 2 || freeform.revisions.length !== 3 ||
   !test.result?.passed || !verifyEvidenceRecord(record.body)

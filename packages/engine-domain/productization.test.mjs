@@ -1,18 +1,24 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyTenantAdmissionDecision,
   BUILT_IN_ADAPTERS,
   defaultInstallationProfile,
+  defaultTenantAdmission,
   defaultTenantProfile,
   integrationDestinationAllowed,
+  TENANT_ADMISSION_GATES,
   validateInstallationProfile,
   validateIntegrationBindingCommand,
+  validateTenantAdmission,
+  validateTenantAdmissionDecisionCommand,
   validateTenantProfile,
   validateTenantProvisionInput,
 } from "./productization.mjs";
 
 const graphTenantId = "11111111-1111-4111-8111-111111111111";
 const graphClientId = "22222222-2222-4222-8222-222222222222";
+const evidenceDigest = "a".repeat(64);
 
 describe("productized installation and tenant profiles", () => {
   it("normalizes product-neutral defaults", () => {
@@ -75,6 +81,75 @@ describe("productized installation and tenant profiles", () => {
       slug: "example-company",
     });
     expect(() => validateTenantProvisionInput({ name: "Example", slug: "UPPER CASE" })).toThrow(/slug/i);
+  });
+});
+
+describe("tenant production admission", () => {
+  it("derives pending and admitted states from the exact required gate set", () => {
+    let admission = defaultTenantAdmission();
+    expect(admission.status).toBe("pending");
+    expect(admission.gates.map((gate) => gate.id)).toEqual(TENANT_ADMISSION_GATES);
+    for (const gateId of TENANT_ADMISSION_GATES) {
+      admission = applyTenantAdmissionDecision(admission, {
+        decision: "approved",
+        evidenceDigest,
+        evidenceReference: `evidence:${gateId}`,
+        expectedRevision: 1,
+        gateId,
+        reviewerReference: `reviewer:${gateId}`,
+        tenantId: "tenant-1",
+      }, new Date("2026-07-14T20:00:00.000Z"));
+    }
+    expect(validateTenantAdmission(admission).status).toBe("admitted");
+    expect(admission.gates.every((gate) => gate.decidedAt === "2026-07-14T20:00:00.000Z")).toBe(true);
+  });
+
+  it("rejects asserted status, missing gates, URLs, narrative, and malformed digests", () => {
+    expect(() => validateTenantAdmission({
+      ...defaultTenantAdmission(),
+      status: "admitted",
+    })).toThrow(/inconsistent/i);
+    expect(() => validateTenantAdmission({
+      ...defaultTenantAdmission(),
+      gates: defaultTenantAdmission().gates.slice(1),
+    })).toThrow(/incomplete/i);
+    expect(() => validateTenantAdmissionDecisionCommand({
+      decision: "approved",
+      evidenceDigest: "not-a-digest",
+      evidenceReference: "https://evidence.example.test/item",
+      expectedRevision: 1,
+      gateId: "privacy_legal",
+      reviewerReference: "Legal reviewer with narrative",
+      tenantId: "tenant-1",
+    })).toThrow(/SHA-256/i);
+    expect(() => validateTenantAdmissionDecisionCommand({
+      decision: "approved",
+      evidenceDigest,
+      evidenceReference: "https://evidence.example.test/item",
+      expectedRevision: 1,
+      gateId: "privacy_legal",
+      reviewerReference: "legal-reviewer",
+      tenantId: "tenant-1",
+    })).toThrow(/opaque identifier/i);
+  });
+
+  it("clears approval provenance when an administrator revokes a gate", () => {
+    const approved = applyTenantAdmissionDecision(defaultTenantAdmission(), {
+      decision: "approved",
+      evidenceDigest,
+      evidenceReference: "evidence:release",
+      expectedRevision: 1,
+      gateId: "exact_release",
+      reviewerReference: "release-owner",
+      tenantId: "tenant-1",
+    }, new Date("2026-07-14T20:00:00.000Z"));
+    const pending = applyTenantAdmissionDecision(approved, {
+      decision: "pending",
+      expectedRevision: 2,
+      gateId: "exact_release",
+      tenantId: "tenant-1",
+    }, new Date("2026-07-14T21:00:00.000Z"));
+    expect(pending.gates[0]).toEqual({ id: "exact_release", state: "pending" });
   });
 });
 

@@ -35,12 +35,18 @@ describe("deterministic evidence reports", () => {
       notificationType: "request.issued",
       status: "provider_accepted",
     });
+    expect(reports.nontechnical.productionAdmission).toMatchObject({
+      approvedGates: 8,
+      requiredGates: 8,
+      status: "admitted",
+    });
     expect(JSON.stringify(reports.participant.notificationDelivery)).not.toContain("notification-job-1");
     const plainText = renderEvidenceReport(reports.nontechnical, "text").toString();
     expect(plainText).toContain("CHRONOLOGY");
     expect(plainText).toContain("ACTIVITY PRESENCE (BROWSER-REPORTED SUPPORTING EVIDENCE)");
     expect(plainText).toContain("BROWSER/DEVICE CONTEXT (BROWSER-REPORTED SUPPORTING EVIDENCE)");
     expect(plainText).toContain("NOTIFICATION DELIVERY (PROVIDER-ACCEPTANCE EVIDENCE)");
+    expect(plainText).toContain("PRODUCTION ADMISSION");
     expect(plainText).toContain("does not prove inbox delivery");
     expect(renderEvidenceReport(reports.nontechnical, "html").toString()).toContain("<!doctype html>");
     expect(evidenceReportHash(buildEvidenceReports(record).technical)).toBe(evidenceReportHash(reports.technical));

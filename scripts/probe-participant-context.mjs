@@ -4,6 +4,7 @@ import { createActorAssertion, requestEngine } from "../packages/engine-client/i
 import { buildEvidenceReports } from "../packages/evidence-reporting/index.mjs";
 import { verifyEvidenceRecord } from "../services/engine/evidence-store.mjs";
 import { readRuntimeSettings } from "./settings-core.mjs";
+import { admitConformanceTenant } from "./probe-tenant-admission.mjs";
 
 const settings = await readRuntimeSettings({ scope: "gateway" });
 const now = Math.floor(Date.now() / 1_000);
@@ -16,6 +17,7 @@ const tenant = await call(owner, "POST", "/v1/owner/tenants", {
   slug: `context-${randomUUID()}`,
 });
 expectStatus(tenant, 200, "context tenant creation");
+await admitConformanceTenant(call, owner, tenant.body.id);
 const created = await call(owner, "POST", "/v1/owner/workflows", {
   document: workflowDocument(),
   name: "Participant context proof",
@@ -101,7 +103,7 @@ const record = await call(owner, "POST", "/v1/owner/records", {
 expectStatus(record, 200, "context owner record");
 const evidence = record.body.manifest.participantContext;
 if (
-  record.body.manifest.schema !== "vasi-evidence-manifest/v8" ||
+  record.body.manifest.schema !== "vasi-evidence-manifest/v9" ||
   evidence.policy.version !== "vasi-participant-context-policy/v1" ||
   evidence.policy.reliabilityClass !== "browser_reported" ||
   evidence.snapshots.length !== 2 ||

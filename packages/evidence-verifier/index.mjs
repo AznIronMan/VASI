@@ -13,6 +13,7 @@ import {
 } from "../engine-domain/context.mjs";
 import { validateNotificationDeliveryEvidence } from "../engine-domain/notifications.mjs";
 import { validateRequesterSnapshot } from "../engine-domain/requester.mjs";
+import { validateTenantAdmission } from "../engine-domain/productization.mjs";
 
 const GENESIS_HASH = "0".repeat(64);
 
@@ -67,17 +68,20 @@ export function verifyEvidenceRecord(record, options = {}) {
     if (JSON.stringify(evidence?.eventHashes) !== JSON.stringify(eventHashes)) {
       errors.push("manifest_event_hashes_invalid");
     }
-    if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8"].includes(manifest.schema)) {
+    if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema)) {
       verifyActivityInteractionEvidence(manifest.activityInteraction, events, errors);
     }
-    if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8"].includes(manifest.schema)) {
+    if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema)) {
       verifyParticipantContextEvidence(manifest.participantContext, events, errors);
     }
-    if (["vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8"].includes(manifest.schema)) {
+    if (["vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema)) {
       verifyNotificationDeliveryEvidence(manifest.notificationDelivery, manifest.timestamps?.completedAt, errors);
     }
-    if (manifest.schema === "vasi-evidence-manifest/v8") {
+    if (["vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema)) {
       verifyRequesterEvidence(manifest.requester, events, errors);
+    }
+    if (manifest.schema === "vasi-evidence-manifest/v9") {
+      verifyTenantAdmissionEvidence(manifest.admission, events, errors);
     }
   }
 
@@ -118,6 +122,7 @@ export function verifyEvidenceRecord(record, options = {}) {
       notificationDelivery: !errors.some((error) => error.startsWith("notification_delivery_")),
       participantContext: !errors.some((error) => error.startsWith("participant_context_")),
       requester: !errors.some((error) => error.startsWith("requester_")),
+      tenantAdmission: !errors.some((error) => error.startsWith("tenant_admission_")),
       manifest: Boolean(manifest) && !errors.includes("manifest_missing"),
       primarySeal: Boolean(primary) && !errors.includes("primary_seal_missing") && sealResults.some((seal) => seal.role === "vasi_integrity" && seal.verified),
     }),
@@ -125,6 +130,45 @@ export function verifyEvidenceRecord(record, options = {}) {
     seals: Object.freeze(sealResults),
     verified: errors.length === 0,
   });
+}
+
+function verifyTenantAdmissionEvidence(value, events, errors) {
+  if (!value || Array.isArray(value) || typeof value !== "object") {
+    errors.push("tenant_admission_missing");
+    return;
+  }
+  let admission;
+  try {
+    admission = validateTenantAdmission(value.admission);
+  } catch {
+    errors.push("tenant_admission_invalid");
+    return;
+  }
+  if (admission.status !== "admitted") errors.push("tenant_admission_status_invalid");
+  if (hashCanonicalJSON(admission) !== value.admissionHash) {
+    errors.push("tenant_admission_hash_invalid");
+  }
+  if (
+    value.bindingProvenance !== "issued" ||
+    !boundedText(value.revisionId, 128) ||
+    !Number.isSafeInteger(value.revision) || value.revision < 1
+  ) {
+    errors.push("tenant_admission_binding_invalid");
+  }
+  const issuance = events.find((event) =>
+    ["request.issued", "request.scheduled"].includes(event?.eventData?.eventType),
+  );
+  if (!issuance) {
+    errors.push("tenant_admission_issuance_event_missing");
+    return;
+  }
+  try {
+    if (hashCanonicalJSON(issuance.eventData?.payload?.admission) !== hashCanonicalJSON(value)) {
+      errors.push("tenant_admission_issuance_binding_invalid");
+    }
+  } catch {
+    errors.push("tenant_admission_issuance_binding_invalid");
+  }
 }
 
 function verifyRequesterEvidence(value, events, errors) {

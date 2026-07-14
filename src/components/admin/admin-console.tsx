@@ -7,6 +7,7 @@ import Link from "next/link";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { InstallationProfilePanel } from "@/components/admin/installation-profile-panel";
 import { OperationalReadinessPanel } from "@/components/admin/operational-readiness-panel";
+import { TenantAdmissionPanel } from "@/components/admin/tenant-admission-panel";
 import { BrandMark } from "@/components/brand-mark";
 import { useProductBrand } from "@/components/brand-provider";
 import { SocialIcon } from "@/components/social-icon";
@@ -131,6 +132,8 @@ export function AdminConsole({
       </section>
 
       <InstallationProfilePanel />
+
+      <TenantAdmissionPanel />
 
       <OperationalReadinessPanel />
 

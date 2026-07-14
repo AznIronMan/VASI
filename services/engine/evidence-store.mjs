@@ -49,6 +49,10 @@ import {
   persistIssueMediaSnapshots,
 } from "./media-store.mjs";
 import { createSigningProvider, ensureSigningKeys } from "./signing-provider.mjs";
+import {
+  assertTenantAdmitted,
+  tenantAdmissionEvidenceProjection,
+} from "./tenant-admission.mjs";
 import { assertTenantCapacity } from "./tenant-policy.mjs";
 
 const GENESIS_HASH = "0".repeat(64);
@@ -123,6 +127,7 @@ export function createEvidenceStore(database, settings) {
       const input = validateIssueInput(payload);
       return transaction(database, async (client) => {
         await requireTenantRole(client, actor.principalId, input.tenantId, "owner");
+        const tenantAdmission = await assertTenantAdmitted(client, input.tenantId, { lock: true });
         const requester = requesterSnapshot(actor);
         const tenant = await tenantById(client, input.tenantId);
         const tenantProfile = await assertTenantCapacity(client, input.tenantId, "activeRequests", 1);
@@ -155,12 +160,15 @@ export function createEvidenceStore(database, settings) {
             ("id", "tenantId", "workflowRevisionId", "createdByPrincipalId",
              "purpose", "status", "issuedAt", "expiresAt", "tenantProfileRevisionId",
              "tenantProfileSnapshot", "tenantProfileHash", "tenantProfileBindingProvenance",
-             "requesterSnapshot")
-           values ($1, $2, $3, $4, $5, 'issued', $6, $7, $8, $9, $10, 'issued', $11)`,
+             "requesterSnapshot", "tenantAdmissionRevisionId", "tenantAdmissionSnapshot",
+             "tenantAdmissionHash", "tenantAdmissionBindingProvenance")
+           values ($1, $2, $3, $4, $5, 'issued', $6, $7, $8, $9, $10, 'issued', $11,
+                   $12, $13, $14, 'issued')`,
           [
             requestId, input.tenantId, workflowId, actor.principalId, input.purpose, issuedAt,
             input.expiresAt, tenantProfile.id, tenantProfile.profile, tenantProfile.profileHash,
             requester,
+            tenantAdmission.id, tenantAdmission.admission, tenantAdmission.admissionHash,
           ],
         );
         await client.query(
@@ -187,6 +195,7 @@ export function createEvidenceStore(database, settings) {
           assignmentId,
           eventType: "request.issued",
           payload: {
+            admission: tenantAdmissionEvidenceProjection(tenantAdmission),
             expiresAt: input.expiresAt.toISOString(),
             intendedEmail: input.intendedEmail,
             requester,
@@ -606,6 +615,7 @@ export function verifyEvidenceRecord(record, expectedPublicJWK) {
 
 async function issuePublishedRequest(client, actor, input, outboxEncryptionSecret) {
   await requireTenantPermission(client, actor.principalId, input.tenantId, "request.manage");
+  const tenantAdmission = await assertTenantAdmitted(client, input.tenantId, { lock: true });
   const requester = requesterSnapshot(actor);
   const tenantProfile = await assertTenantCapacity(client, input.tenantId, "activeRequests", 1);
   const revisionResult = await client.query(
@@ -642,8 +652,10 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
       ("id", "tenantId", "workflowRevisionId", "createdByPrincipalId", "purpose", "status",
        "issuedAt", "scheduledFor", "dueAt", "expiresAt", "accessPolicy", "notificationPolicy",
        "tenantProfileRevisionId", "tenantProfileSnapshot", "tenantProfileHash",
-       "tenantProfileBindingProvenance", "requesterSnapshot")
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'issued', $16)`,
+       "tenantProfileBindingProvenance", "requesterSnapshot", "tenantAdmissionRevisionId",
+       "tenantAdmissionSnapshot", "tenantAdmissionHash", "tenantAdmissionBindingProvenance")
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'issued',
+             $16, $17, $18, $19, 'issued')`,
     [
       requestId,
       input.tenantId,
@@ -661,6 +673,9 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
       tenantProfile.profile,
       tenantProfile.profileHash,
       requester,
+      tenantAdmission.id,
+      tenantAdmission.admission,
+      tenantAdmission.admissionHash,
     ],
   );
   await client.query(
@@ -716,6 +731,7 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
     assignmentId,
     eventType: scheduled ? "request.scheduled" : "request.issued",
     payload: {
+      admission: tenantAdmissionEvidenceProjection(tenantAdmission),
       accessPolicy: revision.snapshot.access,
       dueAt: dueAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
@@ -1205,7 +1221,9 @@ function buildWorkflowManifest({
   record,
   responses,
 }) {
+  const admission = requestAdmissionEvidenceProjection(record);
   return {
+    ...(admission ? { admission } : {}),
     activityInteraction,
     assignment: {
       id: record.assignmentId,
@@ -1246,7 +1264,7 @@ function buildWorkflowManifest({
       scheduledFor: record.scheduledFor ? new Date(record.scheduledFor).toISOString() : undefined,
     },
     requester: record.requesterSnapshot,
-    schema: "vasi-evidence-manifest/v8",
+    schema: admission ? "vasi-evidence-manifest/v9" : "vasi-evidence-manifest/v8",
     tenant: tenantEvidenceProjection(record),
     timestamps: {
       completedAt: completedAt.toISOString(),
@@ -1692,12 +1710,17 @@ async function assignmentForHandle(client, handleDigest, lock) {
             r."purpose", r."scheduledFor", r."dueAt", r."expiresAt", r."accessPolicy",
             r."notificationPolicy", r."tenantProfileRevisionId", r."tenantProfileSnapshot",
             r."tenantProfileHash", r."tenantProfileBindingProvenance", r."requesterSnapshot",
+            r."tenantAdmissionRevisionId", r."tenantAdmissionSnapshot",
+            r."tenantAdmissionHash", r."tenantAdmissionBindingProvenance",
+            ar."revision" as "tenantAdmissionRevision",
             r."status" as "requestStatus",
             w."id" as "workflowId", w."revision", w."title", w."responseMode",
             w."content", w."contentHash", w."definitionId", w."schemaVersion", w."snapshot",
             w."snapshotHash", t."name" as "tenantName"
      from "vasi_engine"."participant_assignment" a
      join "vasi_engine"."request_instance" r on r."id" = a."requestId"
+     left join "vasi_engine"."tenant_admission_revision" ar
+       on ar."id" = r."tenantAdmissionRevisionId" and ar."tenantId" = r."tenantId"
      join "vasi_engine"."workflow_revision" w on w."id" = r."workflowRevisionId"
      join "vasi_engine"."tenant" t on t."id" = a."tenantId"
      where a."handleDigest" = $1${lock ? " for update of a, r" : ""}`,
@@ -1724,6 +1747,21 @@ function tenantEvidenceProjection(record, activeProfile) {
     ...(activeProfile?.revision ? { profileRevision: activeProfile.revision } : {}),
     profileRevisionId,
   };
+}
+
+function requestAdmissionEvidenceProjection(record) {
+  if (
+    !record.tenantAdmissionRevisionId || !record.tenantAdmissionSnapshot ||
+    !record.tenantAdmissionHash || !record.tenantAdmissionBindingProvenance ||
+    !Number.isSafeInteger(Number(record.tenantAdmissionRevision))
+  ) return undefined;
+  return Object.freeze({
+    admission: record.tenantAdmissionSnapshot,
+    admissionHash: record.tenantAdmissionHash,
+    bindingProvenance: record.tenantAdmissionBindingProvenance,
+    revision: Number(record.tenantAdmissionRevision),
+    revisionId: record.tenantAdmissionRevisionId,
+  });
 }
 
 function participantTenantProjection(record) {

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createActorAssertion, requestEngine } from "../packages/engine-client/index.mjs";
 import { verifyEvidenceRecord } from "../services/engine/evidence-store.mjs";
 import { readRuntimeSettings } from "./settings-core.mjs";
+import { admitConformanceTenant } from "./probe-tenant-admission.mjs";
 
 const settings = await readRuntimeSettings({ scope: "gateway" });
 const now = Math.floor(Date.now() / 1_000);
@@ -15,6 +16,7 @@ const tenant = await call(owner, "POST", "/v1/owner/tenants", {
   slug: `media-${randomUUID()}`,
 });
 expectStatus(tenant, 200, "media tenant creation");
+await admitConformanceTenant(call, owner, tenant.body.id);
 
 const playbackWorkflow = await createAndPublish("Instrumented playback proof", playbackDocument());
 const playbackIssue = await issue(playbackWorkflow.revisionId);
@@ -133,7 +135,7 @@ const playbackRecord = await record(playbackIssue.body.assignmentId);
 const media = playbackRecord.body.manifest.media;
 const outcome = playbackRecord.body.manifest.outcome.activities[0];
 if (
-  playbackRecord.body.manifest.schema !== "vasi-evidence-manifest/v8" ||
+  playbackRecord.body.manifest.schema !== "vasi-evidence-manifest/v9" ||
   media.descriptors.length !== 1 || media.events.length !== 20 || media.summaries.length !== 2 ||
   !media.snapshots.some((entry) => entry.phase === "publish") ||
   !media.snapshots.some((entry) => entry.phase === "issue") ||

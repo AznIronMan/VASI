@@ -1485,6 +1485,149 @@ input::placeholder {
   min-height: 48px;
 }
 
+.admission-panel {
+  display: block;
+  align-items: initial;
+  background: #f2f5f3;
+}
+
+.admission-panel__heading,
+.admission-gate__heading,
+.admission-gate__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admission-panel__heading,
+.admission-gate__heading {
+  justify-content: space-between;
+}
+
+.admission-panel__tenant {
+  display: grid;
+  max-width: 620px;
+  margin-top: 18px;
+}
+
+.admission-status,
+.admission-gate__heading > span {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admission-status--admitted,
+.admission-gate--approved .admission-gate__heading > span {
+  color: #1d6045;
+  background: #daf0e5;
+}
+
+.admission-status--pending,
+.admission-gate--pending .admission-gate__heading > span {
+  color: #76550c;
+  background: #fff0bd;
+}
+
+.admission-gates {
+  display: grid;
+  margin-top: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admission-gate {
+  padding: 17px;
+  border: 1px solid #d7d8d2;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.admission-gate--approved {
+  border-color: #c2d9cf;
+}
+
+.admission-gate h3 {
+  margin: 0;
+  color: var(--green-950);
+  font: 600 16px/1.25 Georgia, "Times New Roman", serif;
+}
+
+.admission-gate__heading p {
+  margin: 5px 0 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.admission-gate__evidence {
+  display: grid;
+  margin: 14px 0 0;
+  gap: 7px;
+}
+
+.admission-gate__evidence div {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.admission-gate__evidence dt,
+.admission-gate__evidence dd,
+.admission-panel__footnote {
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.admission-gate__evidence dt {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admission-gate__evidence dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admission-gate__actions {
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.admission-gate__actions .secondary-button,
+.admission-gate__actions .primary-button {
+  min-height: 38px;
+}
+
+.admission-panel .admission-approval-form {
+  display: grid;
+  margin-top: 14px;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.admission-panel .admission-approval-form .form-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mono-input,
+.admission-panel code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.admission-panel__footnote {
+  margin: 16px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .operations-panel {
   margin-top: 18px;
   padding: 22px;
@@ -2063,6 +2206,11 @@ input:disabled {
   }
 
   .admin-invite form {
+    grid-template-columns: 1fr;
+  }
+
+  .admission-gates,
+  .admission-panel .admission-approval-form .form-row {
     grid-template-columns: 1fr;
   }
 

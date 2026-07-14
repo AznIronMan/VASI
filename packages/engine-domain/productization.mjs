@@ -2,6 +2,17 @@ import { X509Certificate } from "node:crypto";
 
 export const TENANT_PROFILE_SCHEMA = "vasi-tenant-profile/v1";
 export const INSTALLATION_PROFILE_SCHEMA = "vasi-installation-profile/v1";
+export const TENANT_ADMISSION_SCHEMA = "vasi-tenant-admission/v1";
+export const TENANT_ADMISSION_GATES = Object.freeze([
+  "exact_release",
+  "isolation_integrity",
+  "identity_delivery",
+  "privacy_legal",
+  "accessibility",
+  "malware_content",
+  "recovery_custody",
+  "capacity_support",
+]);
 export const INTEGRATION_CAPABILITIES = Object.freeze([
   "document.malware_scan",
   "notification.delivery",
@@ -103,6 +114,88 @@ export function defaultTenantProfile(name = "Organization") {
     }),
     schema: TENANT_PROFILE_SCHEMA,
   });
+}
+
+export function defaultTenantAdmission() {
+  return admissionFromGates(TENANT_ADMISSION_GATES.map((id) => Object.freeze({
+    id,
+    state: "pending",
+  })));
+}
+
+export function validateTenantAdmission(value) {
+  const input = strictObject(value, "tenant admission", ["gates", "schema", "status"]);
+  if (input.schema !== TENANT_ADMISSION_SCHEMA) invalid("The tenant admission schema is unsupported.");
+  if (!Array.isArray(input.gates) || input.gates.length !== TENANT_ADMISSION_GATES.length) {
+    invalid("The tenant admission gate set is incomplete.");
+  }
+  const gates = input.gates.map((entry) => validateAdmissionGate(entry));
+  const byId = new Map(gates.map((gate) => [gate.id, gate]));
+  if (byId.size !== TENANT_ADMISSION_GATES.length ||
+      TENANT_ADMISSION_GATES.some((id) => !byId.has(id))) {
+    invalid("The tenant admission gate set is invalid.");
+  }
+  const ordered = TENANT_ADMISSION_GATES.map((id) => byId.get(id));
+  const status = derivedAdmissionStatus(ordered);
+  if (input.status !== status) invalid("The tenant admission status is inconsistent with its gates.");
+  return Object.freeze({
+    gates: Object.freeze(ordered),
+    schema: TENANT_ADMISSION_SCHEMA,
+    status,
+  });
+}
+
+export function validateTenantAdmissionDecisionCommand(value) {
+  const input = strictObject(value, "tenant admission decision", [
+    "decision", "evidenceDigest", "evidenceReference", "expectedRevision", "gateId",
+    "reviewerReference", "tenantId",
+  ]);
+  const decision = token(input.decision, "decision");
+  if (!["approved", "pending"].includes(decision)) {
+    invalid("The tenant admission decision is unsupported.");
+  }
+  const gateId = token(input.gateId, "gateId");
+  if (!TENANT_ADMISSION_GATES.includes(gateId)) invalid("The tenant admission gate is unsupported.");
+  const command = {
+    decision,
+    expectedRevision: safeInteger(input.expectedRevision, "expectedRevision", 1, Number.MAX_SAFE_INTEGER),
+    gateId,
+    tenantId: token(input.tenantId, "tenantId"),
+  };
+  if (decision === "approved") {
+    command.evidenceDigest = sha256(input.evidenceDigest, "evidenceDigest");
+    command.evidenceReference = admissionReference(input.evidenceReference, "evidenceReference");
+    command.reviewerReference = admissionReference(input.reviewerReference, "reviewerReference");
+  } else if (
+    input.evidenceDigest !== undefined || input.evidenceReference !== undefined ||
+    input.reviewerReference !== undefined
+  ) {
+    invalid("A pending admission decision cannot retain approval evidence.");
+  }
+  return Object.freeze(command);
+}
+
+export function applyTenantAdmissionDecision(value, commandValue, decidedAt = new Date()) {
+  const admission = validateTenantAdmission(value);
+  const command = validateTenantAdmissionDecisionCommand(commandValue);
+  const timestamp = canonicalTimestamp(decidedAt, "decidedAt");
+  const gates = admission.gates.map((gate) => {
+    if (gate.id !== command.gateId) return gate;
+    if (command.decision === "pending") return Object.freeze({ id: gate.id, state: "pending" });
+    return Object.freeze({
+      decidedAt: timestamp,
+      evidenceDigest: command.evidenceDigest,
+      evidenceReference: command.evidenceReference,
+      id: gate.id,
+      reviewerReference: command.reviewerReference,
+      state: "approved",
+    });
+  });
+  return admissionFromGates(gates);
+}
+
+export function tenantAdmissionStatus(value) {
+  return validateTenantAdmission(value).status;
 }
 
 export function validateInstallationProfile(value) {
@@ -417,6 +510,70 @@ function strictObject(value, name, allowedKeys) {
     if (!allowedKeys.includes(key)) invalid(`The ${name} field ${key} is unsupported.`);
   }
   return value;
+}
+
+function validateAdmissionGate(value) {
+  const input = strictObject(value, "tenant admission gate", [
+    "decidedAt", "evidenceDigest", "evidenceReference", "id", "reviewerReference", "state",
+  ]);
+  const id = token(input.id, "gateId");
+  if (!TENANT_ADMISSION_GATES.includes(id)) invalid("The tenant admission gate is unsupported.");
+  const state = token(input.state, "state");
+  if (state === "pending") {
+    if (
+      input.decidedAt !== undefined || input.evidenceDigest !== undefined ||
+      input.evidenceReference !== undefined || input.reviewerReference !== undefined
+    ) {
+      invalid("A pending admission gate cannot retain approval evidence.");
+    }
+    return Object.freeze({ id, state });
+  }
+  if (state !== "approved") invalid("The tenant admission gate state is unsupported.");
+  return Object.freeze({
+    decidedAt: canonicalTimestamp(input.decidedAt, "decidedAt"),
+    evidenceDigest: sha256(input.evidenceDigest, "evidenceDigest"),
+    evidenceReference: admissionReference(input.evidenceReference, "evidenceReference"),
+    id,
+    reviewerReference: admissionReference(input.reviewerReference, "reviewerReference"),
+    state,
+  });
+}
+
+function admissionFromGates(gates) {
+  return Object.freeze({
+    gates: Object.freeze(gates),
+    schema: TENANT_ADMISSION_SCHEMA,
+    status: derivedAdmissionStatus(gates),
+  });
+}
+
+function derivedAdmissionStatus(gates) {
+  return gates.every((gate) => gate.state === "approved") ? "admitted" : "pending";
+}
+
+function admissionReference(value, field) {
+  const normalized = boundedString(value, field, 1, 160);
+  if (!/^[A-Za-z0-9._:-]+$/.test(normalized)) {
+    invalid(`The ${field} must be an opaque identifier, not a URL or narrative.`);
+  }
+  return normalized;
+}
+
+function sha256(value, field) {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) {
+    invalid(`The ${field} must be a lowercase SHA-256 digest.`);
+  }
+  return value;
+}
+
+function canonicalTimestamp(value, field) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) invalid(`The ${field} must be a valid timestamp.`);
+  const canonical = date.toISOString();
+  if (!(value instanceof Date) && value !== canonical) {
+    invalid(`The ${field} must use canonical UTC ISO 8601 form.`);
+  }
+  return canonical;
 }
 
 function boundedString(value, field, minimum, maximum) {

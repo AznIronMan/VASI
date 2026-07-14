@@ -16,6 +16,7 @@ import {
   createSettingsPool,
   readRuntimeSettings,
 } from "./settings-core.mjs";
+import { admitConformanceTenant } from "./probe-tenant-admission.mjs";
 
 const gatewaySettings = await readRuntimeSettings({ scope: "gateway" });
 const engineSettings = await readRuntimeSettings({ scope: "engine" });
@@ -231,7 +232,17 @@ async function proveReviewedParticipantDataExport() {
      where "id" = $1`,
     [completed.requestId],
   );
-  await proveRollbackCompatibleRequesterInsert(completed.requestId);
+  await expectImmutableFailure(
+    `update "vasi_engine"."request_instance"
+     set "tenantProfileHash" = $2 where "id" = $1`,
+    [completed.requestId, "0".repeat(64)],
+  );
+  await expectImmutableFailure(
+    `update "vasi_engine"."request_instance"
+     set "tenantAdmissionHash" = $2 where "id" = $1`,
+    [completed.requestId, "0".repeat(64)],
+  );
+  await proveRollbackFailsClosedWithoutAdmissionSnapshot(completed.requestId);
   const history = await call(participant, "GET", "/v1/participant/history");
   expectStatus(history, 200, "participant history");
   const historyRecord = history.body.find((entry) => entry.assignmentId === completed.assignmentId);
@@ -320,39 +331,25 @@ async function proveReviewedParticipantDataExport() {
   );
 }
 
-async function proveRollbackCompatibleRequesterInsert(requestId) {
+async function proveRollbackFailsClosedWithoutAdmissionSnapshot(requestId) {
   const client = await database.connect();
   try {
     await client.query("begin");
-    const membership = await client.query(
+    let rejected = false;
+    try {
+      await client.query(
       `insert into "vasi_engine"."request_instance"
         ("id", "tenantId", "workflowRevisionId", "createdByPrincipalId", "purpose",
          "status", "issuedAt", "expiresAt")
        select $1, "tenantId", "workflowRevisionId", "createdByPrincipalId", "purpose",
               'issued', now(), now() + interval '1 day'
-       from "vasi_engine"."request_instance" where "id" = $2
-       returning "requesterSnapshot"`,
-      [randomUUID(), requestId],
-    );
-    if (
-      membership.rows[0]?.requesterSnapshot?.email !== owner.email ||
-      membership.rows[0]?.requesterSnapshot?.provenance !== "membership_backfill"
-    ) throw new Error("The prior-engine requester compatibility proof failed.");
-
-    const unavailable = await client.query(
-      `insert into "vasi_engine"."request_instance"
-        ("id", "tenantId", "workflowRevisionId", "createdByPrincipalId", "purpose",
-         "status", "issuedAt", "expiresAt")
-       select $1, "tenantId", "workflowRevisionId", 'legacy-principal', "purpose",
-              'issued', now(), now() + interval '1 day'
-       from "vasi_engine"."request_instance" where "id" = $2
-       returning "requesterSnapshot"`,
-      [randomUUID(), requestId],
-    );
-    if (
-      unavailable.rows[0]?.requesterSnapshot?.email !== null ||
-      unavailable.rows[0]?.requesterSnapshot?.provenance !== "legacy_unavailable"
-    ) throw new Error("The prior-engine unavailable-requester proof failed.");
+       from "vasi_engine"."request_instance" where "id" = $2`,
+        [randomUUID(), requestId],
+      );
+    } catch (error) {
+      rejected = error?.constraint === "tenant_production_admission_required";
+    }
+    if (!rejected) throw new Error("An admission-unaware prior engine could still issue a request.");
   } finally {
     await client.query("rollback");
     client.release();
@@ -647,6 +644,7 @@ async function createTenant(name, prefix) {
     slug: `${prefix}-${randomUUID()}`,
   });
   expectStatus(result, 200, `${name} tenant creation`);
+  await admitConformanceTenant(call, owner, result.body.id);
   return result.body;
 }
 

@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createActorAssertion, requestEngine } from "../packages/engine-client/index.mjs";
 import { assertEvidenceBundle } from "../packages/evidence-verifier/index.mjs";
 import { readRuntimeSettings } from "./settings-core.mjs";
+import { admitConformanceTenant } from "./probe-tenant-admission.mjs";
 
 const settings = await readRuntimeSettings({ scope: "gateway" });
 const expectCertificate = process.env.VASI_EXPECT_CERTIFICATE_SEAL === "1";
@@ -17,6 +18,11 @@ const tenant = await call(owner, "/v1/owner/tenants", {
   slug: `report-${randomUUID()}`,
 });
 expectStatus(tenant, 200, "report tenant creation");
+await admitConformanceTenant(
+  (actorContext, method, path, body) => call(actorContext, path, body, method),
+  owner,
+  tenant.body.id,
+);
 await call(outsider, "/v1/owner/tenants", {
   name: "VASI Report Isolation",
   slug: `report-isolation-${randomUUID()}`,
@@ -143,9 +149,9 @@ function actor(id, email, roles) {
   };
 }
 
-async function call(actorContext, path, body) {
+async function call(actorContext, path, body, method = "POST") {
   const token = await createActorAssertion(settings, actorContext);
-  return requestEngine(settings, { body, method: "POST", path, token });
+  return requestEngine(settings, { body, method, path, token });
 }
 
 async function exportBytes(actorContext, metadata, path) {

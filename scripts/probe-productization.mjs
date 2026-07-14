@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { createActorAssertion, requestEngine } from "../packages/engine-client/index.mjs";
 import { readRuntimeSettings } from "./settings-core.mjs";
+import { admitConformanceTenant } from "./probe-tenant-admission.mjs";
 
 const settings = await readRuntimeSettings({ scope: "gateway" });
 const now = Math.floor(Date.now() / 1_000);
@@ -113,6 +114,30 @@ const initialScannerBinding = integrations.body.find((entry) => entry.capability
 if (!initialBinding || !initialScannerBinding || initialScannerBinding.adapterId !== "scan_disabled") {
   throw new Error("The initial governed integration bindings are incomplete.");
 }
+const initialAdmissionDenial = await expectCall(owner, "POST", "/v1/owner/requests", {
+  intendedEmail: member.email,
+  tenantId: tenant.body.id,
+  workflowRevisionId: publication.body.revisionId,
+}, 409, "pending-admission request denial");
+if (initialAdmissionDenial.body.error !== "tenant_not_admitted") {
+  throw new Error("A pending tenant was not denied by the admission gate.");
+}
+await expectCall(owner, "POST", "/v1/owner/integrations", {
+  adapterId: "webhook",
+  capability: "notification.delivery",
+  config: { url: "https://events.example.test/vasi" },
+  credentials: { secret: "p".repeat(48) },
+  expectedRevision: initialBinding.revision,
+  tenantId: tenant.body.id,
+}, 409, "pending-admission integration denial");
+await expectCall(member, "GET", "/v1/admin/tenant-admissions", undefined, 403, "admission administrator denial");
+let admission = await admitConformanceTenant(call, owner, tenant.body.id);
+await expectCall(owner, "POST", "/v1/admin/tenant-admissions", {
+  decision: "pending",
+  expectedRevision: 1,
+  gateId: "exact_release",
+  tenantId: tenant.body.id,
+}, 409, "admission optimistic conflict");
 await expectCall(owner, "POST", "/v1/owner/integrations", {
   adapterId: "webhook",
   capability: "notification.delivery",
@@ -139,6 +164,53 @@ const listedBindings = await expectCall(owner, "POST", "/v1/owner/integration-li
 if (JSON.stringify(listedBindings.body).includes(secret) || JSON.stringify(listedBindings.body).includes("credentialEnvelope")) {
   throw new Error("The integration list exposed credential material.");
 }
+const queuedBeforeRevocation = await expectCall(owner, "POST", "/v1/owner/requests", {
+  intendedEmail: member.email,
+  scheduledFor: new Date(Date.now() + 3_000).toISOString(),
+  tenantId: tenant.body.id,
+  workflowRevisionId: publication.body.revisionId,
+}, 200, "pre-revocation scheduled request");
+const releaseApproval = admission.admission.gates.find((gate) => gate.id === "exact_release");
+const revokedAdmission = await expectCall(owner, "POST", "/v1/admin/tenant-admissions", {
+  decision: "pending",
+  expectedRevision: admission.revision,
+  gateId: "exact_release",
+  tenantId: tenant.body.id,
+}, 200, "admission revocation");
+if (revokedAdmission.body.status !== "pending") throw new Error("The admission revocation did not fail closed.");
+const postRevocationDenial = await expectCall(owner, "POST", "/v1/owner/requests", {
+  intendedEmail: member.email,
+  tenantId: tenant.body.id,
+  workflowRevisionId: publication.body.revisionId,
+}, 409, "post-revocation request denial");
+if (postRevocationDenial.body.error !== "tenant_not_admitted") {
+  throw new Error("Request issuance did not identify the revoked admission gate.");
+}
+const suppressed = await waitForDeliveryStatus(
+  owner,
+  tenant.body.id,
+  queuedBeforeRevocation.body.requestId,
+  "invitation",
+  "suppressed",
+  15_000,
+);
+if (suppressed.status !== "suppressed") throw new Error("The gateway did not suppress queued work after revocation.");
+await expectCall(owner, "POST", "/v1/owner/request-actions", {
+  action: "revoke",
+  commandId: randomUUID(),
+  requestId: queuedBeforeRevocation.body.requestId,
+  tenantId: tenant.body.id,
+}, 200, "pre-revocation request cleanup");
+const restoredAdmission = await expectCall(owner, "POST", "/v1/admin/tenant-admissions", {
+  decision: "approved",
+  evidenceDigest: releaseApproval.evidenceDigest,
+  evidenceReference: releaseApproval.evidenceReference,
+  expectedRevision: revokedAdmission.body.revision,
+  gateId: "exact_release",
+  reviewerReference: releaseApproval.reviewerReference,
+  tenantId: tenant.body.id,
+}, 200, "admission restoration");
+admission = restoredAdmission.body;
 const graphSecret = `graph-${"g".repeat(48)}`;
 const graphBinding = await expectCall(owner, "POST", "/v1/owner/integrations", {
   adapterId: "microsoft_graph",
@@ -226,6 +298,9 @@ const record = await expectCall(owner, "POST", "/v1/owner/records", {
   tenantId: tenant.body.id,
 }, 200, "profile-bound evidence read");
 if (
+  record.body.manifest.admission?.admissionHash !== admission.admissionHash ||
+  record.body.manifest.admission?.admission?.status !== "admitted" ||
+  record.body.manifest.admission?.revision !== admission.revision ||
   record.body.manifest.tenant.profileHash !== profileUpdate.body.profileHash ||
   record.body.manifest.tenant.profileBindingProvenance !== "issued" ||
   record.body.manifest.tenant.profile.branding.shortName !== "Product Proof"
@@ -276,4 +351,24 @@ async function expectCall(actorContext, method, path, body, status, label) {
     throw new Error(`${label} returned ${result.status} instead of ${status}: ${JSON.stringify(result.body)}`);
   }
   return result;
+}
+
+async function waitForDeliveryStatus(
+  actorContext,
+  tenantId,
+  requestId,
+  kind,
+  status,
+  timeoutMilliseconds,
+) {
+  const deadline = Date.now() + timeoutMilliseconds;
+  while (Date.now() < deadline) {
+    const result = await call(actorContext, "POST", "/v1/owner/request-list", { tenantId });
+    if (result.status !== 200) throw new Error(`Delivery-state polling returned ${result.status}.`);
+    const state = result.body.find((request) => request.requestId === requestId)
+      ?.notificationDelivery?.[kind];
+    if (state?.status === status) return state;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  throw new Error(`Delivery for ${requestId} did not reach ${status}.`);
 }

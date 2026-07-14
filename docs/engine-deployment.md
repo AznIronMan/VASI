@@ -161,6 +161,15 @@ The migration retains a bounded prior-release insert trigger so a full rollback
 can still issue requests; those fallback snapshots are labeled
 `membership_backfill` or `legacy_unavailable`, never authenticated issuance.
 
+VASI 0.25.0 requires migration `0015_engine_tenant_admission`. The engine
+creates a pending immutable admission revision for every new or existing
+tenant. Record all eight approvals in the internal admin console before
+production issuance or active integration configuration. Unlike migration
+`0014`, migration `0015` deliberately makes an admission-unaware rollback
+read/recovery-only: PostgreSQL rejects a new request without the exact current
+admitted snapshot and rejects an active integration revision while pending.
+See the [tenant production admission decision](architecture/tenant-production-admission.md).
+
 Document scanning also starts with a disabled per-tenant
 `document.malware_scan` binding. An operator must add
 `https_malware_scanner` and the exact scanner hostname to the active
@@ -449,13 +458,16 @@ encrypted off-host custody or establish an RPO/RTO.
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.
 
-For rollback from 0.24.0, first stop the complete engine stack and every
-role-local recurring timer, then switch the whole release—not selected
-files—to the verified 0.23.0 release. Version 0.24.0 adds no database migration;
-migration `0014_engine_requester_provenance` remains the current schema and is
-compatible with the immediate prior application release. Reinstall or override
-the target release's scheduler units as a complete reviewed set, manually run
-them, and only then re-enable their timers. Keep the exact egress policy in
-place unless the target version's documented network procedure explicitly
-requires removal; never remove or broaden it while the database gateway or a
-database tool remains running.
+For rollback from 0.25.0, first stop the complete engine stack and every
+role-local recurring timer, then switch the whole release—not selected files.
+Migration `0015_engine_tenant_admission` remains forward-only. Its database
+triggers intentionally prevent an admission-unaware prior binary from creating
+requests or active integration revisions; a prior release may be used only for
+bounded read/recovery operations. Normal production issuance requires 0.25.0
+or later. Never remove the admission triggers or rewrite immutable admission
+history to make an older binary write. Reinstall or override the target
+release's scheduler units as a complete reviewed set, manually run them, and
+only then re-enable their timers. Keep the exact egress policy in place unless
+the target version's documented network procedure explicitly requires removal;
+never remove or broaden it while the database gateway or a database tool
+remains running.

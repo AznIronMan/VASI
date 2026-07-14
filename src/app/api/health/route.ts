@@ -7,7 +7,7 @@ export function GET() {
     {
       status: "ok",
       service: "vasi-auth",
-      version: "0.24.0",
+      version: "0.25.0",
       timestamp: new Date().toISOString(),
     },
     {

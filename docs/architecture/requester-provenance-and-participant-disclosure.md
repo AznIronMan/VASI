@@ -63,6 +63,8 @@ notification, and seal evidence. The offline verifier requires the snapshot to
 match the first immutable `request.scheduled` or `request.issued` actor. Human
 reports use the manifest value and retain event fallback only for older record
 versions.
+Manifest version 9 retains the same requester contract and additionally binds
+the tenant production-admission revision that authorized issuance.
 
 Participant receipts, history, and approved data exports use the immutable
 snapshot instead of joining the request to current membership state. Disabling
