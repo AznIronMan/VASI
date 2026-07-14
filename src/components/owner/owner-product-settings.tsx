@@ -7,6 +7,7 @@ import type {
   OwnerTenantProfile,
   OwnerTenantUsage,
 } from "@/lib/owner-types";
+import { integrationCommandFromForm } from "@/lib/integration-configuration";
 
 export function OwnerProductSettings({ permissions, tenantId }: {
   permissions: string[];
@@ -90,32 +91,17 @@ export function OwnerProductSettings({ permissions, tenantId }: {
     event.preventDefault();
     if (!integration) return;
     const data = new FormData(event.currentTarget);
-    const config = adapterId === "webhook"
-      ? { url: data.get("webhookUrl") }
-      : adapterId === "smtp"
-        ? {
-            from: data.get("smtpFrom"),
-            host: data.get("smtpHost"),
-            port: Number(data.get("smtpPort")),
-            secure: data.get("smtpSecure") === "true",
-            username: String(data.get("smtpUsername") || "") || undefined,
-          }
-        : {};
-    const credentials = adapterId === "webhook"
-      ? { secret: data.get("webhookSecret") }
-      : adapterId === "smtp"
-        ? { password: String(data.get("smtpPassword") || "") || undefined }
-        : {};
+    const command = integrationCommandFromForm(adapterId, data);
     setPending(true);
     setMessage(undefined);
     try {
       const updated = await api<OwnerIntegration>("/api/owner/product/integrations", {
         adapterId,
         capability: "notification.delivery",
-        config,
-        credentials,
+        config: command.config,
+        credentials: command.credentials,
         expectedRevision: integration.revision,
-        status: adapterId === "disabled" ? "disabled" : "active",
+        status: command.status,
         tenantId,
       });
       setIntegration(updated);
@@ -154,8 +140,9 @@ export function OwnerProductSettings({ permissions, tenantId }: {
 
         {canManageIntegration && integration && <form className="evidence-panel" key={integration.revision} onSubmit={updateIntegration}>
           <h3>Notification delivery</h3>
-          <label className="field"><span>Adapter</span><select value={adapterId} onChange={(event) => setAdapterId(event.target.value as OwnerIntegration["adapterId"])}><option value="disabled">Disabled</option><option value="smtp">SMTP</option><option value="webhook">Signed webhook</option></select></label>
+          <label className="field"><span>Adapter</span><select value={adapterId} onChange={(event) => setAdapterId(event.target.value as OwnerIntegration["adapterId"])}><option value="disabled">Disabled</option><option value="microsoft_graph">Microsoft Graph mail</option><option value="smtp">SMTP</option><option value="webhook">Signed webhook</option></select></label>
           {adapterId === "webhook" && <><label className="field"><span>Allowlisted HTTPS URL</span><input name="webhookUrl" type="url" defaultValue={integration.adapterId === "webhook" ? integration.config.url : ""} required /></label><label className="field"><span>Signing secret</span><input name="webhookSecret" type="password" minLength={32} maxLength={1024} autoComplete="new-password" required /><small>Secrets are encrypted in PostgreSQL and never returned to this browser.</small></label></>}
+          {adapterId === "microsoft_graph" && <><label className="field"><span>Allowlisted Microsoft tenant ID</span><input name="graphTenantId" defaultValue={integration.adapterId === "microsoft_graph" ? integration.config.tenantId : ""} pattern="[0-9A-Fa-f-]{36}" required /></label><label className="field"><span>Allowlisted application (client) ID</span><input name="graphClientId" defaultValue={integration.adapterId === "microsoft_graph" ? integration.config.clientId : ""} pattern="[0-9A-Fa-f-]{36}" required /></label><label className="field"><span>Allowlisted sender mailbox</span><input name="graphSenderEmail" type="email" defaultValue={integration.adapterId === "microsoft_graph" ? integration.config.senderEmail : ""} required /></label><label className="field"><span>Application client secret</span><input name="graphClientSecret" type="password" minLength={1} maxLength={2048} autoComplete="new-password" required /><small>The secret is encrypted in PostgreSQL, is never returned to this browser, and must belong to the allowlisted application.</small></label></>}
           {adapterId === "smtp" && <><label className="field"><span>Allowlisted SMTP host</span><input name="smtpHost" defaultValue={integration.adapterId === "smtp" ? integration.config.host : ""} required /></label><div className="form-row"><label className="field"><span>Port</span><input name="smtpPort" type="number" min="1" max="65535" defaultValue={integration.adapterId === "smtp" ? integration.config.port : 587} required /></label><label className="field"><span>Transport</span><select name="smtpSecure" defaultValue={integration.adapterId === "smtp" && integration.config.secure ? "true" : "false"}><option value="false">STARTTLS</option><option value="true">Implicit TLS</option></select></label></div><label className="field"><span>From</span><input name="smtpFrom" defaultValue={integration.adapterId === "smtp" ? integration.config.from : ""} required /></label><label className="field"><span>Username (optional)</span><input name="smtpUsername" autoComplete="off" defaultValue={integration.adapterId === "smtp" ? integration.config.username : ""} /></label><label className="field"><span>Password (required with username)</span><input name="smtpPassword" type="password" autoComplete="new-password" /></label></>}
           <small>Revision {integration.revision} · {integration.status} · credentials {integration.configuredCredentials ? "configured" : "not stored / not required"}</small>
           <button className="primary-button" disabled={pending} type="submit">Activate new integration revision</button>

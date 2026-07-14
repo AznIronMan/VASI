@@ -663,7 +663,7 @@ function integrationProjection(row) {
     capability: row.capability,
     config: row.config,
     configHash: row.configHash,
-    configuredCredentials: row.adapterId === "webhook" || Boolean(row.config?.username),
+    configuredCredentials: ["microsoft_graph", "webhook"].includes(row.adapterId) || Boolean(row.config?.username),
     createdAt: new Date(row.createdAt).toISOString(),
     id: row.id,
     revision: Number(row.revision),

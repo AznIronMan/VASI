@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.12.1`
+Version: `0.13.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -90,7 +90,7 @@ and company profiles are immutable, validated revisions with product-neutral
 branding, capacity limits, outbound adapter allowlists, and hash-chained audit
 events. Every request binds the governing tenant profile snapshot into its
 evidence. A separate internal integration gateway is now the only component
-that decrypts stored tenant delivery credentials or contacts SMTP/webhook endpoints;
+that decrypts stored tenant delivery credentials or contacts outbound provider endpoints;
 workers submit a narrow signed contract and immutable attempts record the exact
 adapter revision and outcome. Sanitized self-hosted/SaaS profiles, matched
 backup verification, and encrypted tenant export/import support portable
@@ -109,6 +109,16 @@ probe cover the public readiness surface. Runtime images no longer contain the
 unused npm toolchain, reducing their attack surface. The threat model and pilot
 contract explicitly separate first-party evidence from independent security,
 legal/privacy, accessibility, custody, and customer approvals.
+
+Version 0.13.0 adds governed Microsoft Graph mail to tenant workflow delivery.
+The private engine remains provider-independent: its worker still submits the
+same narrow signed notification contract, while the isolated integration
+gateway alone acquires a cached app-only token and contacts fixed Microsoft
+endpoints. Installation administrators must allow the exact Entra tenant,
+application ID, and sender mailbox before a tenant owner can activate a
+revisioned binding. Client secrets are write-only, encrypted in PostgreSQL,
+redacted from every read path, and provider failure bodies never enter VASI
+responses or delivery records.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
@@ -155,9 +165,9 @@ milestones.
   activity execution, request lifecycle controls, and revision-bound access and
   notification policies.
 - AES-256-GCM encrypted outbox envelopes, immutable delivery-attempt records,
-  bounded retry and stale-lock recovery, tenant-scoped generic SMTP and
-  HMAC-signed HTTPS webhook adapters behind exact installation allowlists, and
-  session-level authentication provenance.
+  bounded retry and stale-lock recovery, tenant-scoped mailbox-restricted
+  Microsoft Graph, generic SMTP, and HMAC-signed HTTPS webhook adapters behind
+  exact installation allowlists, and session-level authentication provenance.
 - Revisioned installation/tenant profiles, transactional capacity enforcement,
   evidence-bound branding/policy snapshots, encrypted integration credentials,
   hash-chained configuration events, and owner/operator control panels.

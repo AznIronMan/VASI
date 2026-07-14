@@ -19,7 +19,7 @@ flowchart LR
   gateway --> auth_db[("Identity PostgreSQL")]
   worker["Private worker"] --> engine_db
   worker -->|"bounded signed command"| integration["Integration gateway"]
-  integration -->|"exact allowlist"| provider["SMTP or HTTPS provider"]
+  integration -->|"exact allowlist"| provider["Graph, SMTP, or HTTPS provider"]
   media["Provider-hosted media"] --> participant
 ```
 
@@ -70,7 +70,7 @@ legal enforceability by itself.
 | EVID-2 | Signing-key mismatch, loss, unsafe rotation, or certificate misconfiguration | Startup private/public key proof; key-ID fingerprint conflict rejection; historical public-key records; optional certificate configuration is all-or-nothing; offline verification needs no private key | Custody, backup, rotation approval, revocation, HSM/KMS, and TSA profiles require operator policy |
 | ART-1 | Malicious or oversized document upload, loose-file persistence, or parser exploit | Bounded streaming into quarantined PostgreSQL chunks; exact hashes; media-type/structure and EICAR checks; atomic publish/reject; no authoritative loose document | Built-in inspection is not comprehensive malware detection; a replaceable scanner is required for higher-risk pilots |
 | MEDIA-1 | False playback/attention claim or hostile embed | Exact provider/origin descriptors; sandboxed frames; capability-specific adapters; visibility/gap/seek limits; raw telemetry and confidence statements; accessibility alternatives | Provider/browser telemetry cannot prove attention or comprehension |
-| OUT-1 | SSRF, credential disclosure, duplicate delivery, or provider response leakage | Installation and tenant exact host allowlists; encrypted revisioned credentials; isolated integration process; strict bounded contract; redaction; idempotency key; immutable attempts | SMTP is at-least-once and webhook consumers must enforce idempotency |
+| OUT-1 | SSRF, credential disclosure, duplicate delivery, or provider response leakage | Installation exact Graph tenant/application/sender and SMTP/webhook host allowlists; fixed Graph origins; encrypted revisioned credentials; isolated integration process; bounded response handling; strict delivery contract; redaction; idempotency key; immutable attempts | Graph and SMTP are at-least-once and webhook consumers must enforce idempotency |
 | CFG-1 | Secret leakage through source, environment, logs, exports, or settings tools | No environment files; mode-0600 SQLite bootstrap; AES-256-GCM PostgreSQL runtime settings; value-redacting CLI; no application secrets in container environments; tracked-source secret gate; export redaction | Host memory, database administrator, and backup custody remain trusted boundaries |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
 | SUP-1 | Vulnerable or unaccounted dependency/image content | Lockfile builds; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; minimal non-root runtime images without npm | Vulnerability data changes over time, so every release and periodic rescan are required |

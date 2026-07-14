@@ -36,7 +36,10 @@ export function InstallationProfilePanel() {
           profile: {
             ...record.profile,
             adapters: {
-              allow: ["disabled", ...(data.get("allowSmtp") ? ["smtp"] : []), ...(data.get("allowWebhook") ? ["webhook"] : [])],
+              allow: ["disabled", ...(data.get("allowMicrosoftGraph") ? ["microsoft_graph"] : []), ...(data.get("allowSmtp") ? ["smtp"] : []), ...(data.get("allowWebhook") ? ["webhook"] : [])],
+              microsoftGraphAllowedClientIds: lines("microsoftGraphAllowedClientIds"),
+              microsoftGraphAllowedSenders: lines("microsoftGraphAllowedSenders"),
+              microsoftGraphAllowedTenantIds: lines("microsoftGraphAllowedTenantIds"),
               smtpAllowedHosts: lines("smtpAllowedHosts"),
               webhookAllowedHosts: lines("webhookAllowedHosts"),
             },
@@ -72,7 +75,10 @@ export function InstallationProfilePanel() {
     {record && <form className="credentials-form" key={record.revision} onSubmit={save}>
       <div className="form-row"><label className="field"><span>Organization name</span><input name="organizationName" defaultValue={record.profile.product.organizationName} required /></label><label className="field"><span>Product name</span><input name="productName" defaultValue={record.profile.product.productName} required /></label></div>
       <div className="form-row"><label className="field"><span>Support email</span><input name="supportEmail" type="email" defaultValue={record.profile.product.supportEmail} required /></label><label className="field"><span>Maximum active tenants</span><input name="maxTenants" type="number" min="1" max="1000000" defaultValue={record.profile.provisioning.maxTenants} required /></label></div>
-      <div className="form-row"><label className="checkbox"><input name="allowSmtp" type="checkbox" defaultChecked={record.profile.adapters.allow.includes("smtp")} /><span>Allow SMTP adapters</span></label><label className="checkbox"><input name="allowWebhook" type="checkbox" defaultChecked={record.profile.adapters.allow.includes("webhook")} /><span>Allow signed webhooks</span></label></div>
+      <div className="form-row"><label className="checkbox"><input name="allowMicrosoftGraph" type="checkbox" defaultChecked={record.profile.adapters.allow.includes("microsoft_graph")} /><span>Allow Microsoft Graph mail</span></label><label className="checkbox"><input name="allowSmtp" type="checkbox" defaultChecked={record.profile.adapters.allow.includes("smtp")} /><span>Allow SMTP adapters</span></label><label className="checkbox"><input name="allowWebhook" type="checkbox" defaultChecked={record.profile.adapters.allow.includes("webhook")} /><span>Allow signed webhooks</span></label></div>
+      <label className="field"><span>Allowed Microsoft tenant IDs</span><textarea name="microsoftGraphAllowedTenantIds" defaultValue={(record.profile.adapters.microsoftGraphAllowedTenantIds || []).join("\n")} placeholder="11111111-1111-4111-8111-111111111111" /><small>One exact Entra tenant UUID per line.</small></label>
+      <label className="field"><span>Allowed Microsoft application IDs</span><textarea name="microsoftGraphAllowedClientIds" defaultValue={(record.profile.adapters.microsoftGraphAllowedClientIds || []).join("\n")} placeholder="22222222-2222-4222-8222-222222222222" /><small>One exact app-registration client UUID per line.</small></label>
+      <label className="field"><span>Allowed Microsoft sender mailboxes</span><textarea name="microsoftGraphAllowedSenders" defaultValue={(record.profile.adapters.microsoftGraphAllowedSenders || []).join("\n")} placeholder="notifications@example.com" /><small>Every Graph binding must match an exact tenant, application, and sender.</small></label>
       <label className="field"><span>Allowed SMTP hosts</span><textarea name="smtpAllowedHosts" defaultValue={record.profile.adapters.smtpAllowedHosts.join("\n")} placeholder="smtp.example.com" /><small>One exact host per line.</small></label>
       <label className="field"><span>Allowed webhook hosts</span><textarea name="webhookAllowedHosts" defaultValue={record.profile.adapters.webhookAllowedHosts.join("\n")} placeholder="events.example.com" /><small>The gateway rechecks this list for every delivery.</small></label>
       <small>{record.profile.deployment.mode} · dedicated database · gateway-only public ingress · revision {record.revision} · {record.profileHash.slice(0, 16)}…</small>

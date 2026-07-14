@@ -1,12 +1,14 @@
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 import nodemailer from "nodemailer";
 
 import { canonicalJSON } from "../../packages/engine-crypto/index.mjs";
 
+const graphTokenCache = new Map();
+
 export function createNotificationDispatcher(binding, dependencies = {}) {
   const adapterId = binding.adapterId;
-  if (!["disabled", "smtp", "webhook"].includes(adapterId)) {
+  if (!["disabled", "microsoft_graph", "smtp", "webhook"].includes(adapterId)) {
     throw new Error("The notification adapter is unsupported.");
   }
   if (binding.status === "disabled" || adapterId === "disabled") {
@@ -44,6 +46,53 @@ export function createNotificationDispatcher(binding, dependencies = {}) {
       if (!response.ok) throw deliveryError("webhook_status", `Webhook returned ${response.status}.`);
       return {
         adapter: "webhook",
+        outcome: "delivered",
+        responseMetadata: { status: response.status },
+      };
+    };
+  }
+  if (adapterId === "microsoft_graph") {
+    const tenantId = required(binding.config, "tenantId");
+    const clientId = required(binding.config, "clientId");
+    const senderEmail = required(binding.config, "senderEmail");
+    const clientSecret = required(binding.credentials, "clientSecret");
+    const request = dependencies.fetch || fetch;
+    const now = dependencies.now || Date.now;
+    return async (job) => {
+      const accessToken = await microsoftGraphAccessToken({
+        clientId,
+        clientSecret,
+        request,
+        tenantId,
+        now,
+      });
+      const message = notificationMessage(job.payload, optionalHTTPSOrigin(dependencies.participantOrigin));
+      const response = await request(
+        `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(senderEmail)}/sendMail`,
+        {
+          body: JSON.stringify({
+            message: {
+              body: { content: message.html, contentType: "HTML" },
+              internetMessageHeaders: [{ name: "x-vasi-idempotency-key", value: job.idempotencyKey }],
+              subject: message.subject,
+              toRecipients: [{ emailAddress: { address: job.payload.recipient } }],
+            },
+          }),
+          headers: {
+            authorization: `Bearer ${accessToken}`,
+            "content-type": "application/json",
+          },
+          method: "POST",
+          redirect: "manual",
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      if (response.status !== 202) {
+        await response.body?.cancel().catch(() => undefined);
+        throw deliveryError("graph_send_status", "Microsoft Graph mail delivery failed.");
+      }
+      return {
+        adapter: "microsoft_graph",
         outcome: "delivered",
         responseMetadata: { status: response.status },
       };
@@ -108,6 +157,86 @@ export function notificationMessage(payload, origin) {
     subject: `${payload.eventType === "request.reminder" ? "Reminder" : "Action requested"}: ${title}`,
     text: `${company} ${action} ${title}.${linkText}`,
   };
+}
+
+async function microsoftGraphAccessToken({ clientId, clientSecret, now, request, tenantId }) {
+  const cacheKey = createHash("sha256")
+    .update(tenantId)
+    .update("\0")
+    .update(clientId)
+    .update("\0")
+    .update(clientSecret)
+    .digest("hex");
+  const currentTime = now();
+  const cached = graphTokenCache.get(cacheKey);
+  if (cached?.expiresAt > currentTime) return cached.value;
+  pruneGraphTokenCache(currentTime);
+
+  const response = await request(
+    `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`,
+    {
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "client_credentials",
+        scope: "https://graph.microsoft.com/.default",
+      }),
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      method: "POST",
+      redirect: "manual",
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    throw deliveryError("graph_token_status", "Microsoft Graph token acquisition failed.");
+  }
+  const body = await boundedJSON(response, 65_536).catch(() => undefined);
+  const expiresIn = Number(body?.expires_in);
+  if (
+    typeof body?.access_token !== "string" || body.access_token.length < 1 ||
+    body.access_token.length > 32_768 || /[\u0000-\u001f\u007f]/.test(body.access_token) ||
+    !Number.isSafeInteger(expiresIn) || expiresIn <= 60 || expiresIn > 86_400
+  ) {
+    throw deliveryError("graph_token_response", "Microsoft Graph returned an invalid token response.");
+  }
+  const token = Object.freeze({
+    expiresAt: currentTime + (expiresIn - 60) * 1_000,
+    value: body.access_token,
+  });
+  graphTokenCache.set(cacheKey, token);
+  return token.value;
+}
+
+async function boundedJSON(response, maximumBytes) {
+  if (!response.body) return undefined;
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maximumBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new Error("response_limit");
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return JSON.parse(Buffer.concat(chunks, total).toString("utf8"));
+}
+
+function pruneGraphTokenCache(now) {
+  for (const [key, token] of graphTokenCache) {
+    if (token.expiresAt <= now) graphTokenCache.delete(key);
+  }
+  while (graphTokenCache.size >= 256) {
+    graphTokenCache.delete(graphTokenCache.keys().next().value);
+  }
+}
+
+export function resetNotificationTokenCacheForTests() {
+  graphTokenCache.clear();
 }
 
 function required(settings, name) {

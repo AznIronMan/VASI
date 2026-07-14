@@ -10,7 +10,7 @@ import {
 import { readRequestBody, sendJSON } from "../shared/http.mjs";
 import { createIntegrationGatewayStore } from "./store.mjs";
 
-const VERSION = "0.12.1";
+const VERSION = "0.13.0";
 const REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });

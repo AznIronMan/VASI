@@ -41,14 +41,17 @@ export type OwnerTenantUsage = {
 };
 
 export type OwnerIntegration = {
-  adapterId: "disabled" | "smtp" | "webhook";
+  adapterId: "disabled" | "microsoft_graph" | "smtp" | "webhook";
   adapterVersion: string;
   capability: "notification.delivery";
   config: {
+    clientId?: string;
     from?: string;
     host?: string;
     port?: number;
     secure?: boolean;
+    senderEmail?: string;
+    tenantId?: string;
     url?: string;
     username?: string;
   };
@@ -62,7 +65,10 @@ export type OwnerIntegration = {
 
 export type InstallationProfile = {
   adapters: {
-    allow: Array<"disabled" | "smtp" | "webhook">;
+    allow: Array<"disabled" | "microsoft_graph" | "smtp" | "webhook">;
+    microsoftGraphAllowedClientIds?: string[];
+    microsoftGraphAllowedSenders?: string[];
+    microsoftGraphAllowedTenantIds?: string[];
     smtpAllowedHosts: string[];
     webhookAllowedHosts: string[];
   };

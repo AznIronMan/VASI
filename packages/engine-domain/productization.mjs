@@ -12,6 +12,13 @@ export const BUILT_IN_ADAPTERS = Object.freeze([
   }),
   Object.freeze({
     capabilities: Object.freeze(["notification.delivery"]),
+    id: "microsoft_graph",
+    name: "Microsoft Graph mail delivery",
+    schema: "vasi-integration-adapter/v1",
+    version: "1",
+  }),
+  Object.freeze({
+    capabilities: Object.freeze(["notification.delivery"]),
     id: "smtp",
     name: "SMTP delivery",
     schema: "vasi-integration-adapter/v1",
@@ -31,6 +38,9 @@ export function defaultInstallationProfile(mode = "self_hosted") {
   return Object.freeze({
     adapters: Object.freeze({
       allow: Object.freeze(BUILT_IN_ADAPTERS.map((adapter) => adapter.id)),
+      microsoftGraphAllowedClientIds: Object.freeze([]),
+      microsoftGraphAllowedSenders: Object.freeze([]),
+      microsoftGraphAllowedTenantIds: Object.freeze([]),
       smtpAllowedHosts: Object.freeze([]),
       webhookAllowedHosts: Object.freeze([]),
     }),
@@ -100,7 +110,8 @@ export function validateInstallationProfile(value) {
     invalid("Only administrator-controlled tenant provisioning is supported.");
   }
   const adapters = strictObject(input.adapters, "installation adapters", [
-    "allow", "smtpAllowedHosts", "webhookAllowedHosts",
+    "allow", "microsoftGraphAllowedClientIds", "microsoftGraphAllowedSenders",
+    "microsoftGraphAllowedTenantIds", "smtpAllowedHosts", "webhookAllowedHosts",
   ]);
   if (!Array.isArray(adapters.allow) || !adapters.allow.length || adapters.allow.length > BUILT_IN_ADAPTERS.length) {
     invalid("The installation adapter allowlist is invalid.");
@@ -113,6 +124,24 @@ export function validateInstallationProfile(value) {
   return Object.freeze({
     adapters: Object.freeze({
       allow: Object.freeze(allow),
+      ...(adapters.microsoftGraphAllowedClientIds === undefined ? {} : {
+        microsoftGraphAllowedClientIds: allowedUUIDs(
+          adapters.microsoftGraphAllowedClientIds,
+          "microsoftGraphAllowedClientIds",
+        ),
+      }),
+      ...(adapters.microsoftGraphAllowedSenders === undefined ? {} : {
+        microsoftGraphAllowedSenders: allowedEmails(
+          adapters.microsoftGraphAllowedSenders,
+          "microsoftGraphAllowedSenders",
+        ),
+      }),
+      ...(adapters.microsoftGraphAllowedTenantIds === undefined ? {} : {
+        microsoftGraphAllowedTenantIds: allowedUUIDs(
+          adapters.microsoftGraphAllowedTenantIds,
+          "microsoftGraphAllowedTenantIds",
+        ),
+      }),
       smtpAllowedHosts: allowedHosts(adapters.smtpAllowedHosts, "smtpAllowedHosts"),
       webhookAllowedHosts: allowedHosts(adapters.webhookAllowedHosts, "webhookAllowedHosts"),
     }),
@@ -255,6 +284,11 @@ export function integrationDestinationAllowed(profileValue, binding) {
   if (binding.adapterId === "smtp") {
     return profile.adapters.smtpAllowedHosts.includes(String(binding.config.host).toLowerCase());
   }
+  if (binding.adapterId === "microsoft_graph") {
+    return (profile.adapters.microsoftGraphAllowedTenantIds || []).includes(binding.config.tenantId) &&
+      (profile.adapters.microsoftGraphAllowedClientIds || []).includes(binding.config.clientId) &&
+      (profile.adapters.microsoftGraphAllowedSenders || []).includes(binding.config.senderEmail);
+  }
   return false;
 }
 
@@ -275,6 +309,22 @@ function normalizeAdapterConfiguration(adapterId, configValue, credentialValue) 
     return {
       config: Object.freeze({ url: url.toString() }),
       credentials: Object.freeze({ secret }),
+    };
+  }
+  if (adapterId === "microsoft_graph") {
+    const config = strictObject(configValue, "Microsoft Graph configuration", [
+      "clientId", "senderEmail", "tenantId",
+    ]);
+    const credentials = strictObject(credentialValue, "Microsoft Graph credentials", ["clientSecret"]);
+    return {
+      config: Object.freeze({
+        clientId: uuid(config.clientId, "clientId"),
+        senderEmail: email(config.senderEmail, "senderEmail"),
+        tenantId: uuid(config.tenantId, "tenantId"),
+      }),
+      credentials: Object.freeze({
+        clientSecret: boundedString(credentials.clientSecret, "clientSecret", 1, 2_048),
+      }),
     };
   }
   const config = strictObject(configValue, "SMTP configuration", [
@@ -344,6 +394,27 @@ function allowedHosts(value, field) {
     }
     return normalized;
   }))].sort());
+}
+
+function allowedUUIDs(value, field) {
+  if (!Array.isArray(value) || value.length > 256) invalid(`The ${field} list is invalid.`);
+  return Object.freeze([...new Set(value.map((entry) => uuid(entry, field)))].sort());
+}
+
+function allowedEmails(value, field) {
+  if (!Array.isArray(value) || value.length > 256) invalid(`The ${field} list is invalid.`);
+  return Object.freeze([...new Set(value.map((entry) => email(entry, field)))].sort());
+}
+
+function uuid(value, field) {
+  const normalized = typeof value === "string" ? value.normalize("NFC").trim().toLowerCase() : "";
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(normalized) ||
+    normalized === "00000000-0000-0000-0000-000000000000"
+  ) {
+    invalid(`The ${field} must be a UUID.`);
+  }
+  return normalized;
 }
 
 function safeInteger(value, field, minimum, maximum) {

@@ -23,7 +23,7 @@ import { createProductStore } from "./product-store.mjs";
 import { createReportStore } from "./report-store.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.12.1";
+const ENGINE_VERSION = "0.13.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });

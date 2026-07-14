@@ -10,7 +10,8 @@ database and login role, a dedicated deployment directory, and a unique
   port mapping.
 - `worker` has no listener or host port.
 - `integration-gateway` has no host port and is the only application process
-  that decrypts delivery credentials or contacts external SMTP/webhook hosts.
+  that decrypts delivery credentials or contacts external Microsoft Graph,
+  SMTP, or webhook endpoints.
 - `private-ingress` exposes only the approved route table and is the only host
   listener.
 - The tracked Compose binds the facade to loopback. Put a private address in an
@@ -117,13 +118,17 @@ certificate verification proves the leaf signature and key match, not public
 chain trust, revocation status, qualified-signature status, or trusted time.
 
 Notification delivery starts with a disabled per-tenant binding. An operator
-must first allow the exact SMTP or webhook host in the installation profile;
-an owner can then configure the binding in the company console. Credentials
-are encrypted in PostgreSQL and decrypted only by `integration-gateway`. Set
-`ENGINE_PARTICIPANT_ORIGIN` when SMTP issue/reminder messages should contain the
-VASI request link. Pre-0.11 global `ENGINE_NOTIFICATION_*` values are consumed
-only for one-time compatibility conversion and should be unset after the new
-binding is verified.
+must first allow either the exact Microsoft tenant UUID, application UUID, and
+sender mailbox; the exact SMTP host; or the exact webhook host in the
+installation profile. An owner can then configure the matching binding in the
+company console. Graph and webhook secrets and optional SMTP credentials are
+encrypted in PostgreSQL and decrypted only by `integration-gateway`. Graph
+uses client-credentials tokens with the fixed Microsoft identity and Graph
+origins and requires mailbox-scoped Exchange Application RBAC or an equally
+restrictive provider policy. Set `ENGINE_PARTICIPANT_ORIGIN` when Graph or SMTP
+issue/reminder messages should contain the VASI request link. Pre-0.11 global
+`ENGINE_NOTIFICATION_*` values are consumed only for one-time compatibility
+conversion and should be unset after the new binding is verified.
 
 Document storage defaults to `ENGINE_DOCUMENT_MAX_BYTES=26214400` (25 MiB) and
 `ENGINE_DOCUMENT_CHUNK_BYTES=262144` (256 KiB). The engine accepts only the

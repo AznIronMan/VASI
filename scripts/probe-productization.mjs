@@ -8,6 +8,9 @@ const now = Math.floor(Date.now() / 1_000);
 const owner = actor("product-owner", "product-owner@example.test", ["admin"]);
 const otherOwner = actor("other-owner", "other-owner@example.test", ["admin"]);
 const member = actor("product-member", "product-member@example.test", ["user"]);
+const graphTenantId = "11111111-1111-4111-8111-111111111111";
+const graphClientId = "22222222-2222-4222-8222-222222222222";
+const graphSenderEmail = "notifications@example.test";
 
 const installation = await expectCall(owner, "GET", "/v1/admin/installation-profile", undefined, 200, "installation profile read");
 const installationUpdate = await expectCall(owner, "POST", "/v1/admin/installation-profile", {
@@ -16,6 +19,9 @@ const installationUpdate = await expectCall(owner, "POST", "/v1/admin/installati
     ...installation.body.profile,
     adapters: {
       ...installation.body.profile.adapters,
+      microsoftGraphAllowedClientIds: [graphClientId],
+      microsoftGraphAllowedSenders: [graphSenderEmail],
+      microsoftGraphAllowedTenantIds: [graphTenantId],
       webhookAllowedHosts: ["events.example.test"],
     },
   },
@@ -123,12 +129,30 @@ const listedBindings = await expectCall(owner, "POST", "/v1/owner/integration-li
 if (JSON.stringify(listedBindings.body).includes(secret) || JSON.stringify(listedBindings.body).includes("credentialEnvelope")) {
   throw new Error("The integration list exposed credential material.");
 }
+const graphSecret = `graph-${"g".repeat(48)}`;
+const graphBinding = await expectCall(owner, "POST", "/v1/owner/integrations", {
+  adapterId: "microsoft_graph",
+  capability: "notification.delivery",
+  config: {
+    clientId: graphClientId,
+    senderEmail: graphSenderEmail,
+    tenantId: graphTenantId,
+  },
+  credentials: { clientSecret: graphSecret },
+  expectedRevision: activeBinding.body.revision,
+  tenantId: tenant.body.id,
+}, 200, "allowlisted Microsoft Graph integration activation");
+if (
+  JSON.stringify(graphBinding.body).includes(graphSecret) ||
+  !graphBinding.body.configuredCredentials ||
+  graphBinding.body.config.senderEmail !== graphSenderEmail
+) throw new Error("The Microsoft Graph integration redaction proof failed.");
 await expectCall(owner, "POST", "/v1/owner/integrations", {
   adapterId: "disabled",
   capability: "notification.delivery",
   config: {},
   credentials: {},
-  expectedRevision: activeBinding.body.revision,
+  expectedRevision: graphBinding.body.revision,
   status: "disabled",
   tenantId: tenant.body.id,
 }, 200, "integration kill switch");

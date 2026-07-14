@@ -1,6 +1,9 @@
 {
   "adapters": {
-    "allow": ["disabled", "smtp", "webhook"],
+    "allow": ["disabled", "microsoft_graph", "smtp", "webhook"],
+    "microsoftGraphAllowedClientIds": [],
+    "microsoftGraphAllowedSenders": [],
+    "microsoftGraphAllowedTenantIds": [],
     "smtpAllowedHosts": [],
     "webhookAllowedHosts": []
   },

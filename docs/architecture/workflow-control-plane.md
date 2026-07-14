@@ -67,8 +67,11 @@ while preserving its payload hash and immutable delivery attempts.
 The worker submits a signed, bounded, versioned delivery contract to the
 internal integration gateway. That gateway resolves the tenant binding,
 decrypts credentials, rechecks the installation host allowlist, and supports
-disabled/suppressed delivery, generic SMTP, and an HTTPS webhook signed with
-HMAC-SHA256 over its timestamp and canonical body. Claims use row locking,
+disabled/suppressed delivery, mailbox-scoped Microsoft Graph app-only mail,
+generic SMTP, and an HTTPS webhook signed with HMAC-SHA256 over its timestamp
+and canonical body. Microsoft Graph additionally requires exact
+installation-approved tenant, application, and sender values and uses only
+fixed Microsoft HTTPS endpoints. Claims use row locking,
 idempotency keys, bounded exponential retry, maximum attempts, and stale-lock
 recovery. Provider-specific mail or workflow products are not engine
 dependencies.

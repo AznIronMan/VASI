@@ -1,6 +1,6 @@
 # Productized tenancy, integrations, and deployment
 
-Status: implemented in VASI 0.11.0.
+Status: implemented in VASI 0.11.0 and extended in VASI 0.13.0.
 
 ## Boundary
 
@@ -18,7 +18,7 @@ flowchart LR
   engine --> database[("Dedicated PostgreSQL")]
   worker["VASI worker"] -->|"signed bounded delivery contract"| integrations["Integration gateway"]
   integrations --> database
-  integrations -->|"allowlisted destination only"| external["SMTP or HTTPS webhook"]
+  integrations -->|"allowlisted destination only"| external["Microsoft Graph, SMTP, or HTTPS webhook"]
 ```
 
 The engine accepts a newly entered credential only long enough to validate and
@@ -38,7 +38,8 @@ It declares:
 - a dedicated engine database and gateway-only public ingress;
 - product-neutral organization/product/support metadata;
 - administrator-only tenant provisioning and a tenant ceiling; and
-- enabled adapter IDs plus exact SMTP and webhook host allowlists.
+- enabled adapter IDs; exact Microsoft tenant, application, and sender
+  allowlists; and exact SMTP and webhook host allowlists.
 
 A tenant profile has immutable revisions for display identity, colors, optional
 support contact, the default retention-policy name, and limits for members,
@@ -70,11 +71,16 @@ separate service HMAC and never sees a binding credential.
 
 Bindings are tenant/capability-specific immutable revisions. Configuration is
 validated before encryption; credentials use AES-256-GCM in PostgreSQL and are
-redacted from every list response. SMTP and webhook adapters implement the same
-normalized result contract. Webhooks additionally sign the canonical provider
-payload and carry the stable idempotency key. Worker retry attempts keep that
-key, use bounded exponential delay, and create distinct immutable gateway and
-outbox attempt records.
+redacted from every list response. Microsoft Graph, SMTP, and webhook adapters
+implement the same normalized result contract. The Graph adapter accepts only
+UUID tenant/application identifiers and an exact sender email already approved
+in the active installation revision. It acquires app-only tokens from the fixed
+Microsoft identity endpoint, caches them only in integration-gateway memory,
+sends only through the fixed Graph endpoint, and records no token or provider
+response body. Webhooks additionally sign the canonical provider payload and
+carry the stable idempotency key. Worker retry attempts keep that key, use
+bounded exponential delay, and create distinct immutable gateway and outbox
+attempt records.
 
 Version 0.11.0 performs a one-time compatibility conversion when a pre-0.11
 global SMTP or webhook setting exists: the destination is placed in the first
@@ -94,7 +100,8 @@ npm run deployment:profile -- saas
 ```
 
 Both preserve a dedicated engine database and gateway-only public ingress.
-Neither enables an outbound host by default. Customer origins, credentials,
+Neither enables an outbound host, Graph identity, or sender by default.
+Customer origins, credentials,
 certificates, signing material, branding, and addresses must be entered through
 the settings/profile controls and must never be committed.
 
@@ -167,7 +174,8 @@ Application separation does not by itself prove network egress filtering or
 database least privilege. Production deployments should add platform firewall
 rules so only the integration gateway can reach approved external endpoints
 and should use separately permissioned database roles when the platform can
-enforce them. SMTP remains at-least-once; webhook consumers should enforce the
-idempotency key. Productization does not replace legal/privacy approval,
+enforce them. Graph and SMTP delivery remain at-least-once; webhook consumers
+should enforce the idempotency key. Productization does not replace
+legal/privacy approval,
 independent penetration testing, KMS/HSM/TSA evaluation, malware-scanner
 selection, or disaster-recovery exercises.

@@ -21,7 +21,7 @@ flowchart LR
   worker["VASI worker"] --> database
   worker -->|"HMAC service request"| integrations["Integration gateway"]
   integrations --> database
-  integrations --> external["Allowlisted SMTP / HTTPS"]
+  integrations --> external["Allowlisted Graph / SMTP / HTTPS"]
 ```
 
 Only the private-ingress facade may have a host listener. The sanitized
@@ -65,9 +65,11 @@ table; reuse is rejected even through a newly signed service request.
 - `services/integration-gateway` owns credential use and bounded outbound
   adapter execution.
 
-These packages do not import Next.js, Better Auth, provider SDKs, Graph, SMTP,
-or customer code. The admin-only gateway diagnostic is an adapter around the
-same contracts, not an engine dependency on the gateway.
+The engine/domain packages do not import Next.js, Better Auth, provider SDKs,
+SMTP libraries, or customer code. Optional provider protocols are confined to
+the integration-gateway adapter layer; Microsoft Graph uses fixed HTTPS
+endpoints and no provider SDK. The admin-only gateway diagnostic is an adapter
+around the same contracts, not an engine dependency on the gateway.
 
 The portable baseline uses PostgreSQL and built-in Node cryptography/networking
 plus JOSE. It requires no proprietary identity broker, queue, workflow engine,
@@ -99,5 +101,6 @@ separately documented provider-hosted media and duration evidence, and VASI
 verification. VASI 0.10.0 adds engine-owned retention revisions, lifecycle
 chains, legal holds, sealed purge tombstones, participant history, and reviewed
 data exports. VASI 0.11.0 adds revisioned installation/tenant policy and the
-separate allowlisted integration gateway. Higher-assurance external trust
-adapters remain later milestones.
+separate allowlisted integration gateway, and VASI 0.13.0 adds its governed
+Microsoft Graph mail adapter. Higher-assurance external trust adapters remain
+later milestones.
