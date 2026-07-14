@@ -3,7 +3,8 @@ Description=Continuously verify the VASI private-engine egress boundary
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=5min
+OnActiveSec=2min
+OnUnitInactiveSec=5min
 AccuracySec=30s
 RandomizedDelaySec=30s
 Persistent=yes

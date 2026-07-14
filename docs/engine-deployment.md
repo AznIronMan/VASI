@@ -261,7 +261,9 @@ sudo node scripts/probe-engine-egress-boundary.mjs \
   --database-chain VASI_EXAMPLE_DATABASE --ingress-chain VASI_EXAMPLE_INGRESS
 ```
 
-The policy refreshes every two minutes and the proof every five. A PostgreSQL
+The timers schedule an activation-relative first run, then refresh the policy
+two minutes after its one-shot exits and rerun the proof five minutes after its
+one-shot exits. A PostgreSQL
 DNS change can cause a bounded connection pause while the new address is still
 denied; it must never cause a broader allow. Alert on either unit's nonzero
 result. See the
@@ -422,7 +424,7 @@ encrypted off-host custody or establish an RPO/RTO.
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.
 
-For rollback, first stop the complete 0.21.3 engine stack. Disable its two
+For rollback, first stop the complete 0.21.4 engine stack. Disable its two
 timers, remove the policy with
 `sudo /bin/sh scripts/apply-database-egress-policy.sh remove`, switch the whole
 release—not selected files—to the prior verified version, and follow that

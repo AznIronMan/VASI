@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.21.3`
+Version: `0.21.4`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -245,6 +245,11 @@ must contact the public health/TLS origin, so engine scope runs from the
 trusted host with protected bootstrap access. The maintenance container keeps
 its exact-database-only egress boundary; no private container is broadened for
 an operational check.
+
+Version 0.21.4 makes recurring host enforcement robust for one-shot services.
+Both systemd timers now schedule a first run relative to timer activation and
+subsequent runs relative to the service becoming inactive, preventing an
+enabled timer from remaining elapsed with no future trigger.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

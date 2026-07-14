@@ -3,7 +3,8 @@ Description=Refresh the VASI engine exact database and private-ingress egress po
 
 [Timer]
 OnBootSec=15s
-OnUnitActiveSec=2min
+OnActiveSec=15s
+OnUnitInactiveSec=2min
 AccuracySec=15s
 RandomizedDelaySec=15s
 Persistent=yes

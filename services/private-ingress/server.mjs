@@ -7,7 +7,7 @@ import { resolveEngineRoute } from "../../packages/engine-contracts/index.mjs";
 import { loadBootstrapSettings, readRuntimeSettings } from "../../scripts/settings-core.mjs";
 import { readRequestBody, sendJSON } from "../shared/http.mjs";
 
-const ENGINE_VERSION = "0.21.3";
+const ENGINE_VERSION = "0.21.4";
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
 

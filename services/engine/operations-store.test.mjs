@@ -50,7 +50,7 @@ function database(overrides = {}, errors = []) {
 }
 
 const dependencies = {
-  engineVersion: "0.21.3",
+  engineVersion: "0.21.4",
   migrationManifest: async () => [{ checksum: "checksum-1", name: "0001" }],
 };
 
@@ -69,7 +69,7 @@ describe("operational readiness store", () => {
           { code: "delivery_failed", count: 1 },
         ],
       },
-      engineVersion: "0.21.3",
+      engineVersion: "0.21.4",
       schema: "vasi-operational-snapshot/v1",
       status: "ready",
     });

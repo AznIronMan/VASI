@@ -94,8 +94,10 @@ listener policies together.
 ## Persistence and ordering
 
 The packaged policy service runs after Docker and network availability. Its
-timer reapplies the policy after boot and every two minutes, covering Docker
-network recreation and bounded DNS changes. The transport gateway refreshes
+timer schedules an activation-relative first run, then reapplies the policy
+two minutes after each one-shot becomes inactive, covering boot, late timer
+activation, Docker network recreation, and bounded DNS changes. The separate
+boundary verifier uses the same pattern with a five-minute recurrence. The transport gateway refreshes
 its IPv4 set every minute and becomes unhealthy after five minutes without a
 successful resolution. If DNS changes between refreshes, a new address can be
 denied until the host policy catches up; availability may pause, but the

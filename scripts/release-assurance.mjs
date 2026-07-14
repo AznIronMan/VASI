@@ -282,8 +282,9 @@ export async function validateEgressPersistenceContract(repositoryRoot = root) {
       "WorkingDirectory=/opt/vasi-engine/current",
     ],
     "vasi-engine-database-egress-policy.timer": [
+      "OnActiveSec=15s",
       "OnBootSec=15s",
-      "OnUnitActiveSec=2min",
+      "OnUnitInactiveSec=2min",
       "Persistent=yes",
       "Unit=vasi-engine-database-egress-policy.service",
     ],
@@ -294,8 +295,9 @@ export async function validateEgressPersistenceContract(repositoryRoot = root) {
       "WorkingDirectory=/opt/vasi-engine/current",
     ],
     "vasi-engine-egress-boundary.timer": [
+      "OnActiveSec=2min",
       "OnBootSec=2min",
-      "OnUnitActiveSec=5min",
+      "OnUnitInactiveSec=5min",
       "Persistent=yes",
       "Unit=vasi-engine-egress-boundary.service",
     ],
