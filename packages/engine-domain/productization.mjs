@@ -13,6 +13,14 @@ export const TENANT_ADMISSION_GATES = Object.freeze([
   "recovery_custody",
   "capacity_support",
 ]);
+export const TENANT_PRODUCTION_STOP_REASONS = Object.freeze([
+  "security_incident",
+  "privacy_or_legal",
+  "identity_or_delivery",
+  "content_safety",
+  "recovery_or_capacity",
+  "operator_decision",
+]);
 export const INTEGRATION_CAPABILITIES = Object.freeze([
   "document.malware_scan",
   "notification.delivery",
@@ -173,6 +181,26 @@ export function validateTenantAdmissionDecisionCommand(value) {
     invalid("A pending admission decision cannot retain approval evidence.");
   }
   return Object.freeze(command);
+}
+
+export function validateTenantProductionStopCommand(value) {
+  const input = strictObject(value, "tenant production stop", [
+    "commandId", "expectedRevision", "gateId", "incidentReference", "reasonCode", "tenantId",
+  ]);
+  const gateId = token(input.gateId, "gateId");
+  if (!TENANT_ADMISSION_GATES.includes(gateId)) invalid("The tenant admission gate is unsupported.");
+  const reasonCode = token(input.reasonCode, "reasonCode");
+  if (!TENANT_PRODUCTION_STOP_REASONS.includes(reasonCode)) {
+    invalid("The tenant production-stop reason is unsupported.");
+  }
+  return Object.freeze({
+    commandId: token(input.commandId, "commandId"),
+    expectedRevision: safeInteger(input.expectedRevision, "expectedRevision", 1, Number.MAX_SAFE_INTEGER),
+    gateId,
+    incidentReference: admissionReference(input.incidentReference, "incidentReference"),
+    reasonCode,
+    tenantId: token(input.tenantId, "tenantId"),
+  });
 }
 
 export function applyTenantAdmissionDecision(value, commandValue, decidedAt = new Date()) {

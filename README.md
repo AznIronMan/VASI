@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.25.0`
+Version: `0.26.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -296,6 +296,18 @@ admitted snapshot into manifest version 9; the offline verifier and reports
 validate and explain that binding. The internal console manages approvals, and
 the privacy-safe operations snapshot reports admitted versus pending tenants.
 
+Version 0.26.0 closes the production-stop gap for requests that were already
+issued. An installation administrator can now execute one replay-resistant,
+optimistically locked tenant stop that revokes an accountable admission gate,
+every scheduled/issued/in-progress request, and every pending invitation or
+reminder in one PostgreSQL transaction. Each affected assignment receives a
+hash-chained revocation event, the request lifecycle retains an immutable
+command record, and the tenant configuration chain preserves only a bounded
+reason code and opaque incident reference. Completed evidence, participant
+history, retention state, and legal holds remain intact. The internal console
+shows the last stop outcome; recovery requires fresh gate approval and newly
+issued participant work.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -315,7 +327,8 @@ assessment remain installation or pilot gates.
   invitations, connector health/disconnection, password controls, account
   disablement, session revocation, and audit records.
 - Administrator-only, immutable tenant production admission with eight exact
-  digest-bound assurance gates and fail-closed issuance/outbound enforcement.
+  digest-bound assurance gates, fail-closed issuance/outbound enforcement, and
+  an atomic audited stop for all non-terminal tenant work.
 - Microsoft Graph transactional delivery restricted to its configured mailbox,
   with SMTP as an optional fallback.
 - A local SQLite bootstrap at `data/VASI.settings` containing only the

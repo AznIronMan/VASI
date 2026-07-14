@@ -6,6 +6,7 @@ import type {
   AdminTenantAdmission,
   TenantAdmissionGate,
   TenantAdmissionGateId,
+  TenantProductionStopReason,
 } from "@/lib/owner-types";
 
 const gateCopy: Record<TenantAdmissionGateId, { description: string; label: string }> = {
@@ -43,10 +44,20 @@ const gateCopy: Record<TenantAdmissionGateId, { description: string; label: stri
   },
 };
 
+const stopReasonCopy: Record<TenantProductionStopReason, string> = {
+  security_incident: "Security or integrity incident",
+  privacy_or_legal: "Privacy or legal direction",
+  identity_or_delivery: "Identity or delivery failure",
+  content_safety: "Content or malware safety concern",
+  recovery_or_capacity: "Recovery, capacity, or support limit",
+  operator_decision: "Operator decision",
+};
+
 export function TenantAdmissionPanel() {
   const [records, setRecords] = useState<AdminTenantAdmission[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState("");
   const [editingGate, setEditingGate] = useState<TenantAdmissionGateId>();
+  const [stopping, setStopping] = useState(false);
   const [pending, setPending] = useState(true);
   const [message, setMessage] = useState<string>();
   const [messageType, setMessageType] = useState<"error" | "success">("success");
@@ -125,6 +136,50 @@ export function TenantAdmissionPanel() {
     });
   }
 
+  async function stopProduction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!record) return;
+    const data = new FormData(event.currentTarget);
+    const gateId = String(data.get("gateId") || "") as TenantAdmissionGateId;
+    const reasonCode = String(data.get("reasonCode") || "") as TenantProductionStopReason;
+    const incidentReference = String(data.get("incidentReference") || "").trim();
+    if (!window.confirm(
+      `Stop production for ${record.tenant.name}? Every scheduled, issued, or in-progress request will be permanently revoked. Completed records remain available.`,
+    )) return;
+    setPending(true);
+    setMessage(undefined);
+    try {
+      const response = await fetch("/api/admin/product/tenant-production-stops", {
+        body: JSON.stringify({
+          commandId: crypto.randomUUID(),
+          expectedRevision: record.revision,
+          gateId,
+          incidentReference,
+          reasonCode,
+          tenantId: record.tenant.id,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const body = await response.json() as AdminTenantAdmission & { error?: string };
+      if (!response.ok) throw new Error(admissionError(body.error));
+      setRecords((current) => current.map((candidate) =>
+        candidate.tenant.id === body.tenant.id ? body : candidate
+      ));
+      setStopping(false);
+      setEditingGate(undefined);
+      setMessage(
+        `Production stopped. ${body.lastProductionStop?.revokedRequestCount ?? 0} active requests revoked and ${body.lastProductionStop?.suppressedNotificationCount ?? 0} queued notifications suppressed.`,
+      );
+      setMessageType("success");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Tenant production could not be stopped.");
+      setMessageType("error");
+    } finally {
+      setPending(false);
+    }
+  }
+
   return <section className="admin-invite admission-panel" aria-labelledby="tenant-admission-title">
     <div className="admission-panel__heading">
       <div>
@@ -142,6 +197,7 @@ export function TenantAdmissionPanel() {
       <select value={selectedTenantId} onChange={(event) => {
         setSelectedTenantId(event.target.value);
         setEditingGate(undefined);
+        setStopping(false);
         setMessage(undefined);
       }}>
         {records.map((candidate) => <option value={candidate.tenant.id} key={candidate.tenant.id}>
@@ -184,6 +240,34 @@ export function TenantAdmissionPanel() {
           </article>;
         })}
       </div>
+      <section className="production-stop" aria-labelledby="production-stop-title">
+        <div className="production-stop__heading">
+          <div>
+            <h3 id="production-stop-title">Emergency production stop</h3>
+            <p>Fails closed in one transaction. Active participant work is revoked, queued invitations and reminders are suppressed, and one admission gate must be freshly approved before production can resume.</p>
+          </div>
+          {!stopping && <button className="danger-button" disabled={pending} type="button" onClick={() => setStopping(true)}>Prepare stop</button>}
+        </div>
+        {stopping && <form className="production-stop__form" onSubmit={stopProduction}>
+          <label className="field"><span>Admission gate to revoke</span><select name="gateId" defaultValue={record.admission.gates.find((gate) => gate.state === "approved")?.id || "capacity_support"}>
+            {record.admission.gates.map((gate) => <option value={gate.id} key={gate.id}>{gateCopy[gate.id].label} ({gate.state})</option>)}
+          </select></label>
+          <label className="field"><span>Reason</span><select name="reasonCode" defaultValue="operator_decision">
+            {(Object.entries(stopReasonCopy) as [TenantProductionStopReason, string][]).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+          </select></label>
+          <label className="field"><span>Opaque incident reference</span><input name="incidentReference" pattern="[A-Za-z0-9._:-]+" maxLength={160} required placeholder="incident:2026-001" /></label>
+          <div className="production-stop__actions">
+            <button className="danger-button" disabled={pending} type="submit">Stop tenant production</button>
+            <button className="table-link" disabled={pending} type="button" onClick={() => setStopping(false)}>Cancel</button>
+          </div>
+        </form>}
+        {record.lastProductionStop && <dl className="production-stop__last">
+          <div><dt>Last stop</dt><dd>{new Date(record.lastProductionStop.stoppedAt).toLocaleString()}</dd></div>
+          <div><dt>Reference</dt><dd>{record.lastProductionStop.incidentReference}</dd></div>
+          <div><dt>Effect</dt><dd>{record.lastProductionStop.revokedRequestCount} requests / {record.lastProductionStop.revokedAssignmentCount} participant assignments · {record.lastProductionStop.suppressedNotificationCount} notifications</dd></div>
+          <div><dt>Event SHA-256</dt><dd><code>{record.lastProductionStop.eventHash}</code></dd></div>
+        </dl>}
+      </section>
       <p className="admission-panel__footnote">
         Revision {record.revision} · admission fingerprint <code>{record.admissionHash}</code> · recorded by {record.createdByPrincipalId} at {new Date(record.createdAt).toLocaleString()}.
         References must be opaque identifiers; approval documents, URLs, credentials, and narrative case notes are not stored here.
@@ -219,6 +303,7 @@ function ApprovalForm({
 function admissionError(code?: string) {
   if (code === "tenant_admission_revision_conflict") return "The record changed. Reload before recording another decision.";
   if (code === "tenant_admission_decision_unchanged") return "That gate is already in the requested state.";
+  if (code === "tenant_production_stop_replayed") return "That production-stop command was already recorded.";
   if (code === "invalid_product_configuration") return "Use opaque references and an exact lowercase SHA-256 evidence digest.";
   return code || "The admission decision could not be recorded.";
 }

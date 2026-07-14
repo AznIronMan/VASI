@@ -17,11 +17,13 @@ import {
   validateIntegrationBindingCommand,
   validateTenantAdmission,
   validateTenantAdmissionDecisionCommand,
+  validateTenantProductionStopCommand,
   validateTenantProfileCommand,
   validateTenantProvisionInput,
   validateTenantReference,
 } from "../../packages/engine-domain/productization.mjs";
 import { hasTenantPermission, permissionsForRoles } from "../../packages/engine-domain/workflow.mjs";
+import { appendEvent } from "./evidence-events.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { activeTenantProfile, assertTenantCapacity, tenantUsage } from "./tenant-policy.mjs";
 import {
@@ -371,11 +373,21 @@ export function createProductStore(database, settings, installationId) {
       const result = await database.query(
         `select p."revision", r."id", r."admission", r."admissionHash",
                 r."createdByPrincipalId", r."createdAt",
-                t."id" as "tenantId", t."name" as "tenantName", t."slug" as "tenantSlug"
+                t."id" as "tenantId", t."name" as "tenantName", t."slug" as "tenantSlug",
+                s."eventData" as "lastStopEventData", s."eventHash" as "lastStopEventHash",
+                s."actorPrincipalId" as "lastStoppedByPrincipalId",
+                s."createdAt" as "lastStoppedAt"
          from "vasi_engine"."tenant" t
          join "vasi_engine"."tenant_admission_pointer" p on p."tenantId" = t."id"
          join "vasi_engine"."tenant_admission_revision" r
            on r."id" = p."activeRevisionId" and r."tenantId" = p."tenantId"
+         left join lateral (
+           select e."eventData", e."eventHash", e."actorPrincipalId", e."createdAt"
+           from "vasi_engine"."product_configuration_event" e
+           where e."scopeType" = 'tenant' and e."scopeId" = t."id"
+             and e."eventType" = 'tenant.production.stopped'
+           order by e."sequence" desc limit 1
+         ) s on true
          order by t."name", t."id"`,
       );
       return result.rows.map(admissionWithTenantProjection);
@@ -425,15 +437,186 @@ export function createProductStore(database, settings, installationId) {
           scopeType: "tenant",
           tenantId: input.tenantId,
         });
-        const tenant = await client.query(
-          `select "name" as "tenantName", "slug" as "tenantSlug"
-           from "vasi_engine"."tenant" where "id" = $1`,
-          [input.tenantId],
-        );
+        const tenant = await tenantWithLastProductionStop(client, input.tenantId);
         return admissionWithTenantProjection({
           ...next,
           tenantId: input.tenantId,
-          ...tenant.rows[0],
+          ...tenant,
+        });
+      });
+    },
+
+    async stopTenantProduction(actor, payload) {
+      requireAdministrator(actor);
+      const input = validateTenantProductionStopCommand(payload);
+      return transaction(database, async (client) => {
+        await client.query(
+          "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+          [input.commandId],
+        );
+        const replay = await client.query(
+          `select 1 from "vasi_engine"."product_configuration_event"
+           where "eventType" = 'tenant.production.stopped'
+             and "eventData"->>'commandId' = $1`,
+          [input.commandId],
+        );
+        if (replay.rowCount) throw new EngineStoreError("tenant_production_stop_replayed", 409);
+
+        const current = await activeTenantAdmission(client, input.tenantId, { lock: "update" });
+        if (current.revision !== input.expectedRevision) {
+          throw new EngineStoreError("tenant_admission_revision_conflict", 409);
+        }
+
+        const stoppedAt = new Date();
+        const revokedAdmission = applyTenantAdmissionDecision(current.admission, {
+          decision: "pending",
+          expectedRevision: current.revision,
+          gateId: input.gateId,
+          tenantId: input.tenantId,
+        }, stoppedAt);
+        const revokedAdmissionHash = hashCanonicalJSON(revokedAdmission);
+        let admission = current;
+        let admissionChanged = false;
+        if (revokedAdmissionHash !== current.admissionHash) {
+          admission = await createTenantAdmissionRevision(
+            client,
+            input.tenantId,
+            revokedAdmission,
+            current.revision + 1,
+            actor.principalId,
+          );
+          const updated = await client.query(
+            `update "vasi_engine"."tenant_admission_pointer"
+             set "activeRevisionId" = $3, "revision" = $4,
+                 "updatedByPrincipalId" = $5, "updatedAt" = $6
+             where "tenantId" = $1 and "revision" = $2 returning "tenantId"`,
+            [
+              input.tenantId,
+              input.expectedRevision,
+              admission.id,
+              admission.revision,
+              actor.principalId,
+              stoppedAt,
+            ],
+          );
+          if (!updated.rowCount) throw new EngineStoreError("tenant_admission_revision_conflict", 409);
+          admissionChanged = true;
+        }
+
+        const requests = await client.query(
+          `select r."id" as "requestId", r."status", a."id" as "assignmentId"
+           from "vasi_engine"."request_instance" r
+           join "vasi_engine"."participant_assignment" a on a."requestId" = r."id"
+           where r."tenantId" = $1 and r."status" in ('scheduled', 'issued', 'in_progress')
+           order by r."id" for update of r, a`,
+          [input.tenantId],
+        );
+
+        const requestsById = new Map();
+        for (const row of requests.rows) {
+          const request = requestsById.get(row.requestId) || {
+            assignments: [],
+            requestId: row.requestId,
+            status: row.status,
+          };
+          request.assignments.push(row.assignmentId);
+          requestsById.set(row.requestId, request);
+        }
+
+        let revokedAssignmentCount = 0;
+        let suppressedNotificationCount = 0;
+        for (const request of requestsById.values()) {
+          await client.query(
+            `update "vasi_engine"."request_instance" set "status" = 'revoked' where "id" = $1`,
+            [request.requestId],
+          );
+          const suppressed = await client.query(
+            `update "vasi_engine"."outbox_job"
+             set "status" = 'completed', "completedAt" = $2,
+                 "result" = jsonb_build_object(
+                   'adapter', 'engine', 'outcome', 'suppressed',
+                   'reason', 'tenant_production_stopped'
+                 ),
+                 "payload" = '{"redacted":true}'::jsonb, "updatedAt" = $2
+             where "requestId" = $1 and "status" = 'pending'
+               and "notificationType" in ('request.issued', 'request.reminder')
+             returning "id"`,
+            [request.requestId, stoppedAt],
+          );
+          suppressedNotificationCount += suppressed.rowCount;
+          await client.query(
+            `insert into "vasi_engine"."request_lifecycle_event"
+              ("id", "tenantId", "requestId", "eventType", "actorPrincipalId",
+               "idempotencyKey", "eventData", "createdAt")
+             values ($1, $2, $3, 'request.revoked', $4, $5, $6, $7)`,
+            [
+              randomUUID(),
+              input.tenantId,
+              request.requestId,
+              actor.principalId,
+              `${input.commandId}:${request.requestId}`,
+              {
+                commandId: input.commandId,
+                incidentReference: input.incidentReference,
+                previousStatus: request.status,
+                reasonCode: input.reasonCode,
+                scope: "tenant_production_stop",
+              },
+              stoppedAt,
+            ],
+          );
+          for (const assignmentId of request.assignments) {
+            await client.query(
+              `update "vasi_engine"."participant_assignment" set "status" = 'revoked' where "id" = $1`,
+              [assignmentId],
+            );
+            await appendEvent(client, {
+              actor,
+              assignmentId,
+              eventType: "request.revoked",
+              payload: {
+                commandId: input.commandId,
+                incidentReference: input.incidentReference,
+                previousStatus: request.status,
+                reasonCode: input.reasonCode,
+                scope: "tenant_production_stop",
+              },
+              receivedAt: stoppedAt,
+              requestId: request.requestId,
+              tenantId: input.tenantId,
+            });
+            revokedAssignmentCount += 1;
+          }
+        }
+
+        const eventData = {
+          admissionChanged,
+          admissionHash: admission.admissionHash,
+          commandId: input.commandId,
+          gateId: input.gateId,
+          incidentReference: input.incidentReference,
+          previousAdmissionStatus: current.status,
+          reasonCode: input.reasonCode,
+          revokedAssignmentCount,
+          resultingAdmissionRevision: admission.revision,
+          resultingAdmissionStatus: admission.status,
+          revokedRequestCount: requestsById.size,
+          stoppedAt: stoppedAt.toISOString(),
+          suppressedNotificationCount,
+        };
+        await appendConfigurationEvent(client, {
+          actorPrincipalId: actor.principalId,
+          eventData,
+          eventType: "tenant.production.stopped",
+          scopeId: input.tenantId,
+          scopeType: "tenant",
+          tenantId: input.tenantId,
+        });
+        const tenant = await tenantWithLastProductionStop(client, input.tenantId);
+        return admissionWithTenantProjection({
+          ...admission,
+          tenantId: input.tenantId,
+          ...tenant,
         });
       });
     },
@@ -801,6 +984,7 @@ async function appendConfigurationEvent(client, {
      set "lastSequence" = $3, "lastHash" = $4 where "scopeType" = $1 and "scopeId" = $2`,
     [scopeType, scopeId, sequence, eventHash],
   );
+  return Object.freeze({ createdAt, eventHash, id, sequence });
 }
 
 async function requirePermission(client, actor, tenantId, permission) {
@@ -844,11 +1028,55 @@ function admissionWithTenantProjection(row) {
     : row;
   return Object.freeze({
     ...admission,
+    ...(row.lastProductionStop || row.lastStopEventData
+      ? { lastProductionStop: row.lastProductionStop || productionStopProjection(row) }
+      : {}),
     tenant: Object.freeze({
       id: row.tenantId,
       name: row.tenantName,
       slug: row.tenantSlug,
     }),
+  });
+}
+
+async function tenantWithLastProductionStop(client, tenantId) {
+  const result = await client.query(
+    `select t."name" as "tenantName", t."slug" as "tenantSlug",
+            s."eventData" as "lastStopEventData", s."eventHash" as "lastStopEventHash",
+            s."actorPrincipalId" as "lastStoppedByPrincipalId",
+            s."createdAt" as "lastStoppedAt"
+     from "vasi_engine"."tenant" t
+     left join lateral (
+       select e."eventData", e."eventHash", e."actorPrincipalId", e."createdAt"
+       from "vasi_engine"."product_configuration_event" e
+       where e."scopeType" = 'tenant' and e."scopeId" = t."id"
+         and e."eventType" = 'tenant.production.stopped'
+       order by e."sequence" desc limit 1
+     ) s on true
+     where t."id" = $1`,
+    [tenantId],
+  );
+  if (!result.rowCount) throw new EngineStoreError("not_found", 404);
+  return result.rows[0];
+}
+
+function productionStopProjection(row) {
+  const data = row.lastStopEventData;
+  if (!data) return undefined;
+  return Object.freeze({
+    admissionChanged: Boolean(data.admissionChanged),
+    commandId: data.commandId,
+    eventHash: row.lastStopEventHash,
+    gateId: data.gateId,
+    incidentReference: data.incidentReference,
+    reasonCode: data.reasonCode,
+    revokedAssignmentCount: Number(data.revokedAssignmentCount),
+    resultingAdmissionRevision: Number(data.resultingAdmissionRevision),
+    resultingAdmissionStatus: data.resultingAdmissionStatus,
+    revokedRequestCount: Number(data.revokedRequestCount),
+    stoppedAt: new Date(row.lastStoppedAt || data.stoppedAt).toISOString(),
+    stoppedByPrincipalId: row.lastStoppedByPrincipalId,
+    suppressedNotificationCount: Number(data.suppressedNotificationCount),
   });
 }
 

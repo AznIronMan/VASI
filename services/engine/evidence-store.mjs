@@ -1337,6 +1337,12 @@ async function applyRequestAction(client, actor, input, outboxEncryptionSecret) 
     [input.commandId],
   );
   if (replay.rowCount) throw new EvidenceStoreError("action_replayed", 409);
+  // Tenant production-stop orchestration takes the admission pointer before
+  // request rows. Reissue follows the same order so the old request cannot be
+  // held while waiting on a concurrent stop's admission lock.
+  if (input.action === "reissue") {
+    await assertTenantAdmitted(client, input.tenantId, { lock: true });
+  }
   const result = await client.query(
     `select r."id", r."status", r."workflowRevisionId", r."scheduledFor", r."dueAt", r."expiresAt",
             a."id" as "assignmentId", a."intendedEmail"

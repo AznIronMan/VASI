@@ -12,6 +12,7 @@ import {
   validateIntegrationBindingCommand,
   validateTenantAdmission,
   validateTenantAdmissionDecisionCommand,
+  validateTenantProductionStopCommand,
   validateTenantProfile,
   validateTenantProvisionInput,
 } from "./productization.mjs";
@@ -150,6 +151,40 @@ describe("tenant production admission", () => {
       tenantId: "tenant-1",
     }, new Date("2026-07-14T21:00:00.000Z"));
     expect(pending.gates[0]).toEqual({ id: "exact_release", state: "pending" });
+  });
+
+  it("accepts only bounded, opaque tenant production-stop commands", () => {
+    expect(validateTenantProductionStopCommand({
+      commandId: "stop-command-1",
+      expectedRevision: 9,
+      gateId: "isolation_integrity",
+      incidentReference: "incident:2026-0714",
+      reasonCode: "security_incident",
+      tenantId: "tenant-1",
+    })).toEqual({
+      commandId: "stop-command-1",
+      expectedRevision: 9,
+      gateId: "isolation_integrity",
+      incidentReference: "incident:2026-0714",
+      reasonCode: "security_incident",
+      tenantId: "tenant-1",
+    });
+    expect(() => validateTenantProductionStopCommand({
+      commandId: "stop-command-2",
+      expectedRevision: 9,
+      gateId: "isolation_integrity",
+      incidentReference: "https://incident.example.test/details",
+      reasonCode: "security_incident",
+      tenantId: "tenant-1",
+    })).toThrow(/opaque identifier/i);
+    expect(() => validateTenantProductionStopCommand({
+      commandId: "stop-command-3",
+      expectedRevision: 9,
+      gateId: "isolation_integrity",
+      incidentReference: "incident:2026-0714",
+      reasonCode: "unbounded_narrative",
+      tenantId: "tenant-1",
+    })).toThrow(/reason/i);
   });
 });
 

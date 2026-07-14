@@ -62,6 +62,9 @@ describe("private engine routes", () => {
     expect(resolveEngineRoute("POST", "/v1/admin/tenant-admissions")?.action).toBe(
       "tenant.admission.update",
     );
+    expect(resolveEngineRoute("POST", "/v1/admin/tenant-production-stops")?.action).toBe(
+      "tenant.production.stop",
+    );
     expect(resolveEngineRoute("POST", "/v1/participant/context-snapshots")?.action).toBe(
       "participant.context.record",
     );

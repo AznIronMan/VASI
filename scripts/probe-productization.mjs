@@ -131,6 +131,14 @@ await expectCall(owner, "POST", "/v1/owner/integrations", {
   tenantId: tenant.body.id,
 }, 409, "pending-admission integration denial");
 await expectCall(member, "GET", "/v1/admin/tenant-admissions", undefined, 403, "admission administrator denial");
+await expectCall(member, "POST", "/v1/admin/tenant-production-stops", {
+  commandId: randomUUID(),
+  expectedRevision: 1,
+  gateId: "capacity_support",
+  incidentReference: "conformance:unauthorized",
+  reasonCode: "operator_decision",
+  tenantId: tenant.body.id,
+}, 403, "production-stop administrator denial");
 let admission = await admitConformanceTenant(call, owner, tenant.body.id);
 await expectCall(owner, "POST", "/v1/admin/tenant-admissions", {
   decision: "pending",
@@ -166,18 +174,36 @@ if (JSON.stringify(listedBindings.body).includes(secret) || JSON.stringify(liste
 }
 const queuedBeforeRevocation = await expectCall(owner, "POST", "/v1/owner/requests", {
   intendedEmail: member.email,
-  scheduledFor: new Date(Date.now() + 3_000).toISOString(),
+  scheduledFor: new Date(Date.now() + 60_000).toISOString(),
   tenantId: tenant.body.id,
   workflowRevisionId: publication.body.revisionId,
-}, 200, "pre-revocation scheduled request");
+}, 200, "pre-stop scheduled request");
 const releaseApproval = admission.admission.gates.find((gate) => gate.id === "exact_release");
-const revokedAdmission = await expectCall(owner, "POST", "/v1/admin/tenant-admissions", {
-  decision: "pending",
+const stopCommandId = randomUUID();
+const stoppedAdmission = await expectCall(owner, "POST", "/v1/admin/tenant-production-stops", {
+  commandId: stopCommandId,
   expectedRevision: admission.revision,
   gateId: "exact_release",
+  incidentReference: "conformance:production-stop",
+  reasonCode: "operator_decision",
   tenantId: tenant.body.id,
-}, 200, "admission revocation");
-if (revokedAdmission.body.status !== "pending") throw new Error("The admission revocation did not fail closed.");
+}, 200, "atomic tenant production stop");
+if (
+  stoppedAdmission.body.status !== "pending" ||
+  stoppedAdmission.body.lastProductionStop?.revokedRequestCount !== 1 ||
+  stoppedAdmission.body.lastProductionStop?.revokedAssignmentCount !== 1 ||
+  stoppedAdmission.body.lastProductionStop?.suppressedNotificationCount !== 1 ||
+  stoppedAdmission.body.lastProductionStop?.commandId !== stopCommandId ||
+  stoppedAdmission.body.lastProductionStop?.resultingAdmissionRevision !== stoppedAdmission.body.revision
+) throw new Error("The tenant production stop did not return its bounded atomic outcome.");
+await expectCall(owner, "POST", "/v1/admin/tenant-production-stops", {
+  commandId: stopCommandId,
+  expectedRevision: admission.revision,
+  gateId: "exact_release",
+  incidentReference: "conformance:production-stop",
+  reasonCode: "operator_decision",
+  tenantId: tenant.body.id,
+}, 409, "production-stop replay denial");
 const postRevocationDenial = await expectCall(owner, "POST", "/v1/owner/requests", {
   intendedEmail: member.email,
   tenantId: tenant.body.id,
@@ -195,17 +221,29 @@ const suppressed = await waitForDeliveryStatus(
   15_000,
 );
 if (suppressed.status !== "suppressed") throw new Error("The gateway did not suppress queued work after revocation.");
-await expectCall(owner, "POST", "/v1/owner/request-actions", {
-  action: "revoke",
-  commandId: randomUUID(),
-  requestId: queuedBeforeRevocation.body.requestId,
+const stoppedRequests = await expectCall(owner, "POST", "/v1/owner/request-list", {
   tenantId: tenant.body.id,
-}, 200, "pre-revocation request cleanup");
+}, 200, "production-stop request state");
+if (stoppedRequests.body.find((request) => request.requestId === queuedBeforeRevocation.body.requestId)?.status !== "revoked") {
+  throw new Error("The tenant production stop did not revoke the scheduled request.");
+}
+const stoppedHandle = queuedBeforeRevocation.body.participantPath.split("/").at(-1);
+const stoppedOpen = await expectCall(member, "POST", "/v1/participant/open", {
+  handle: stoppedHandle,
+}, 410, "production-stop participant denial");
+if (stoppedOpen.body.error !== "assignment_revoked") {
+  throw new Error("A production-stopped participant handle remained available.");
+}
+const listedStoppedAdmission = await expectCall(owner, "GET", "/v1/admin/tenant-admissions", undefined, 200, "production-stop audit readback");
+const listedStop = listedStoppedAdmission.body.find((candidate) => candidate.tenant?.id === tenant.body.id)?.lastProductionStop;
+if (listedStop?.commandId !== stopCommandId || !/^[a-f0-9]{64}$/.test(listedStop?.eventHash || "")) {
+  throw new Error("The tenant production-stop configuration-chain event was not readable.");
+}
 const restoredAdmission = await expectCall(owner, "POST", "/v1/admin/tenant-admissions", {
   decision: "approved",
   evidenceDigest: releaseApproval.evidenceDigest,
   evidenceReference: releaseApproval.evidenceReference,
-  expectedRevision: revokedAdmission.body.revision,
+  expectedRevision: stoppedAdmission.body.revision,
   gateId: "exact_release",
   reviewerReference: releaseApproval.reviewerReference,
   tenantId: tenant.body.id,
@@ -306,7 +344,7 @@ if (
   record.body.manifest.tenant.profile.branding.shortName !== "Product Proof"
 ) throw new Error("The immutable tenant-profile evidence binding proof failed.");
 
-console.info("VASI installation, tenant profile, quota, integration redaction/allowlist, isolation, and evidence-binding checks passed.");
+console.info("VASI installation, tenant profile, quota, integration redaction/allowlist, atomic production-stop, isolation, and evidence-binding checks passed.");
 
 function workflowDocument() {
   return {

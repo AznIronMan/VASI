@@ -1,6 +1,6 @@
 # Productized tenancy, integrations, and deployment
 
-Status: implemented in VASI 0.11.0 and extended through VASI 0.25.0.
+Status: implemented in VASI 0.11.0 and extended through VASI 0.26.0.
 
 VASI 0.25.0 adds immutable tenant production admission. Provisioned tenants
 can prepare governed configuration while pending, but request issuance and
@@ -8,6 +8,13 @@ active outbound bindings fail closed until all eight required assurance gates
 have attributable digest-bound approvals. The integration gateway revalidates
 the current admission immediately before provider work. See
 [Tenant production admission](tenant-production-admission.md).
+
+VASI 0.26.0 adds an administrator-only tenant production stop. One strict,
+replay-resistant command atomically makes the selected admission gate pending,
+revokes every non-terminal request, suppresses queued invitation/reminder
+work, appends per-assignment evidence, and records a bounded tenant
+configuration-chain outcome. Completed records remain immutable and available
+under their lifecycle policy.
 
 VASI 0.19.0 extends the productized integration boundary with governed HTTPS
 document malware scanning and extends encrypted tenant archives to its

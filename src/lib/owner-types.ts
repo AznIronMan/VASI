@@ -110,6 +110,30 @@ export type TenantAdmissionGate = {
   state: "approved" | "pending";
 };
 
+export type TenantProductionStopReason =
+  | "security_incident"
+  | "privacy_or_legal"
+  | "identity_or_delivery"
+  | "content_safety"
+  | "recovery_or_capacity"
+  | "operator_decision";
+
+export type TenantProductionStop = {
+  admissionChanged: boolean;
+  commandId: string;
+  eventHash: string;
+  gateId: TenantAdmissionGateId;
+  incidentReference: string;
+  reasonCode: TenantProductionStopReason;
+  revokedAssignmentCount: number;
+  resultingAdmissionRevision: number;
+  resultingAdmissionStatus: "admitted" | "pending";
+  revokedRequestCount: number;
+  stoppedAt: string;
+  stoppedByPrincipalId: string;
+  suppressedNotificationCount: number;
+};
+
 export type AdminTenantAdmission = {
   admission: {
     gates: TenantAdmissionGate[];
@@ -120,6 +144,7 @@ export type AdminTenantAdmission = {
   createdAt: string;
   createdByPrincipalId: string;
   id: string;
+  lastProductionStop?: TenantProductionStop;
   revision: number;
   status: "admitted" | "pending";
   tenant: { id: string; name: string; slug: string };

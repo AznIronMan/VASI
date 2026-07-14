@@ -20,6 +20,12 @@ const requesterMigrationPath = path.join(
   "database",
   "engine-requester-provenance.sql",
 );
+const productionStopMigrationPath = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "database",
+  "engine-tenant-production-stop.sql",
+);
 
 describe("engine migration ledger", () => {
   it("remains anchored to public after the engine user schema exists", async () => {
@@ -35,6 +41,16 @@ describe("engine migration ledger", () => {
     expect(source).toContain("0013_engine_notification_delivery");
     expect(source).toContain("0014_engine_requester_provenance");
     expect(source).toContain("0015_engine_tenant_admission");
+    expect(source).toContain("0016_engine_tenant_production_stop");
+  });
+
+  it("makes tenant production-stop command IDs replay-resistant in the immutable configuration chain", async () => {
+    const source = await readFile(productionStopMigrationPath, "utf8");
+
+    expect(source).toContain("tenant.production.stopped");
+    expect(source).toContain("product_configuration_tenant_stop_command_idx");
+    expect(source).toContain("eventData\"->>'commandId'");
+    expect(source).toContain("product_configuration_event_event_type_check_v3");
   });
 
   it("extends tombstone-authorized retention purge to integration gateway attempts", async () => {

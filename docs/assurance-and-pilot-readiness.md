@@ -261,6 +261,17 @@ admitted revision for offline verification. These controls preserve decisions;
 they do not allow VASI to self-approve independent, legal, accessibility,
 custody, or customer-owner work.
 
+VASI 0.26.0 makes the pilot stop criterion executable rather than procedural.
+An installation administrator selects the accountable gate, fixed reason code,
+and opaque incident reference. In one transaction VASI makes the gate pending,
+revokes all scheduled/issued/in-progress requests with per-assignment chain
+events, suppresses pending invitations/reminders, and appends a
+replay-resistant tenant configuration event. Already completed evidence,
+history, legal holds, and lifecycle policy are not rewritten. Recovery requires
+a fresh approval for the selected gate and new participant requests; a stop
+cannot recall a provider operation that completed before the stop obtained its
+exclusive admission lock.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

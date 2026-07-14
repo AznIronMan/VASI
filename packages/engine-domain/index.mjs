@@ -47,6 +47,7 @@ const serviceActions = Object.freeze({
     "tenant.create",
     "tenant.admission.list",
     "tenant.admission.update",
+    "tenant.production.stop",
     "tenant.list",
     "tenant.profile.read",
     "tenant.profile.update",

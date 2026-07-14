@@ -39,6 +39,9 @@ Approved routes are:
 | `POST` | `/v1/owner/integration-list` | List redacted tenant integration bindings |
 | `POST` | `/v1/owner/integrations` | Append/activate an allowlisted binding revision |
 | `GET/POST` | `/v1/admin/installation-profile` | Read or revision the operator-controlled installation profile |
+| `GET/POST` | `/v1/admin/tenant-admissions` | Read or revision immutable tenant assurance gates |
+| `POST` | `/v1/admin/tenant-production-stops` | Atomically stop non-terminal tenant production work |
+| `GET` | `/v1/admin/operations` | Read the bounded privacy-safe operational snapshot |
 | `POST` | `/v1/owner/member-list` | List engine-authorized company members and grants |
 | `POST` | `/v1/owner/members` | Grant or change company roles by verified email |
 | `POST` | `/v1/owner/retention-policy-list` | List system and tenant retention-policy revisions |
@@ -169,6 +172,14 @@ production issuance or active integration configuration. Unlike migration
 read/recovery-only: PostgreSQL rejects a new request without the exact current
 admitted snapshot and rejects an active integration revision while pending.
 See the [tenant production admission decision](architecture/tenant-production-admission.md).
+
+VASI 0.26.0 requires migration `0016_engine_tenant_production_stop`. It extends
+the immutable tenant configuration event contract and adds global replay
+protection for production-stop command IDs. Apply it before the 0.26.0 engine
+starts. A stop is administrator-only and requires an expected admission
+revision, selected gate, fixed reason, and opaque incident reference. It
+atomically revokes non-terminal tenant work; do not replace it with manual SQL
+updates or direct queue deletion.
 
 Document scanning also starts with a disabled per-tenant
 `document.malware_scan` binding. An operator must add
@@ -458,14 +469,17 @@ encrypted off-host custody or establish an RPO/RTO.
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.
 
-For rollback from 0.25.0, first stop the complete engine stack and every
+For rollback from 0.26.0, first stop the complete engine stack and every
 role-local recurring timer, then switch the whole release—not selected files.
-Migration `0015_engine_tenant_admission` remains forward-only. Its database
+Migrations `0015_engine_tenant_admission` and
+`0016_engine_tenant_production_stop` remain forward-only. The admission
 triggers intentionally prevent an admission-unaware prior binary from creating
-requests or active integration revisions; a prior release may be used only for
-bounded read/recovery operations. Normal production issuance requires 0.25.0
-or later. Never remove the admission triggers or rewrite immutable admission
-history to make an older binary write. Reinstall or override the target
+requests or active integration revisions, and the stop-command index preserves
+replay history. A prior release may be used only for bounded read/recovery
+operations. Normal production issuance with the atomic stop contract requires
+0.26.0 or later. Never remove the admission triggers, stop-command index, or
+rewrite immutable history to make an older binary write. Reinstall or override
+the target
 release's scheduler units as a complete reviewed set, manually run them, and
 only then re-enable their timers. Keep the exact egress policy in place unless
 the target version's documented network procedure explicitly requires removal;

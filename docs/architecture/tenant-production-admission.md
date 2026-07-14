@@ -1,6 +1,6 @@
 # Tenant production admission
 
-Status: implemented in VASI 0.25.0.
+Status: implemented in VASI 0.25.0 and extended in VASI 0.26.0.
 
 ## Purpose
 
@@ -66,9 +66,44 @@ Admission is checked at more than the user interface:
   connection is opened.
 - Disabled bindings, workflow preparation, record review, participant data
   rights, retention processing, and request revocation remain available while
-  admission is pending. Revoking admission blocks new production expansion; an
-  operator separately revokes already-issued participant requests when the
-  pilot stop procedure requires existing access to end.
+  admission is pending. Revoking a gate alone blocks new production expansion.
+  The atomic production-stop command described below also ends every
+  non-terminal participant request when existing access must end.
+
+## Atomic tenant production stop
+
+Migration `0016_engine_tenant_production_stop` extends the immutable
+configuration event contract with `tenant.production.stopped` and a unique
+command-ID index. The administrator supplies an expected admission revision,
+the gate to revoke, a fixed reason code, and an opaque incident reference.
+URLs, credentials, and narrative case notes are rejected.
+
+The private engine takes a transaction-scoped advisory command lock and an
+exclusive admission-pointer lock before it locks request rows. The same
+transaction then:
+
+1. creates and selects a pending admission revision when the chosen gate was
+   approved;
+2. changes every scheduled, issued, or in-progress request and assignment to
+   `revoked`;
+3. suppresses pending invitation and reminder jobs and redacts their payloads;
+4. appends a `request.revoked` event to every affected assignment evidence
+   chain and one matching immutable lifecycle event per request; and
+5. appends a hash-chained tenant event with counts, hashes, reason code, opaque
+   reference, actor, and resulting revision.
+
+Any error rolls the complete transaction back. Reusing the command ID fails.
+Reissue follows the admission-before-request lock order, preventing a
+simultaneous reissue from deadlocking with or escaping a stop. New issuance and
+outbound provider work fail closed as soon as the pending admission commits.
+Provider work that completed before the stop obtained the exclusive admission
+lock cannot be recalled and remains part of the audit record.
+
+Completed and expired requests are terminal and are not rewritten. Their
+sealed evidence, participant history, retention schedule, and legal holds
+remain available under existing policy. Recovery is deliberate: an
+administrator records fresh evidence for the selected admission gate, and an
+owner issues new requests. A stopped request is never silently reopened.
 
 The database triggers also keep a rollback to an admission-unaware release
 fail closed: that release can review historical records but cannot insert a new
@@ -112,7 +147,9 @@ security, accessibility, recovery, custody, or pilot opinions.
 The internal admin console lists every company tenant and all eight gates. An
 administrator can record or replace an approval, or revoke it after an explicit
 confirmation. The panel displays the immutable revision, actor, time, and
-fingerprint without exposing secrets.
+fingerprint without exposing secrets. It also exposes a separately confirmed
+production stop and shows the last bounded stop outcome and configuration-event
+fingerprint.
 
 The privacy-safe operational snapshot reports active, admitted, disabled, and
 pending-admission tenant counts. Any active tenant without a current admitted
@@ -122,7 +159,7 @@ participant identity, request ID, content, or credential.
 
 ## Upgrade and transfer
 
-New and existing tenants start pending after migration; no tenant is silently
+New and existing tenants start pending after migration `0015`; no tenant is silently
 grandfathered. Before enabling production traffic, an administrator records
 dated evidence for every gate in the internal console. Encrypted tenant export
 and import include admission revisions and the active pointer before request
@@ -140,7 +177,8 @@ that pointer again before every outbound operation. A destination whose
 current imported pointer is pending therefore remains unable to issue or
 deliver production work.
 
-For rollback, stop issuance and delivery, retain migration `0015`, and run the
-verified prior release only for read/recovery operations. Returning to normal
-production issuance requires VASI 0.25.0 or later. Do not remove the admission
-triggers or rewrite immutable approval history to make an older binary write.
+For rollback, stop issuance and delivery, retain migrations `0015` and `0016`,
+and run the verified prior release only for read/recovery operations. Returning
+to normal production issuance with the atomic stop contract requires VASI
+0.26.0 or later. Do not remove the admission triggers, stop-command index, or
+immutable history to make an older binary write.

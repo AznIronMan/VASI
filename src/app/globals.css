@@ -1628,6 +1628,83 @@ input::placeholder {
   overflow-wrap: anywhere;
 }
 
+.production-stop {
+  margin-top: 16px;
+  padding: 17px;
+  border: 1px solid #e4c5c0;
+  border-radius: 12px;
+  background: #fff9f7;
+}
+
+.production-stop__heading,
+.production-stop__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.production-stop__heading {
+  justify-content: space-between;
+}
+
+.production-stop h3 {
+  margin: 0;
+  color: #78332d;
+  font: 600 16px/1.25 Georgia, "Times New Roman", serif;
+}
+
+.production-stop p {
+  max-width: 760px;
+  margin: 5px 0 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.production-stop__form {
+  display: grid;
+  margin-top: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.production-stop__actions {
+  grid-column: 1 / -1;
+}
+
+.production-stop__last {
+  display: grid;
+  margin: 14px 0 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 20px;
+}
+
+.production-stop__last div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.production-stop__last dt,
+.production-stop__last dd {
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.production-stop__last dt {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.production-stop__last dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .operations-panel {
   margin-top: 18px;
   padding: 22px;
@@ -2210,8 +2287,15 @@ input:disabled {
   }
 
   .admission-gates,
-  .admission-panel .admission-approval-form .form-row {
+  .admission-panel .admission-approval-form .form-row,
+  .production-stop__form,
+  .production-stop__last {
     grid-template-columns: 1fr;
+  }
+
+  .production-stop__heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .admin-users__toolbar {
