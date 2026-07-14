@@ -78,10 +78,13 @@ monitoring service and prevents application credentials from being copied into
 an alerting SDK.
 
 VASI 0.15.0 adds a separate scheduler-neutral matched-backup freshness and
-verification probe. The operational snapshot does not duplicate it, because
-the engine must not receive a host backup path or storage credential. The
-snapshot also does not replace TLS-expiry monitoring, encrypted off-host backup
-custody checks, host disk/CPU/memory monitoring, PostgreSQL-native
-replication/saturation monitoring, customer-approved capacity tests, or an
+verification probe. VASI 0.16.0 adds a separate deployment-perimeter probe for
+public HTTPS/version, public and service-certificate windows, and one
+operator-selected filesystem. The operational snapshot does not duplicate
+either probe, because the engine must not receive host paths, storage
+credentials, or public-topology configuration. These contracts still do not
+replace encrypted off-host backup custody checks, whole-host disk/inode/CPU/
+memory monitoring, PostgreSQL-native replication/saturation monitoring,
+customer-approved capacity tests, external alert delivery, or an
 incident-response owner. Those remain deployment responsibilities and pilot
 admission evidence.

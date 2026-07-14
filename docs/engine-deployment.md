@@ -193,6 +193,23 @@ counts, ages, versions, status codes, and pool pressure only. Forward that
 output to the installation-selected monitor; do not add participant fields or
 secrets to alert labels.
 
+Run the deployment-perimeter probe separately on both the gateway and engine
+hosts. On the engine host, mount the operator-selected storage boundary
+read-only and use engine scope:
+
+```bash
+docker compose -f compose.engine.yaml --profile tools run --rm \
+  -v /secure/vasi-engine-storage:/monitored:ro maintenance \
+  scripts/probe-deployment-readiness.mjs https://vasi.example \
+  --scope engine --storage /monitored
+```
+
+The versioned defaults require 30 certificate days, 5 GiB free, and no more
+than 85 percent filesystem use. The result exposes only aggregate versions,
+latency, expiry windows, filesystem capacity, thresholds, scope, and bounded
+reason codes. Schedule it independently from the operational and backup probes
+so one stopped job cannot conceal another failure.
+
 The proof verifies server trust, the V·Sign client certificate, engine health,
 a signed actor identity, the operational-snapshot privacy contract, and
 rejection of a replayed assertion. Also verify:

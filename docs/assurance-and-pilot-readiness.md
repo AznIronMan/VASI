@@ -177,6 +177,17 @@ The resulting JSON contains no path, database endpoint, installation ID,
 credential, tenant, participant, or evidence field. The installation scheduler
 must monitor both the create job and the independent freshness check.
 
+VASI 0.16.0 implements the bounded deployment-perimeter portion through
+`npm run assurance:deployment`. It verifies the exact public health version,
+publicly trusted TLS validity window, expected gateway or engine
+service-certificate set, and an operator-selected filesystem against the
+versioned 30-day, 5-GiB-free, and 85-percent-use defaults. Unavailable,
+malformed, mismatched, expiring, not-yet-valid, or capacity-pressure states
+exit nonzero. The result contains no target, path, certificate identity or PEM,
+setting, topology, credential, tenant, participant, or evidence field. Each
+installation must schedule the gateway and engine scopes independently and
+forward only the bounded result to its approved alert destination.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

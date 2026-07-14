@@ -18,6 +18,12 @@
     "maximumAgeHours": 26,
     "retain": 14
   },
+  "deployment": {
+    "maximumStorageUsedPercent": 85,
+    "minimumCertificateDays": 30,
+    "minimumStorageFreeBytes": 5368709120,
+    "timeoutMilliseconds": 10000
+  },
   "images": {
     "failSeverities": [
       "HIGH",

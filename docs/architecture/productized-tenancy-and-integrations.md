@@ -1,6 +1,6 @@
 # Productized tenancy, integrations, and deployment
 
-Status: implemented in VASI 0.11.0 and extended in VASI 0.13.0.
+Status: implemented in VASI 0.11.0 and extended through VASI 0.16.0.
 
 ## Boundary
 
@@ -128,6 +128,14 @@ The default policy retains 14 managed copies. `check` is read-only, fully
 verifies the newest managed copy, and exits nonzero when it is absent, corrupt,
 future-dated, or older than the default 26-hour threshold. Its JSON contains
 only status, age, creation time, thresholds, counts, and bounded reason codes.
+
+VASI 0.16.0 packages `scripts/probe-deployment-readiness.mjs` in the same
+hardened maintenance images. It reads only the selected gateway or engine
+settings scope, checks public health/version and trusted TLS, parses public
+service-certificate material, and measures an explicitly mounted filesystem.
+The command outputs no origin, path, certificate identity/material, setting,
+credential, topology, installation identity, or customer data. Scheduling and
+alert transport remain installation-owned.
 
 For recovery onto a replacement PostgreSQL endpoint, first restore with a
 temporary destination bootstrap. Then replace that temporary file with a copy

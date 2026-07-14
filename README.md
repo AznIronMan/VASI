@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.15.0`
+Version: `0.16.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -142,6 +142,16 @@ engine Compose contracts now include the same non-root, read-only maintenance
 boundary; encrypted off-host custody and customer RPO/RTO remain deployment
 decisions.
 
+Version 0.16.0 adds privacy-safe deployment-perimeter readiness monitoring. A
+vendor-neutral probe verifies the public HTTPS health/version boundary and
+publicly trusted certificate window, measures an operator-selected filesystem,
+and reads the expected gateway or engine service-certificate set through the
+existing protected settings boundary. Versioned defaults require at least 30
+certificate days, 5 GiB free, and no more than 85 percent filesystem use. The
+bounded JSON and exit status omit origins, paths, certificate identities,
+settings, topology, credentials, and customer data so installations can attach
+their own scheduler and alert transport without changing VASI.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -228,6 +238,9 @@ milestones.
 - Concurrency-safe recurring matched backups with post-create verification,
   bounded retention, freshness assessment, and hardened gateway/engine
   maintenance containers.
+- A privacy-safe deployment-perimeter probe for public health/version, public
+  and service-certificate expiry, and filesystem pressure, with bounded
+  policy thresholds and vendor-neutral scheduler/alerting handoff.
 
 ## Configuration model
 
@@ -293,6 +306,7 @@ npm run deployment:profile -- self-hosted
 npm run backup -- create /secure/backups/vasi-YYYYMMDD
 npm run backup:continuity -- create /secure/backups
 npm run backup:continuity -- check /secure/backups
+npm run assurance:deployment -- https://vasi.example --scope gateway --storage /secure
 npm run tenant:transfer -- export TENANT_ID /secure/transfers/tenant
 ```
 
@@ -423,6 +437,9 @@ thresholds, privacy exclusions, and external-alerting handoff.
 The [backup continuity decision](docs/architecture/backup-continuity.md)
 defines atomic matched creation, verification, concurrency, retention,
 freshness monitoring, scheduler handoff, and off-host custody limits.
+The [deployment-perimeter readiness decision](docs/architecture/deployment-perimeter-readiness.md)
+defines the public health/version, public and internal certificate, filesystem,
+privacy, threshold, and scheduler handoff contract.
 The [assurance and pilot-readiness contract](docs/assurance-and-pilot-readiness.md)
 defines the threat register, repeatable release evidence, recovery/key drills,
 observability limits, and the first-party, independent, legal, and customer
