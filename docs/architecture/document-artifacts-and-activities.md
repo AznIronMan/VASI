@@ -1,6 +1,7 @@
 # PostgreSQL document artifacts and electronic activities
 
-Status: implemented in VASI 0.7.0.
+Status: implemented in VASI 0.7.0 and extended with governed external scanning
+in VASI 0.19.0.
 
 ## Decision
 
@@ -25,19 +26,26 @@ complete SHA-256 digest and inspection result.
    and SHA-256 digest. Out-of-order, duplicate, oversized, or excess data fails.
 3. Finalization rereads the database chunks in order, verifies every chunk,
    confirms total length, calculates the complete digest, and runs bounded
-   content inspection.
-4. A passing artifact is atomically published. A failing or aborted artifact is
-   finalized as rejected with its inspection result. Neither state can be
-   changed in place.
-5. Replacement creates another immutable revision in the same artifact family.
+   built-in content inspection.
+4. When the tenant has an active `document.malware_scan` binding, the engine
+   sends only an authenticated digest-bound command to the internal integration
+   gateway. The gateway independently rereads and streams the same ordered
+   chunks to the approved scanner.
+5. A clean digest-matched verdict publishes. A built-in failure, malicious or
+   suspicious verdict, or abort rejects. A scanner transport, TLS, timeout,
+   status, schema, response-size, or digest failure leaves the artifact
+   quarantined and explicitly retryable without another upload.
+6. Replacement creates another immutable revision in the same artifact family.
    A derived preview identifies its immutable source artifact.
 
 Published/rejected metadata, all chunk rows, workflow bindings, artifact-access
 events, and activity-response revisions have database immutability triggers.
 Workflow publication resolves each `document_review` reference to the exact
 artifact family, revision, role, filename, media type, byte length, chunk count,
-inspection profile, and SHA-256 digest. The resolved binding is part of the
-immutable workflow snapshot and its hash.
+inspection profile, inspection-result hash, and SHA-256 digest. The resolved
+binding is part of the immutable workflow snapshot and its hash. Portable
+evidence-bundle artifact indexes carry the same inspection profile/result hash
+without disclosing scanner response detail.
 
 ## Supported document inputs
 
@@ -50,9 +58,54 @@ The built-in bounded inspector validates expected PDF/ZIP signatures, UTF-8 and
 basic structured-text shape where applicable, rejects NUL-bearing text, and
 detects the EICAR antivirus test marker even across chunk boundaries. Every
 artifact stores the adapter/profile, result, and limitation statement. This is
-not represented as comprehensive malware-signature coverage. A future
-replaceable malware-scanner adapter may strengthen the profile without changing
-the artifact or workflow contracts.
+not represented as comprehensive malware-signature coverage.
+
+## Replaceable malware-scanner profile
+
+VASI 0.19.0 provides the product-neutral `https_malware_scanner` adapter. It is
+disabled for every new and migrated tenant until an installation administrator
+allows the exact HTTPS hostname and a tenant owner activates a revision with:
+
+- an exact HTTPS URL without credentials, query, or fragment and a hard
+  wall-clock timeout from 5 through 300 seconds;
+- a write-only HMAC secret of at least 32 characters; and
+- optionally, a bounded validated CA certificate bundle for a private scanner.
+
+The engine never receives that configuration or credential and never opens an
+external socket. Its signed internal command contains only tenant/artifact IDs,
+byte length, media type, scan request ID, exact SHA-256 digest, capability, and
+schema. The integration gateway revalidates the adapter registry, active
+binding/configuration hashes, credential envelope, active installation profile,
+and exact destination on every call. It uses certificate verification, TLS 1.2
+or newer, a hard wall-clock timeout, raw request streaming with backpressure, and no
+redirect handling.
+
+The scanner receives raw document bytes plus fixed headers for the request
+schema, scan request ID, length, media type, digest, timestamp, and HMAC over
+canonical metadata. Its JSON response is limited to 16 KiB and must use
+`vasi-malware-scan-verdict/v1`, one of `clean`, `malicious`, or `suspicious`,
+the exact scanned digest, bounded scanner name/version, and optional bounded
+signature-set/reason codes. Unknown fields, a different digest, non-JSON,
+non-200 status, or malformed metadata fail closed.
+
+The scanner is responsible for comparing the HMAC without timing leaks,
+rejecting signatures outside its approved timestamp window, and deduplicating
+the scan request ID so a network retry cannot create an uncontrolled second
+scan. It should retain only the minimum provider-side audit metadata required
+by the deployment's approved retention policy.
+
+Each invocation creates an immutable row keyed by a unique scan request ID and
+request hash. Reuse of the same ID and command returns the original result
+without rescanning; reuse with changed metadata conflicts. The record contains
+only artifact/tenant references, expected length/digest, binding/adapter
+provenance, outcome/verdict or bounded error code, bounded scanner metadata,
+and timestamps. It does not store document bytes, filenames, credentials, the
+outbound request body, or the raw scanner response.
+
+This boundary does not certify a scanner's detection quality, definition
+freshness, availability, or suitability for a customer's risk. The pilot owner
+must approve a scanner and operating policy, or explicitly restrict uploads to
+trusted document sources.
 
 VASI does not currently perform automatic Office-to-PDF conversion. A trusted
 adapter can publish a separately hashed `derived_preview` tied to the original;
@@ -117,7 +170,12 @@ gating, all rich reducers, multiple saved revisions, server scoring, answer-key
 redaction, version 3 sealing, and database tamper triggers. It also performs a
 PostgreSQL dump/restore, compares a fingerprint over restored artifact metadata
 and bytes, confirms response revisions, and runs vacuum/analyze on the restored
-chunk table.
+chunk table. It also generates a disposable private CA/server identity and
+proves scanner host denial, encrypted credential redaction, HMAC and exact-byte
+streaming, clean publication, malicious/suspicious rejection, status and digest
+failure quarantine, successful retry, idempotent replay/conflict, service
+authentication denial, immutable privacy-bounded attempts, operational
+aggregates, encrypted tenant transfer, and matched backup/restore.
 
 The 25 MiB default remains deliberately bounded. Higher limits require fresh
 database growth, WAL/replication, concurrency, backup-duration, restore, and

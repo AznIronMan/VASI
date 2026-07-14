@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-FROM dependencies AS engine-tools
+FROM dependencies AS engine-source
 COPY config ./config
 COPY database ./database
 COPY packages ./packages
@@ -12,9 +12,16 @@ COPY services ./services
 RUN rm -rf /usr/local/lib/node_modules/npm \
     && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
-FROM engine-tools AS engine-runtime
+FROM engine-source AS engine-tools
+RUN apk add --no-cache openssl
+
+FROM engine-source AS engine-runtime
 USER node
 CMD ["node", "services/engine/server.mjs"]
+
+FROM engine-tools AS engine-test
+USER node
+CMD ["node"]
 
 FROM engine-tools AS engine-maintenance
 RUN apk add --no-cache postgresql17-client

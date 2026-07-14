@@ -1,11 +1,12 @@
 # Productized tenancy, integrations, and deployment
 
-Status: implemented in VASI 0.11.0 and extended through VASI 0.16.0.
+Status: implemented in VASI 0.11.0 and extended through VASI 0.19.0.
 
-VASI 0.18.0 extends encrypted tenant archives to include every generalized
-activity-interaction table plus privacy-bounded participant-context snapshots.
-The transfer-coverage test now derives tenant-owned tables from all engine
-migrations so later evidence tables cannot be silently omitted.
+VASI 0.19.0 extends the productized integration boundary with governed HTTPS
+document malware scanning and extends encrypted tenant archives to its
+immutable privacy-bounded scan attempts. The transfer-coverage test derives
+tenant-owned tables from all engine migrations so later evidence or integration
+tables cannot be silently omitted.
 
 ## Boundary
 
@@ -21,18 +22,20 @@ flowchart LR
   gateway -->|"mTLS + actor assertion"| ingress["Private ingress"]
   ingress --> engine["VASI engine"]
   engine --> database[("Dedicated PostgreSQL")]
-  worker["VASI worker"] -->|"signed bounded delivery contract"| integrations["Integration gateway"]
+  engine -->|"signed digest-bound scan command"| integrations["Integration gateway"]
+  worker["VASI worker"] -->|"signed bounded delivery contract"| integrations
   integrations --> database
-  integrations -->|"allowlisted destination only"| external["Microsoft Graph, SMTP, or HTTPS webhook"]
+  integrations -->|"allowlisted destination only"| external["Graph, SMTP, webhook, or malware scanner"]
 ```
 
 The engine accepts a newly entered credential only long enough to validate and
-encrypt it; it never reads a stored credential back. The worker never receives
-provider credentials. The integration gateway is an internal container with no
-published port and is the only component that decrypts stored integration
-credentials. It reads only the active binding needed for one capability,
-rechecks its registry manifest and current installation allowlist, performs the
-bounded delivery, and records an immutable attempt.
+encrypt it; it never reads a stored credential back. The worker and document
+engine never receive stored provider credentials. The integration gateway is
+an internal container with no published port and is the only component that
+decrypts stored integration credentials or opens provider sockets. It reads
+only the active binding needed for one capability, rechecks its registry
+manifest and current installation allowlist, performs the bounded delivery or
+scan, and records an immutable attempt.
 
 ## Revisioned configuration
 
@@ -44,7 +47,7 @@ It declares:
 - product-neutral organization/product/support metadata;
 - administrator-only tenant provisioning and a tenant ceiling; and
 - enabled adapter IDs; exact Microsoft tenant, application, and sender
-  allowlists; and exact SMTP and webhook host allowlists.
+  allowlists; and exact SMTP, webhook, and malware-scanner host allowlists.
 
 A tenant profile has immutable revisions for display identity, colors, optional
 support contact, the default retention-policy name, and limits for members,
@@ -86,6 +89,18 @@ response body. Webhooks additionally sign the canonical provider payload and
 carry the stable idempotency key. Worker retry attempts keep that key, use
 bounded exponential delay, and create distinct immutable gateway and outbox
 attempt records.
+
+The separate `vasi-artifact-scan/v1` contract permits only tenant/artifact IDs,
+byte length, media type, unique scan request ID, capability, schema, and exact
+SHA-256 digest. It rejects filenames, bytes, credentials, and extension fields.
+When `document.malware_scan` is active, the engine signs that command to the
+integration gateway; the gateway revalidates the binding and exact installation
+host, independently streams ordered PostgreSQL chunks to the HTTPS scanner,
+and accepts only a fixed bounded verdict that repeats the same digest. The
+attempt record retains bounded adapter/verdict/error provenance but no bytes,
+filename, credential, outbound body, or raw response. Scan-request replay is
+idempotent, while changed reuse conflicts. Tenant owners can retry an unavailable
+scan against the same quarantined bytes or activate the scanner kill switch.
 
 Version 0.11.0 performs a one-time compatibility conversion when a pre-0.11
 global SMTP or webhook setting exists: the destination is placed in the first
@@ -189,7 +204,9 @@ credentials. Import requires compatible forward migrations and an initialized
 adapter registry. Integration credentials are decrypted only inside the outer
 encrypted export and re-encrypted with the destination installation key.
 Historical principal and actor IDs remain unchanged; import adds a new owner
-email grant instead of rewriting evidence.
+email grant instead of rewriting evidence. Immutable document scan attempts are
+transferred after their artifact and binding revisions and revalidated by the
+same static tenant-table coverage gate.
 
 Transfer fails closed while the tenant has pending/running outbox work or a
 participant data-request scope. Those cross-tenant/privacy workflows must be
@@ -207,4 +224,4 @@ enforce them. Graph and SMTP delivery remain at-least-once; webhook consumers
 should enforce the idempotency key. Productization does not replace
 legal/privacy approval,
 independent penetration testing, KMS/HSM/TSA evaluation, malware-scanner
-selection, or disaster-recovery exercises.
+selection/definition/availability policy, or disaster-recovery exercises.

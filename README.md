@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.18.0`
+Version: `0.19.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -177,14 +177,30 @@ secrets. Authenticated context rows are replay-safe, sealed in manifest version
 approved technical participant exports, governed by retention, and transferred
 with every generalized interaction table in encrypted tenant archives.
 
+Version 0.19.0 adds a vendor-neutral, fail-closed document malware-scanning
+boundary. A tenant may activate a signed HTTPS scanner only after an
+installation administrator allowlists its exact host. The evidence engine
+never contacts the scanner or reads its credential: it submits a narrow,
+digest-bound command to the isolated integration gateway, which revalidates
+the active revision, streams ordered quarantined PostgreSQL chunks over
+certificate-verified HTTPS, rejects redirects and oversized or extended
+responses, and requires the verdict to repeat the exact SHA-256 digest. Clean
+documents publish, malicious or suspicious documents reject, and transport,
+protocol, or scanner failures remain quarantined for an authorized retry.
+Every call creates an immutable, idempotent, privacy-bounded attempt without
+document bytes, filenames, credentials, or raw provider bodies. Workflow
+snapshots and evidence-bundle indexes bind the inspection profile and result
+hash; owner and administrator consoles expose governed configuration, retry,
+and aggregate operational state.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
 verification alone does not establish chain trust, revocation status, trusted
-time, legal enforceability, or long-term validation. Comprehensive replaceable
-malware scanning, external KMS/HSM/TSA trust profiles, deployment-specific
-legal/privacy approval, and independent security assessment remain subsequent
-milestones.
+time, legal enforceability, or long-term validation. Scanner selection,
+signature quality/update policy, external KMS/HSM/TSA trust profiles,
+deployment-specific legal/privacy approval, and independent security
+assessment remain installation or pilot gates.
 
 ## Included
 
@@ -235,6 +251,10 @@ milestones.
   and delivery, immutable source/derived/replacement revisions, SHA-256
   verification, quarantine/inspection, exact workflow binding, and access
   auditing.
+- Optional fail-closed signed HTTPS malware scanning through the isolated
+  integration gateway, with exact-host policy, certificate validation,
+  digest-matched verdicts, immutable privacy-bounded attempts, safe quarantine
+  retry, and no authoritative loose file.
 - Declarative approvals, questions, free-form answers, typed/drawn electronic
   signatures, document review, and server-scored questionnaires/tests with
   append-only response revisions and participant answer-key redaction.
@@ -267,8 +287,8 @@ milestones.
   runtime version alignment, sanitized Compose hardening checks, browser WCAG
   automation, and bounded read-only readiness load testing.
 - An administrator-only operational snapshot and host probe with explicit
-  migration, queue, delivery, signing, lifecycle, and database thresholds that
-  exclude customer evidence and identity data.
+  migration, queue, delivery, document-scanning, signing, lifecycle, and
+  database thresholds that exclude customer evidence and identity data.
 - Concurrency-safe recurring matched backups with post-create verification,
   bounded retention, freshness assessment, and hardened gateway/engine
   maintenance containers.
@@ -421,8 +441,10 @@ runs `npm run engine:probe:evidence` for issuance, isolation, response, receipt,
 seal, replay, and tamper checks, plus `npm run engine:probe:workflow` for roles,
 drafts, immutable revisions, branching, lifecycle, encrypted outbox, and
 multi-step sealing. `npm run engine:probe:documents` adds artifact ingestion,
-inspection, streaming, rich activities, response revisions, scoring, and
-version 3 manifest verification in that disposable environment.
+built-in and external inspection, signed HTTPS streaming,
+clean/threat/outage/retry/replay/tamper cases, immutable scan-attempt privacy,
+rich activities, response revisions, scoring, and version 3 manifest
+verification in that disposable environment.
 `npm run engine:probe:media` verifies provider descriptors, bounded telemetry,
 duration calculations, and version 4 sealing. `npm run engine:probe:reports`
 verifies deterministic report reuse, PostgreSQL export streaming, certificate

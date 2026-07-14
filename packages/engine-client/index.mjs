@@ -54,6 +54,9 @@ export function requestEngine(settings, { body, method, path, token }) {
     const requestBody = body === undefined
       ? Buffer.alloc(0)
       : Buffer.from(JSON.stringify(body), "utf8");
+    const timeoutMilliseconds = path === "/v1/owner/artifact-finalizations"
+      ? 310_000
+      : 7_500;
     const request = httpsRequest(
       new URL(path, origin),
       {
@@ -70,7 +73,7 @@ export function requestEngine(settings, { body, method, path, token }) {
         minVersion: "TLSv1.3",
         rejectUnauthorized: true,
         servername: origin.hostname,
-        timeout: 7_500,
+        timeout: timeoutMilliseconds,
       },
       (response) => {
         const chunks = [];

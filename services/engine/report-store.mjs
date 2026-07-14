@@ -255,7 +255,7 @@ async function generateBundle(client, record, signingProvider) {
 async function loadAuthoritativeArtifacts(client, record) {
   const result = await client.query(
     `select distinct d."id", d."revision", d."role", d."originalFilename", d."mediaType",
-            d."byteLength", d."chunkCount", d."sha256"
+            d."byteLength", d."chunkCount", d."sha256", d."inspectionProfile", d."inspectionResult"
      from "vasi_engine"."workflow_artifact_binding" b
      join "vasi_engine"."document_artifact" d on d."id" = b."artifactId"
      where b."workflowRevisionId" = $1 and b."tenantId" = $2 and d."status" = 'published'

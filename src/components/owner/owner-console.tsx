@@ -267,11 +267,32 @@ export function OwnerConsole({ baseURL, initialTenants }: {
       const result = await response.json() as OwnerArtifact & { error?: string };
       if (!response.ok) throw new Error(result.error || "The document was rejected.");
       form.reset();
-      setMessage(`Published immutable document revision ${result.revision}: ${result.originalFilename}.`);
-      await refresh();
+      setMessage(result.status === "published"
+        ? `Published immutable document revision ${result.revision}: ${result.originalFilename}.`
+        : `Document revision ${result.revision} remains quarantined because its external scan is unavailable. Retry is safe and does not require another upload.`);
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
+      await refresh();
+      setPending(undefined);
+    }
+  }
+
+  async function retryArtifactInspection(artifact: OwnerArtifact) {
+    setPending(`scan:${artifact.id}`);
+    setMessage(undefined);
+    try {
+      const result = await api<OwnerArtifact>("/api/owner/artifacts/finalize", {
+        artifactId: artifact.id,
+        tenantId,
+      });
+      setMessage(result.status === "published"
+        ? `Document revision ${result.revision} passed inspection and is published.`
+        : `The scanner is still unavailable. Document revision ${result.revision} remains quarantined.`);
+    } catch (error) {
+      setMessage(errorMessage(error));
+    } finally {
+      await refresh();
       setPending(undefined);
     }
   }
@@ -301,7 +322,7 @@ export function OwnerConsole({ baseURL, initialTenants }: {
         </form>}
         <section className="evidence-panel">
           <p className="eyebrow eyebrow--green">ARTIFACT INVENTORY</p><h2>Published and quarantined revisions</h2>
-          {artifacts.map((artifact) => <article className="owner-artifact" key={artifact.id}><div><strong>{artifact.originalFilename}</strong><span>{artifact.status} · r{artifact.revision} · {formatBytes(artifact.byteLength || artifact.expectedByteLength)}</span><small>{artifact.mediaType}{artifact.sha256 ? ` · ${artifact.sha256.slice(0, 16)}…` : ""}</small></div><div>{artifact.status === "published" && <><a href={`/api/owner/artifacts/${artifact.id}?tenantId=${encodeURIComponent(tenantId)}`} target="_blank" rel="noreferrer">View</a><a href={`/api/owner/artifacts/${artifact.id}?tenantId=${encodeURIComponent(tenantId)}&disposition=attachment`}>Download</a></>}</div></article>)}
+          {artifacts.map((artifact) => <article className="owner-artifact" key={artifact.id}><div><strong>{artifact.originalFilename}</strong><span>{artifactStatus(artifact)} · r{artifact.revision} · {formatBytes(artifact.byteLength || artifact.expectedByteLength)}</span><small>{artifact.mediaType}{artifact.sha256 ? ` · ${artifact.sha256.slice(0, 16)}…` : ""}</small></div><div>{artifact.status === "published" && <><a href={`/api/owner/artifacts/${artifact.id}?tenantId=${encodeURIComponent(tenantId)}`} target="_blank" rel="noreferrer">View</a><a href={`/api/owner/artifacts/${artifact.id}?tenantId=${encodeURIComponent(tenantId)}&disposition=attachment`}>Download</a></>}{artifact.status === "quarantined" && artifact.inspectionResult?.retryable && permissions.has("artifact.manage") && <button type="button" disabled={pending === `scan:${artifact.id}`} onClick={() => void retryArtifactInspection(artifact)}>{pending === `scan:${artifact.id}` ? "Retrying…" : "Retry inspection"}</button>}</div></article>)}
         </section>
       </section>}
 
@@ -508,6 +529,16 @@ function formatBytes(value: number) {
   if (value < 1024) return `${value} B`;
   if (value < 1_048_576) return `${(value / 1024).toFixed(1)} KiB`;
   return `${(value / 1_048_576).toFixed(1)} MiB`;
+}
+
+function artifactStatus(artifact: OwnerArtifact) {
+  if (artifact.status === "quarantined" && artifact.inspectionResult?.retryable) {
+    return "quarantined · scanner unavailable";
+  }
+  if (artifact.status === "rejected" && artifact.inspectionResult?.rejectionCode) {
+    return `rejected · ${artifact.inspectionResult.rejectionCode.replaceAll("_", " ")}`;
+  }
+  return artifact.status;
 }
 
 function evidenceExportURL(

@@ -52,9 +52,10 @@ export function OperationalReadinessPanel() {
         <OperationsMetric label="Engine release" value={snapshot.engineVersion} detail={`${snapshot.configuration.migrationsApplied}/${snapshot.configuration.migrationsExpected} migrations`} />
         <OperationsMetric label="Pending work" value={snapshot.queue.pending} detail={`oldest ${duration(snapshot.queue.oldestPendingSeconds)} · ${snapshot.queue.staleRunning} stale`} />
         <OperationsMetric label="Delivery (24h)" value={snapshot.delivery.delivered24Hours} detail={`${snapshot.delivery.gatewayFailures24Hours} failed · ${snapshot.delivery.suppressed24Hours} suppressed`} />
+        <OperationsMetric label="Document scanning" value={snapshot.scanning.retryable} detail={`${snapshot.scanning.failed24Hours} failed · ${snapshot.scanning.threats24Hours} threats (24h)`} />
         <OperationsMetric label="Integrity keys" value={snapshot.signing.activeIntegrityKeys} detail={`${snapshot.signing.activeOptionalKeys} optional active`} />
         <OperationsMetric label="Lifecycle" value={snapshot.lifecycle.purgeDueRecords} detail={`${snapshot.lifecycle.purgeBlocked24Hours} purge blocks · ${snapshot.lifecycle.pendingDataRequests} data requests`} />
-        <OperationsMetric label="Company tenants" value={snapshot.tenancy.active} detail={`${snapshot.delivery.activeBindings} active delivery bindings`} />
+        <OperationsMetric label="Company tenants" value={snapshot.tenancy.active} detail={`${snapshot.delivery.activeDeliveryBindings} delivery · ${snapshot.scanning.activeBindings} scanner bindings`} />
       </div>
       <div className="operations-footnote">
         <span>Database check {snapshot.database.queryMilliseconds.toFixed(2)} ms · pool {snapshot.database.pool.total}/{snapshot.database.pool.maximum} · {snapshot.database.pool.waiting} waiting</span>
@@ -86,14 +87,17 @@ function statusLabel(status: OperationalSnapshot["status"]) {
 function reasonLabel(reason: string) {
   const labels: Record<string, string> = {
     database_pool_waiting: "database clients are waiting",
+    documents_awaiting_scan_retry: "quarantined documents are awaiting a scan retry",
     installation_profile_missing: "installation profile is missing",
     integrity_key_unavailable: "the integrity seal key is unavailable",
     migration_drift: "the database migration ledger differs from this release",
     no_active_delivery_binding: "no company delivery adapter is active",
     no_active_tenants: "no company tenant has been provisioned",
     recent_delivery_failures: "delivery failures occurred in the last 24 hours",
+    recent_document_threats: "a scanner reported malicious or suspicious document content",
     recent_failed_jobs: "outbox jobs failed in the last 24 hours",
     recent_purge_blocks: "retention purge attempts were blocked",
+    recent_scan_failures: "document scanner calls failed in the last 24 hours",
     stale_running_jobs: "a worker job exceeded its lock window",
   };
   return labels[reason] || "an unrecognized operational condition was reported";

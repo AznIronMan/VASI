@@ -10,8 +10,8 @@ database and login role, a dedicated deployment directory, and a unique
   port mapping.
 - `worker` has no listener or host port.
 - `integration-gateway` has no host port and is the only application process
-  that decrypts delivery credentials or contacts external Microsoft Graph,
-  SMTP, or webhook endpoints.
+  that decrypts integration credentials or contacts external Microsoft Graph,
+  SMTP, webhook, or malware-scanner endpoints.
 - `private-ingress` exposes only the approved route table and is the only host
   listener.
 - The tracked Compose binds the facade to loopback. Put a private address in an
@@ -135,6 +135,27 @@ issue/reminder messages should contain the VASI request link. Pre-0.11 global
 `ENGINE_NOTIFICATION_*` values are consumed only for one-time compatibility
 conversion and should be unset after the new binding is verified.
 
+Document scanning also starts with a disabled per-tenant
+`document.malware_scan` binding. An operator must add
+`https_malware_scanner` and the exact scanner hostname to the active
+installation profile before an owner can activate a binding. The owner enters
+an exact HTTPS URL without credentials, query, or fragment, a hard wall-clock
+timeout from 5 through 300 seconds, a write-only HMAC secret, and optionally a
+private CA certificate bundle. Scanner credentials are
+encrypted in PostgreSQL and decrypted only by `integration-gateway`.
+
+The scanner endpoint must accept raw document bytes with the fixed signed
+headers and return the bounded `vasi-malware-scan-verdict/v1` JSON contract
+documented in the [document artifact decision](architecture/document-artifacts-and-activities.md).
+Use a publicly trusted certificate or an explicitly configured private CA;
+never disable verification. The scanner must compare the HMAC without timing
+leaks, reject stale timestamps using an explicitly monitored clock-skew window,
+and deduplicate the scan request ID. VASI follows no redirects. Ensure private
+network egress permits only the approved scanner destination and that any
+reverse proxy in front of the company console allows the configured
+finalization timeout. Transient scanner failures leave bytes quarantined and
+owners can retry from the artifact inventory without uploading again.
+
 Document storage defaults to `ENGINE_DOCUMENT_MAX_BYTES=26214400` (25 MiB) and
 `ENGINE_DOCUMENT_CHUNK_BYTES=262144` (256 KiB). The engine accepts only the
 document media allowlist, and the authenticated chunk action alone receives a
@@ -175,7 +196,8 @@ Run the gateway proof after every trust, key, network, or engine release:
 npm run engine:probe
 npm run engine:probe:evidence # disposable conformance database only
 npm run engine:probe:workflow # disposable conformance database only
-npm run engine:probe:documents # disposable conformance database only
+npm run engine:probe:documents # documents plus disposable HTTPS scanner proof
+npm run engine:probe:scanning # scanner proof alone in the engine-tools image
 npm run engine:probe:media # disposable conformance database only
 npm run engine:probe:reports # disposable conformance database only
 npm run engine:probe:lifecycle # disposable conformance database only
@@ -193,11 +215,12 @@ docker compose -f compose.engine.yaml --profile tools run --rm \
 
 The command exits nonzero when the release migration ledger drifts, the
 integrity key or installation profile is unavailable, worker locks are stale,
-or the configured database, queue-age, delivery-failure, failed-job, or
-data-request-age thresholds are exceeded. Its JSON output contains aggregate
-counts, ages, versions, status codes, and pool pressure only. Forward that
-output to the installation-selected monitor; do not add participant fields or
-secrets to alert labels.
+or the configured database, queue-age, delivery-failure, scanner-failure,
+failed-job, or data-request-age thresholds are exceeded. Its JSON output
+contains aggregate counts, ages, versions, status codes, scan retry/threat
+counts, and pool pressure only. Forward that output to the
+installation-selected monitor; do not add participant fields or secrets to
+alert labels.
 
 Run the deployment-perimeter probe separately on both the gateway and engine
 hosts. On the engine host, mount the operator-selected storage boundary

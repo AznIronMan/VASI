@@ -68,7 +68,8 @@ table; reuse is rejected even through a newly signed service request.
 The engine/domain packages do not import Next.js, Better Auth, provider SDKs,
 SMTP libraries, or customer code. Optional provider protocols are confined to
 the integration-gateway adapter layer; Microsoft Graph uses fixed HTTPS
-endpoints and no provider SDK. The admin-only gateway diagnostic is an adapter
+endpoints and no provider SDK, while document scanning uses a strict signed
+HTTPS byte/verdict contract. The admin-only gateway diagnostic is an adapter
 around the same contracts, not an engine dependency on the gateway.
 
 The portable baseline uses PostgreSQL and built-in Node cryptography/networking
@@ -106,4 +107,6 @@ Microsoft Graph mail adapter. Higher-assurance external trust adapters remain
 later milestones. VASI 0.14.0 adds an administrator-only, aggregate operational
 snapshot across this same service/actor boundary; it exposes health counts and
 ages but no customer identity, request, content, response, link, payload, or
-credential data.
+credential data. VASI 0.19.0 adds the governed digest-bound document scanner
+through the same isolated gateway and extends the aggregate snapshot with
+scanner failure/threat/retry counts.

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { validateIntegrationDeliveryCommand } from "./integration-gateway.mjs";
+import {
+  validateArtifactScanCommand,
+  validateIntegrationDeliveryCommand,
+} from "./integration-gateway.mjs";
 
 const command = {
   attempt: 1,
@@ -34,5 +37,29 @@ describe("integration gateway contract", () => {
       ...command,
       payload: { ...command.payload, participantPath: "/admin" },
     })).toThrow(/participant path/i);
+  });
+});
+
+describe("artifact scan gateway contract", () => {
+  const scan = {
+    artifactId: "artifact-1",
+    byteLength: 1_024,
+    capability: "document.malware_scan",
+    mediaType: "application/pdf",
+    scanRequestId: "scan-1",
+    schema: "vasi-artifact-scan/v1",
+    sha256: "a".repeat(64),
+    tenantId: "tenant-1",
+  };
+
+  it("normalizes only digest-bound, privacy-minimized scan metadata", () => {
+    expect(validateArtifactScanCommand(scan)).toEqual(scan);
+    expect(JSON.stringify(scan)).not.toContain("filename");
+  });
+
+  it("rejects extension fields, invalid digests, and unsupported media types", () => {
+    expect(() => validateArtifactScanCommand({ ...scan, originalFilename: "secret.pdf" })).toThrow(/unsupported/i);
+    expect(() => validateArtifactScanCommand({ ...scan, sha256: "wrong" })).toThrow(/sha256/i);
+    expect(() => validateArtifactScanCommand({ ...scan, mediaType: "invalid" })).toThrow(/mediaType/i);
   });
 });

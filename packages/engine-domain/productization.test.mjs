@@ -22,6 +22,7 @@ describe("productized installation and tenant profiles", () => {
         microsoftGraphAllowedClientIds: [],
         microsoftGraphAllowedSenders: [],
         microsoftGraphAllowedTenantIds: [],
+        malwareScannerAllowedHosts: [],
         smtpAllowedHosts: [],
         webhookAllowedHosts: [],
       },
@@ -33,7 +34,7 @@ describe("productized installation and tenant profiles", () => {
       quotas: { maxMembers: 100 },
     });
     expect(BUILT_IN_ADAPTERS.map((adapter) => adapter.id)).toEqual([
-      "disabled", "microsoft_graph", "smtp", "webhook",
+      "disabled", "scan_disabled", "https_malware_scanner", "microsoft_graph", "smtp", "webhook",
     ]);
   });
 
@@ -197,5 +198,45 @@ describe("integration binding contracts", () => {
         microsoftGraphAllowedTenantIds: [graphTenantId],
       },
     }, graphBinding)).toBe(false);
+  });
+
+  it("normalizes a write-only HTTPS scanner and requires an exact approved host", () => {
+    const binding = validateIntegrationBindingCommand({
+      adapterId: "https_malware_scanner",
+      capability: "document.malware_scan",
+      config: { timeoutSeconds: 30, url: "https://scanner.example.test/v1/scan" },
+      credentials: { secret: "m".repeat(48) },
+      expectedRevision: 1,
+      tenantId: "tenant-1",
+    });
+    expect(binding.config).toEqual({
+      timeoutSeconds: 30,
+      url: "https://scanner.example.test/v1/scan",
+    });
+    expect(binding.credentials).toEqual({ caCertificatePem: undefined, secret: "m".repeat(48) });
+    expect(integrationDestinationAllowed(defaultInstallationProfile(), binding)).toBe(false);
+    expect(integrationDestinationAllowed({
+      ...defaultInstallationProfile(),
+      adapters: {
+        ...defaultInstallationProfile().adapters,
+        malwareScannerAllowedHosts: ["scanner.example.test"],
+      },
+    }, binding)).toBe(true);
+    expect(() => validateIntegrationBindingCommand({
+      adapterId: "https_malware_scanner",
+      capability: "document.malware_scan",
+      config: { timeoutSeconds: 30, url: "http://scanner.example.test/v1/scan" },
+      credentials: { secret: "m".repeat(48) },
+      expectedRevision: 1,
+      tenantId: "tenant-1",
+    })).toThrow(/HTTPS/);
+    expect(() => validateIntegrationBindingCommand({
+      adapterId: "https_malware_scanner",
+      capability: "document.malware_scan",
+      config: { timeoutSeconds: 30, url: "https://scanner.example.test/v1/scan?token=visible-secret" },
+      credentials: { secret: "m".repeat(48) },
+      expectedRevision: 1,
+      tenantId: "tenant-1",
+    })).toThrow(/query/);
   });
 });

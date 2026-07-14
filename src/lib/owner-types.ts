@@ -41,9 +41,9 @@ export type OwnerTenantUsage = {
 };
 
 export type OwnerIntegration = {
-  adapterId: "disabled" | "microsoft_graph" | "smtp" | "webhook";
+  adapterId: "disabled" | "https_malware_scanner" | "microsoft_graph" | "scan_disabled" | "smtp" | "webhook";
   adapterVersion: string;
-  capability: "notification.delivery";
+  capability: "document.malware_scan" | "notification.delivery";
   config: {
     clientId?: string;
     from?: string;
@@ -52,6 +52,7 @@ export type OwnerIntegration = {
     secure?: boolean;
     senderEmail?: string;
     tenantId?: string;
+    timeoutSeconds?: number;
     url?: string;
     username?: string;
   };
@@ -65,7 +66,8 @@ export type OwnerIntegration = {
 
 export type InstallationProfile = {
   adapters: {
-    allow: Array<"disabled" | "microsoft_graph" | "smtp" | "webhook">;
+    allow: Array<"disabled" | "https_malware_scanner" | "microsoft_graph" | "scan_disabled" | "smtp" | "webhook">;
+    malwareScannerAllowedHosts?: string[];
     microsoftGraphAllowedClientIds?: string[];
     microsoftGraphAllowedSenders?: string[];
     microsoftGraphAllowedTenantIds?: string[];
@@ -97,7 +99,17 @@ export type OwnerArtifact = {
   familyId: string;
   id: string;
   inspectionProfile?: string;
-  inspectionResult?: { limitation?: string; rejectionCode?: string };
+  inspectionResult?: {
+    external?: {
+      adapter?: string;
+      errorCode?: string;
+      status?: "completed" | "unavailable";
+      verdict?: "clean" | "malicious" | "suspicious";
+    };
+    limitation?: string;
+    rejectionCode?: string;
+    retryable?: boolean;
+  };
   inspectionStatus: "pending" | "passed" | "rejected";
   mediaType: string;
   originalFilename: string;

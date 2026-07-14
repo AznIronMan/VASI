@@ -7,7 +7,7 @@ import { resolveEngineRoute } from "../../packages/engine-contracts/index.mjs";
 import { loadBootstrapSettings, readRuntimeSettings } from "../../scripts/settings-core.mjs";
 import { readRequestBody, sendJSON } from "../shared/http.mjs";
 
-const ENGINE_VERSION = "0.18.0";
+const ENGINE_VERSION = "0.19.0";
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
 
@@ -41,7 +41,17 @@ const server = createServer(
         { body, method: request.method, path, requestId, serviceId, timestamp },
         settings.ENGINE_INTERNAL_HMAC_SECRET,
       );
-      return proxyToEngine({ body, path, request, requestId, response, serviceId, signature, timestamp });
+      return proxyToEngine({
+        body,
+        path,
+        request,
+        requestId,
+        response,
+        serviceId,
+        signature,
+        timeoutMilliseconds: route.action === "artifact.finalize" ? 305_000 : 5_000,
+        timestamp,
+      });
     } catch (error) {
       console.error("VASI private ingress rejected a request", error?.code || "request_failed");
       return sendJSON(response, error?.code === "BODY_LIMIT" ? 413 : 502, {
@@ -73,6 +83,7 @@ function proxyToEngine({
   response,
   serviceId,
   signature,
+  timeoutMilliseconds,
   timestamp,
 }) {
   return new Promise((resolve, reject) => {
@@ -91,7 +102,7 @@ function proxyToEngine({
         method: request.method,
         path,
         port: 8080,
-        timeout: 5_000,
+        timeout: timeoutMilliseconds,
       },
       (upstreamResponse) => {
         const chunks = [];

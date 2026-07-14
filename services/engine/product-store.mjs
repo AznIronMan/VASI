@@ -38,7 +38,7 @@ export function createProductStore(database, settings, installationId) {
         );
         for (const tenant of tenants.rows) {
           await createTenantProfile(client, tenant.id, defaultTenantProfile(tenant.name), "vasi-migration");
-          await ensureInitialIntegration(client, tenant.id, credentialSecret, "vasi-migration", {
+          await ensureInitialIntegrations(client, tenant.id, credentialSecret, "vasi-migration", {
             migrateLegacy: true,
             settings,
           });
@@ -51,14 +51,11 @@ export function createProductStore(database, settings, installationId) {
             tenantId: tenant.id,
           });
         }
-        const missingBindings = await client.query(
-          `select t."id" from "vasi_engine"."tenant" t
-           left join "vasi_engine"."integration_binding_pointer" p
-             on p."tenantId" = t."id" and p."capability" = 'notification.delivery'
-           where p."tenantId" is null order by t."id" for update of t`,
+        const existingTenants = await client.query(
+          `select t."id" from "vasi_engine"."tenant" t order by t."id" for update of t`,
         );
-        for (const tenant of missingBindings.rows) {
-          await ensureInitialIntegration(client, tenant.id, credentialSecret, "vasi-migration", {
+        for (const tenant of existingTenants.rows) {
+          await ensureInitialIntegrations(client, tenant.id, credentialSecret, "vasi-migration", {
             migrateLegacy: true,
             settings,
           });
@@ -111,7 +108,7 @@ export function createProductStore(database, settings, installationId) {
           );
         }
         const profile = await createTenantProfile(client, tenantId, input.profile, actor.principalId);
-        await ensureInitialIntegration(client, tenantId, credentialSecret, actor.principalId);
+        await ensureInitialIntegrations(client, tenantId, credentialSecret, actor.principalId);
         await appendConfigurationEvent(client, {
           actorPrincipalId: actor.principalId,
           eventData: {
@@ -230,7 +227,7 @@ export function createProductStore(database, settings, installationId) {
       return transaction(database, async (client) => {
         await requirePermission(client, actor, input.tenantId, "integration.manage");
         const installation = await activeInstallationProfile(client, installationId, false);
-        if (!installation.profile.adapters.allow.includes(input.adapterId)) {
+        if (input.status === "active" && !installation.profile.adapters.allow.includes(input.adapterId)) {
           throw new EngineStoreError("integration_adapter_not_allowed", 403);
         }
         assertAdapterDestinationAllowed(installation.profile, input);
@@ -466,20 +463,36 @@ async function createTenantProfileRevision(client, tenantId, profile, revision, 
   return Object.freeze({ id, profile, profileHash, revision });
 }
 
-async function ensureInitialIntegration(
+async function ensureInitialIntegrations(
   client,
   tenantId,
   credentialSecret,
   actorPrincipalId,
   { migrateLegacy = false, settings = {} } = {},
 ) {
+  await ensureInitialIntegration(client, tenantId, credentialSecret, actorPrincipalId, {
+    capability: "notification.delivery",
+    input: migrateLegacy ? legacyIntegrationBinding(settings, tenantId) : disabledIntegrationBinding(tenantId),
+  });
+  await ensureInitialIntegration(client, tenantId, credentialSecret, actorPrincipalId, {
+    capability: "document.malware_scan",
+    input: disabledScanBinding(tenantId),
+  });
+}
+
+async function ensureInitialIntegration(
+  client,
+  tenantId,
+  credentialSecret,
+  actorPrincipalId,
+  { capability, input },
+) {
   const exists = await client.query(
     `select 1 from "vasi_engine"."integration_binding_pointer"
-     where "tenantId" = $1 and "capability" = 'notification.delivery'`,
-    [tenantId],
+     where "tenantId" = $1 and "capability" = $2`,
+    [tenantId, capability],
   );
   if (exists.rowCount) return;
-  const input = migrateLegacy ? legacyIntegrationBinding(settings, tenantId) : disabledIntegrationBinding(tenantId);
   const credentials = input.credentials;
   const id = randomUUID();
   const config = input.config;
@@ -487,10 +500,11 @@ async function ensureInitialIntegration(
     `insert into "vasi_engine"."integration_binding_revision"
       ("id", "tenantId", "capability", "revision", "adapterId", "adapterVersion", "status",
        "config", "configHash", "credentialEnvelope", "credentialFingerprint", "createdByPrincipalId")
-     values ($1, $2, 'notification.delivery', 1, $3, $4, $5, $6, $7, $8, $9, $10)`,
+     values ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [
       id,
       tenantId,
+      capability,
       input.adapterId,
       input.adapterVersion,
       input.status,
@@ -504,21 +518,21 @@ async function ensureInitialIntegration(
   await client.query(
     `insert into "vasi_engine"."integration_binding_pointer"
       ("tenantId", "capability", "activeRevisionId", "revision", "updatedByPrincipalId")
-     values ($1, 'notification.delivery', $2, 1, $3)`,
-    [tenantId, id, actorPrincipalId],
+     values ($1, $2, $3, 1, $4)`,
+    [tenantId, capability, id, actorPrincipalId],
   );
   await appendConfigurationEvent(client, {
     actorPrincipalId,
     eventData: {
       adapterId: input.adapterId,
       adapterVersion: input.adapterVersion,
-      capability: "notification.delivery",
+      capability,
       configHash: hashCanonicalJSON(config),
       revision: 1,
       status: input.status,
     },
     eventType: "integration.binding.created",
-    scopeId: `${tenantId}:notification.delivery`,
+    scopeId: `${tenantId}:${capability}`,
     scopeType: "integration",
     tenantId,
   });
@@ -542,6 +556,18 @@ function disabledIntegrationBinding(tenantId) {
   return validateIntegrationBindingCommand({
     adapterId: "disabled",
     capability: "notification.delivery",
+    config: {},
+    credentials: {},
+    expectedRevision: 0,
+    status: "disabled",
+    tenantId,
+  });
+}
+
+function disabledScanBinding(tenantId) {
+  return validateIntegrationBindingCommand({
+    adapterId: "scan_disabled",
+    capability: "document.malware_scan",
     config: {},
     credentials: {},
     expectedRevision: 0,
@@ -663,7 +689,7 @@ function integrationProjection(row) {
     capability: row.capability,
     config: row.config,
     configHash: row.configHash,
-    configuredCredentials: ["microsoft_graph", "webhook"].includes(row.adapterId) || Boolean(row.config?.username),
+    configuredCredentials: ["https_malware_scanner", "microsoft_graph", "webhook"].includes(row.adapterId) || Boolean(row.config?.username),
     createdAt: new Date(row.createdAt).toISOString(),
     id: row.id,
     revision: Number(row.revision),

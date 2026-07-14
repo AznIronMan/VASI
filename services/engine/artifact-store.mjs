@@ -10,10 +10,12 @@ import { hashCanonicalJSON } from "../../packages/engine-crypto/index.mjs";
 import { hasTenantPermission } from "../../packages/engine-domain/workflow.mjs";
 import { createDocumentInspector } from "./document-inspection.mjs";
 import { EngineStoreError } from "./errors.mjs";
+import { createArtifactScanClient } from "./integration-gateway-scan-client.mjs";
 import { assertArtifactCapacity } from "./tenant-policy.mjs";
 
-export function createArtifactStore(database, settings) {
+export function createArtifactStore(database, settings, dependencies = {}) {
   const limits = documentLimits(settings);
+  const scanArtifact = dependencies.scanArtifact || createArtifactScanClient(settings, dependencies.scanClient);
   return Object.freeze({
     async createArtifact(actor, payload) {
       const input = validateArtifactCreateInput(payload, limits);
@@ -168,6 +170,52 @@ export function createArtifactStore(database, settings) {
         const inspection = inspector.finalize();
         if (!inspection.passed) return rejectArtifact(client, artifact, inspection.rejectionCode, inspection);
         const sha256 = digest.digest("hex");
+        const externalBinding = await activeExternalScanBinding(client, artifact.tenantId);
+        let inspectionProfile = `${inspection.adapter}/${inspection.adapterVersion}`;
+        let inspectionResult = inspection;
+        if (externalBinding) {
+          inspectionProfile = `${inspectionProfile}+${externalBinding.adapterId}/${externalBinding.adapterVersion}`;
+          let externalScan;
+          try {
+            externalScan = await scanArtifact({
+              byteLength,
+              id: artifact.id,
+              mediaType: artifact.mediaType,
+              sha256,
+              tenantId: artifact.tenantId,
+            });
+          } catch (error) {
+            externalScan = {
+              adapter: externalBinding.adapterId,
+              adapterVersion: externalBinding.adapterVersion,
+              errorCode: boundedScanError(error?.code),
+              outcome: "failed",
+              responseMetadata: {},
+            };
+          }
+          inspectionResult = pipelineInspection(inspection, externalScan);
+          if (externalScan.outcome === "completed") {
+            inspectionProfile = `${inspection.adapter}/${inspection.adapterVersion}+${externalScan.adapter}/${externalScan.adapterVersion}`;
+          }
+          if (externalScan.outcome !== "completed") {
+            const pending = await client.query(
+              `update "vasi_engine"."document_artifact"
+               set "inspectionProfile" = $3, "inspectionResult" = $4
+               where "id" = $1 and "tenantId" = $2 returning *`,
+              [artifact.id, artifact.tenantId, inspectionProfile, inspectionResult],
+            );
+            return { artifact: artifactProjection(pending.rows[0]) };
+          }
+          if (externalScan.verdict !== "clean") {
+            const rejectionCode = externalScan.verdict === "malicious"
+              ? "external_malware_detected"
+              : "external_scan_suspicious";
+            return rejectArtifact(client, artifact, rejectionCode, {
+              ...inspectionResult,
+              rejectionCode,
+            }, inspectionProfile);
+          }
+        }
         const publishedAt = new Date();
         const updated = await client.query(
           `update "vasi_engine"."document_artifact"
@@ -181,8 +229,8 @@ export function createArtifactStore(database, settings) {
             byteLength,
             chunkCount,
             sha256,
-            `${inspection.adapter}/${inspection.adapterVersion}`,
-            inspection,
+            inspectionProfile,
+            inspectionResult,
             publishedAt,
           ],
         );
@@ -278,7 +326,11 @@ export async function resolveWorkflowArtifactBindings(client, tenantId, document
       chunkCount: Number(artifact.chunkCount),
       familyId: artifact.familyId,
       id: artifact.id,
-      inspection: Object.freeze({ profile: artifact.inspectionProfile, status: artifact.inspectionStatus }),
+      inspection: Object.freeze({
+        profile: artifact.inspectionProfile,
+        resultHash: hashCanonicalJSON(artifact.inspectionResult),
+        status: artifact.inspectionStatus,
+      }),
       mediaType: artifact.mediaType,
       originalFilename: artifact.originalFilename,
       revision: Number(artifact.revision),
@@ -327,16 +379,67 @@ export function documentLimits(settings) {
   return Object.freeze({ chunkBytes, maxBytes, maxChunks: Math.ceil(maxBytes / chunkBytes) });
 }
 
-async function rejectArtifact(client, artifact, code, inspection) {
+async function rejectArtifact(client, artifact, code, inspection, profile) {
   const rejectedAt = new Date();
   await client.query(
     `update "vasi_engine"."document_artifact"
      set "status" = 'rejected', "inspectionStatus" = 'rejected', "inspectionProfile" = $3,
          "inspectionResult" = $4, "rejectedAt" = $5
      where "id" = $1 and "tenantId" = $2`,
-    [artifact.id, artifact.tenantId, `${inspection.adapter || "vasi"}/${inspection.adapterVersion || "1"}`, inspection, rejectedAt],
+    [
+      artifact.id,
+      artifact.tenantId,
+      profile || `${inspection.adapter || "vasi"}/${inspection.adapterVersion || "1"}`,
+      inspection,
+      rejectedAt,
+    ],
   );
   return { rejected: code };
+}
+
+async function activeExternalScanBinding(client, tenantId) {
+  const result = await client.query(
+    `select r."adapterId", r."adapterVersion"
+     from "vasi_engine"."integration_binding_pointer" p
+     join "vasi_engine"."integration_binding_revision" r
+       on r."id" = p."activeRevisionId" and r."tenantId" = p."tenantId"
+         and r."capability" = p."capability"
+     where p."tenantId" = $1 and p."capability" = 'document.malware_scan'
+       and r."status" = 'active'`,
+    [tenantId],
+  );
+  if (!result.rowCount) return undefined;
+  return Object.freeze({
+    adapterId: result.rows[0].adapterId,
+    adapterVersion: result.rows[0].adapterVersion,
+  });
+}
+
+function pipelineInspection(builtIn, external) {
+  return Object.freeze({
+    adapter: "vasi-document-inspection-pipeline",
+    adapterVersion: "2",
+    builtIn,
+    external: Object.freeze({
+      adapter: external.adapter,
+      adapterVersion: external.adapterVersion,
+      attemptId: external.attemptId,
+      bindingRevisionId: external.bindingRevisionId,
+      errorCode: external.errorCode,
+      responseMetadata: external.responseMetadata || {},
+      scanRequestId: external.scanRequestId,
+      status: external.outcome === "completed" ? "completed" : "unavailable",
+      verdict: external.verdict,
+    }),
+    passed: external.outcome === "completed" && external.verdict === "clean",
+    retryable: external.outcome !== "completed",
+  });
+}
+
+function boundedScanError(value) {
+  return typeof value === "string" && /^[a-z0-9_]{1,64}$/.test(value)
+    ? value
+    : "integration_gateway_unavailable";
 }
 
 async function publishedArtifact(client, tenantId, artifactId) {

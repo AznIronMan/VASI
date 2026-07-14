@@ -18,8 +18,10 @@ export function OwnerProductSettings({ permissions, tenantId }: {
   const canReadQuota = permissions.includes("quota.read");
   const [profile, setProfile] = useState<OwnerTenantProfile>();
   const [usage, setUsage] = useState<OwnerTenantUsage>();
-  const [integration, setIntegration] = useState<OwnerIntegration>();
-  const [adapterId, setAdapterId] = useState<OwnerIntegration["adapterId"]>("disabled");
+  const [notificationIntegration, setNotificationIntegration] = useState<OwnerIntegration>();
+  const [scannerIntegration, setScannerIntegration] = useState<OwnerIntegration>();
+  const [notificationAdapterId, setNotificationAdapterId] = useState<OwnerIntegration["adapterId"]>("disabled");
+  const [scannerAdapterId, setScannerAdapterId] = useState<OwnerIntegration["adapterId"]>("scan_disabled");
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string>();
 
@@ -42,9 +44,12 @@ export function OwnerProductSettings({ permissions, tenantId }: {
         if (!active) return;
         setProfile(nextProfile);
         setUsage(nextUsage);
-        const selected = integrations?.find((entry) => entry.capability === "notification.delivery");
-        setIntegration(selected);
-        setAdapterId(selected?.adapterId || "disabled");
+        const notification = integrations?.find((entry) => entry.capability === "notification.delivery");
+        const scanner = integrations?.find((entry) => entry.capability === "document.malware_scan");
+        setNotificationIntegration(notification);
+        setScannerIntegration(scanner);
+        setNotificationAdapterId(notification?.adapterId || "disabled");
+        setScannerAdapterId(scanner?.adapterId || "scan_disabled");
       }).catch((error) => {
         if (active) setMessage(errorMessage(error));
       }).finally(() => {
@@ -87,9 +92,15 @@ export function OwnerProductSettings({ permissions, tenantId }: {
     }
   }
 
-  async function updateIntegration(event: FormEvent<HTMLFormElement>) {
+  async function updateIntegration(
+    event: FormEvent<HTMLFormElement>,
+    integration: OwnerIntegration,
+    adapterId: OwnerIntegration["adapterId"],
+    capability: OwnerIntegration["capability"],
+    label: string,
+    setIntegration: (value: OwnerIntegration) => void,
+  ) {
     event.preventDefault();
-    if (!integration) return;
     const data = new FormData(event.currentTarget);
     const command = integrationCommandFromForm(adapterId, data);
     setPending(true);
@@ -97,7 +108,7 @@ export function OwnerProductSettings({ permissions, tenantId }: {
     try {
       const updated = await api<OwnerIntegration>("/api/owner/product/integrations", {
         adapterId,
-        capability: "notification.delivery",
+        capability,
         config: command.config,
         credentials: command.credentials,
         expectedRevision: integration.revision,
@@ -105,7 +116,7 @@ export function OwnerProductSettings({ permissions, tenantId }: {
         tenantId,
       });
       setIntegration(updated);
-      setMessage(`Notification integration revision ${updated.revision} is ${updated.status}.`);
+      setMessage(`${label} integration revision ${updated.revision} is ${updated.status}.`);
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -138,14 +149,28 @@ export function OwnerProductSettings({ permissions, tenantId }: {
           <small>Limits are installation-controlled. Usage is calculated transactionally before each governed write.</small>
         </section>}
 
-        {canManageIntegration && integration && <form className="evidence-panel" key={integration.revision} onSubmit={updateIntegration}>
+        {canManageIntegration && notificationIntegration && <form className="evidence-panel" key={notificationIntegration.revision} onSubmit={(event) => void updateIntegration(event, notificationIntegration, notificationAdapterId, "notification.delivery", "Notification", setNotificationIntegration)}>
           <h3>Notification delivery</h3>
-          <label className="field"><span>Adapter</span><select value={adapterId} onChange={(event) => setAdapterId(event.target.value as OwnerIntegration["adapterId"])}><option value="disabled">Disabled</option><option value="microsoft_graph">Microsoft Graph mail</option><option value="smtp">SMTP</option><option value="webhook">Signed webhook</option></select></label>
-          {adapterId === "webhook" && <><label className="field"><span>Allowlisted HTTPS URL</span><input name="webhookUrl" type="url" defaultValue={integration.adapterId === "webhook" ? integration.config.url : ""} required /></label><label className="field"><span>Signing secret</span><input name="webhookSecret" type="password" minLength={32} maxLength={1024} autoComplete="new-password" required /><small>Secrets are encrypted in PostgreSQL and never returned to this browser.</small></label></>}
-          {adapterId === "microsoft_graph" && <><label className="field"><span>Allowlisted Microsoft tenant ID</span><input name="graphTenantId" defaultValue={integration.adapterId === "microsoft_graph" ? integration.config.tenantId : ""} pattern="[0-9A-Fa-f-]{36}" required /></label><label className="field"><span>Allowlisted application (client) ID</span><input name="graphClientId" defaultValue={integration.adapterId === "microsoft_graph" ? integration.config.clientId : ""} pattern="[0-9A-Fa-f-]{36}" required /></label><label className="field"><span>Allowlisted sender mailbox</span><input name="graphSenderEmail" type="email" defaultValue={integration.adapterId === "microsoft_graph" ? integration.config.senderEmail : ""} required /></label><label className="field"><span>Application client secret</span><input name="graphClientSecret" type="password" minLength={1} maxLength={2048} autoComplete="new-password" required /><small>The secret is encrypted in PostgreSQL, is never returned to this browser, and must belong to the allowlisted application.</small></label></>}
-          {adapterId === "smtp" && <><label className="field"><span>Allowlisted SMTP host</span><input name="smtpHost" defaultValue={integration.adapterId === "smtp" ? integration.config.host : ""} required /></label><div className="form-row"><label className="field"><span>Port</span><input name="smtpPort" type="number" min="1" max="65535" defaultValue={integration.adapterId === "smtp" ? integration.config.port : 587} required /></label><label className="field"><span>Transport</span><select name="smtpSecure" defaultValue={integration.adapterId === "smtp" && integration.config.secure ? "true" : "false"}><option value="false">STARTTLS</option><option value="true">Implicit TLS</option></select></label></div><label className="field"><span>From</span><input name="smtpFrom" defaultValue={integration.adapterId === "smtp" ? integration.config.from : ""} required /></label><label className="field"><span>Username (optional)</span><input name="smtpUsername" autoComplete="off" defaultValue={integration.adapterId === "smtp" ? integration.config.username : ""} /></label><label className="field"><span>Password (required with username)</span><input name="smtpPassword" type="password" autoComplete="new-password" /></label></>}
-          <small>Revision {integration.revision} · {integration.status} · credentials {integration.configuredCredentials ? "configured" : "not stored / not required"}</small>
+          <label className="field"><span>Adapter</span><select value={notificationAdapterId} onChange={(event) => setNotificationAdapterId(event.target.value as OwnerIntegration["adapterId"])}><option value="disabled">Disabled</option><option value="microsoft_graph">Microsoft Graph mail</option><option value="smtp">SMTP</option><option value="webhook">Signed webhook</option></select></label>
+          {notificationAdapterId === "webhook" && <><label className="field"><span>Allowlisted HTTPS URL</span><input name="webhookUrl" type="url" defaultValue={notificationIntegration.adapterId === "webhook" ? notificationIntegration.config.url : ""} required /></label><label className="field"><span>Signing secret</span><input name="webhookSecret" type="password" minLength={32} maxLength={1024} autoComplete="new-password" required /><small>Secrets are encrypted in PostgreSQL and never returned to this browser.</small></label></>}
+          {notificationAdapterId === "microsoft_graph" && <><label className="field"><span>Allowlisted Microsoft tenant ID</span><input name="graphTenantId" defaultValue={notificationIntegration.adapterId === "microsoft_graph" ? notificationIntegration.config.tenantId : ""} pattern="[0-9A-Fa-f-]{36}" required /></label><label className="field"><span>Allowlisted application (client) ID</span><input name="graphClientId" defaultValue={notificationIntegration.adapterId === "microsoft_graph" ? notificationIntegration.config.clientId : ""} pattern="[0-9A-Fa-f-]{36}" required /></label><label className="field"><span>Allowlisted sender mailbox</span><input name="graphSenderEmail" type="email" defaultValue={notificationIntegration.adapterId === "microsoft_graph" ? notificationIntegration.config.senderEmail : ""} required /></label><label className="field"><span>Application client secret</span><input name="graphClientSecret" type="password" minLength={1} maxLength={2048} autoComplete="new-password" required /><small>The secret is encrypted in PostgreSQL, is never returned to this browser, and must belong to the allowlisted application.</small></label></>}
+          {notificationAdapterId === "smtp" && <><label className="field"><span>Allowlisted SMTP host</span><input name="smtpHost" defaultValue={notificationIntegration.adapterId === "smtp" ? notificationIntegration.config.host : ""} required /></label><div className="form-row"><label className="field"><span>Port</span><input name="smtpPort" type="number" min="1" max="65535" defaultValue={notificationIntegration.adapterId === "smtp" ? notificationIntegration.config.port : 587} required /></label><label className="field"><span>Transport</span><select name="smtpSecure" defaultValue={notificationIntegration.adapterId === "smtp" && notificationIntegration.config.secure ? "true" : "false"}><option value="false">STARTTLS</option><option value="true">Implicit TLS</option></select></label></div><label className="field"><span>From</span><input name="smtpFrom" defaultValue={notificationIntegration.adapterId === "smtp" ? notificationIntegration.config.from : ""} required /></label><label className="field"><span>Username (optional)</span><input name="smtpUsername" autoComplete="off" defaultValue={notificationIntegration.adapterId === "smtp" ? notificationIntegration.config.username : ""} /></label><label className="field"><span>Password (required with username)</span><input name="smtpPassword" type="password" autoComplete="new-password" /></label></>}
+          <small>Revision {notificationIntegration.revision} · {notificationIntegration.status} · credentials {notificationIntegration.configuredCredentials ? "configured" : "not stored / not required"}</small>
           <button className="primary-button" disabled={pending} type="submit">Activate new integration revision</button>
+        </form>}
+
+        {canManageIntegration && scannerIntegration && <form className="evidence-panel" key={scannerIntegration.revision} onSubmit={(event) => void updateIntegration(event, scannerIntegration, scannerAdapterId, "document.malware_scan", "Document scanning", setScannerIntegration)}>
+          <h3>Document malware scanning</h3>
+          <p>When active, documents remain quarantined until the allowlisted scanner returns a digest-matched clean verdict.</p>
+          <label className="field"><span>Adapter</span><select value={scannerAdapterId} onChange={(event) => setScannerAdapterId(event.target.value as OwnerIntegration["adapterId"])}><option value="scan_disabled">Disabled</option><option value="https_malware_scanner">Signed HTTPS scanner</option></select></label>
+          {scannerAdapterId === "https_malware_scanner" && <>
+            <label className="field"><span>Allowlisted HTTPS scan URL</span><input name="scannerUrl" type="url" defaultValue={scannerIntegration.adapterId === "https_malware_scanner" ? scannerIntegration.config.url : ""} required /></label>
+            <label className="field"><span>Timeout seconds</span><input name="scannerTimeoutSeconds" type="number" min="5" max="300" defaultValue={scannerIntegration.adapterId === "https_malware_scanner" ? scannerIntegration.config.timeoutSeconds : 30} required /></label>
+            <label className="field"><span>Request-signing secret</span><input name="scannerSecret" type="password" minLength={32} maxLength={1024} autoComplete="new-password" required /><small>The secret is encrypted in PostgreSQL and is never returned to this browser or sent to the evidence engine.</small></label>
+            <label className="field"><span>Private CA certificate bundle (optional)</span><textarea name="scannerCaCertificatePem" rows={5} maxLength={131072} spellCheck={false} placeholder="-----BEGIN CERTIFICATE-----" /><small>Leave empty for a publicly trusted scanner certificate.</small></label>
+          </>}
+          <small>Revision {scannerIntegration.revision} · {scannerIntegration.status} · credentials {scannerIntegration.configuredCredentials ? "configured" : "not stored / not required"}</small>
+          <button className="primary-button" disabled={pending} type="submit">Save immutable scanning revision</button>
         </form>}
       </div>
     </section>

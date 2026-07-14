@@ -49,6 +49,9 @@
     "maximumGatewayFailures24Hours": 0,
     "maximumOldestPendingDataRequestSeconds": 2592000,
     "maximumOldestPendingSeconds": 900,
+    "maximumRetryableScans": 0,
+    "maximumScanFailures24Hours": 0,
+    "maximumScanThreats24Hours": 0,
     "maximumStaleRunningJobs": 0
   },
   "source": {

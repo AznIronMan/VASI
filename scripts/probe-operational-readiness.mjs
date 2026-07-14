@@ -44,6 +44,18 @@ export function evaluateOperationalReadiness(snapshot, thresholds = policy.opera
     failures.add("delivery_failure_threshold_exceeded");
     warnings.delete("recent_delivery_failures");
   }
+  if ((snapshot.scanning?.failed24Hours || 0) > thresholds.maximumScanFailures24Hours) {
+    failures.add("scan_failure_threshold_exceeded");
+    warnings.delete("recent_scan_failures");
+  }
+  if ((snapshot.scanning?.retryable || 0) > thresholds.maximumRetryableScans) {
+    failures.add("scan_retry_threshold_exceeded");
+    warnings.delete("documents_awaiting_scan_retry");
+  }
+  if ((snapshot.scanning?.threats24Hours || 0) > thresholds.maximumScanThreats24Hours) {
+    failures.add("scan_threat_threshold_exceeded");
+    warnings.delete("recent_document_threats");
+  }
   if (
     snapshot.lifecycle.pendingDataRequests > 0 &&
     snapshot.lifecycle.oldestPendingDataRequestSeconds > thresholds.maximumOldestPendingDataRequestSeconds
@@ -82,6 +94,9 @@ function parseArguments(argumentsList) {
     "--maximum-gateway-failures": "maximumGatewayFailures24Hours",
     "--maximum-oldest-data-request-seconds": "maximumOldestPendingDataRequestSeconds",
     "--maximum-oldest-pending-seconds": "maximumOldestPendingSeconds",
+    "--maximum-retryable-scans": "maximumRetryableScans",
+    "--maximum-scan-failures": "maximumScanFailures24Hours",
+    "--maximum-scan-threats": "maximumScanThreats24Hours",
     "--maximum-stale-running": "maximumStaleRunningJobs",
   };
   const thresholds = { ...policy.operations };

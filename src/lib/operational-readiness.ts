@@ -16,6 +16,7 @@ export type OperationalSnapshot = {
   };
   delivery: {
     activeBindings: number;
+    activeDeliveryBindings: number;
     delivered24Hours: number;
     disabledBindings: number;
     failed24Hours: number;
@@ -40,6 +41,12 @@ export type OperationalSnapshot = {
     staleRunning: number;
   };
   reasons: string[];
+  scanning: {
+    activeBindings: number;
+    failed24Hours: number;
+    retryable: number;
+    threats24Hours: number;
+  };
   schema: "vasi-operational-snapshot/v1";
   signing: {
     activeIntegrityKeys: number;

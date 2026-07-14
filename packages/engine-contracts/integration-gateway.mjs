@@ -1,6 +1,28 @@
 import { canonicalJSON } from "../engine-crypto/index.mjs";
 
 export const INTEGRATION_DELIVERY_SCHEMA = "vasi-integration-delivery/v1";
+export const ARTIFACT_SCAN_SCHEMA = "vasi-artifact-scan/v1";
+
+export function validateArtifactScanCommand(value) {
+  const input = strictObject(value, "artifact scan", [
+    "artifactId", "byteLength", "capability", "mediaType", "scanRequestId", "schema",
+    "sha256", "tenantId",
+  ]);
+  if (input.schema !== ARTIFACT_SCAN_SCHEMA) invalidScan("The artifact scan schema is unsupported.");
+  if (input.capability !== "document.malware_scan") {
+    invalidScan("The artifact scan capability is unsupported.");
+  }
+  return Object.freeze({
+    artifactId: token(input.artifactId, "artifactId", invalidScan),
+    byteLength: safeInteger(input.byteLength, "byteLength", 1, 268_435_456, invalidScan),
+    capability: "document.malware_scan",
+    mediaType: mediaType(input.mediaType),
+    scanRequestId: token(input.scanRequestId, "scanRequestId", invalidScan),
+    schema: ARTIFACT_SCAN_SCHEMA,
+    sha256: sha256(input.sha256),
+    tenantId: token(input.tenantId, "tenantId", invalidScan),
+  });
+}
 
 export function validateIntegrationDeliveryCommand(value) {
   const input = strictObject(value, "integration delivery", [
@@ -57,11 +79,11 @@ function strictObject(value, name, allowedKeys) {
   return value;
 }
 
-function boundedString(value, field, minimum, maximum) {
-  if (typeof value !== "string") invalid(`${field} must be a string.`);
+function boundedString(value, field, minimum, maximum, reject = invalid) {
+  if (typeof value !== "string") reject(`${field} must be a string.`);
   const normalized = value.normalize("NFC").trim();
   if (normalized.length < minimum || normalized.length > maximum || /[\u0000-\u001f\u007f]/.test(normalized)) {
-    invalid(`${field} is invalid.`);
+    reject(`${field} is invalid.`);
   }
   return normalized;
 }
@@ -84,19 +106,40 @@ function email(value) {
   return normalized;
 }
 
-function token(value, field) {
-  const normalized = boundedString(value, field, 1, 512);
-  if (!/^[A-Za-z0-9._:-]+$/.test(normalized)) invalid(`${field} is invalid.`);
+function token(value, field, reject = invalid) {
+  const normalized = boundedString(value, field, 1, 512, reject);
+  if (!/^[A-Za-z0-9._:-]+$/.test(normalized)) reject(`${field} is invalid.`);
   return normalized;
 }
 
-function safeInteger(value, field, minimum, maximum) {
-  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) invalid(`${field} is invalid.`);
+function safeInteger(value, field, minimum, maximum, reject = invalid) {
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) reject(`${field} is invalid.`);
+  return value;
+}
+
+function mediaType(value) {
+  const normalized = boundedString(value, "mediaType", 1, 255, invalidScan).toLowerCase();
+  if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+(?:\s*;\s*[a-z0-9!#$&^_.+-]+=[a-z0-9!#$&^_.+:-]+)*$/.test(normalized)) {
+    invalidScan("mediaType is invalid.");
+  }
+  return normalized;
+}
+
+function sha256(value) {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) {
+    invalidScan("sha256 is invalid.");
+  }
   return value;
 }
 
 function invalid(message) {
   const error = new Error(message);
   error.code = "INVALID_INTEGRATION_DELIVERY";
+  throw error;
+}
+
+function invalidScan(message) {
+  const error = new Error(message);
+  error.code = "INVALID_ARTIFACT_SCAN";
   throw error;
 }

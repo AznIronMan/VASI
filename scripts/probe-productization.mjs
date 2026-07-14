@@ -19,6 +19,12 @@ const installationUpdate = await expectCall(owner, "POST", "/v1/admin/installati
     ...installation.body.profile,
     adapters: {
       ...installation.body.profile.adapters,
+      allow: [...new Set([
+        ...installation.body.profile.adapters.allow,
+        "https_malware_scanner",
+        "scan_disabled",
+      ])],
+      malwareScannerAllowedHosts: ["scanner.example.test"],
       microsoftGraphAllowedClientIds: [graphClientId],
       microsoftGraphAllowedSenders: [graphSenderEmail],
       microsoftGraphAllowedTenantIds: [graphTenantId],
@@ -103,6 +109,10 @@ const integrations = await expectCall(owner, "POST", "/v1/owner/integration-list
   tenantId: tenant.body.id,
 }, 200, "integration list");
 const initialBinding = integrations.body.find((entry) => entry.capability === "notification.delivery");
+const initialScannerBinding = integrations.body.find((entry) => entry.capability === "document.malware_scan");
+if (!initialBinding || !initialScannerBinding || initialScannerBinding.adapterId !== "scan_disabled") {
+  throw new Error("The initial governed integration bindings are incomplete.");
+}
 await expectCall(owner, "POST", "/v1/owner/integrations", {
   adapterId: "webhook",
   capability: "notification.delivery",
@@ -156,6 +166,27 @@ await expectCall(owner, "POST", "/v1/owner/integrations", {
   status: "disabled",
   tenantId: tenant.body.id,
 }, 200, "integration kill switch");
+const scannerSecret = `scanner-${"m".repeat(48)}`;
+const scannerBinding = await expectCall(owner, "POST", "/v1/owner/integrations", {
+  adapterId: "https_malware_scanner",
+  capability: "document.malware_scan",
+  config: { timeoutSeconds: 30, url: "https://scanner.example.test/v1/scan" },
+  credentials: { secret: scannerSecret },
+  expectedRevision: initialScannerBinding.revision,
+  tenantId: tenant.body.id,
+}, 200, "allowlisted malware scanner activation");
+if (JSON.stringify(scannerBinding.body).includes(scannerSecret) || !scannerBinding.body.configuredCredentials) {
+  throw new Error("The scanner credential redaction proof failed.");
+}
+await expectCall(owner, "POST", "/v1/owner/integrations", {
+  adapterId: "scan_disabled",
+  capability: "document.malware_scan",
+  config: {},
+  credentials: {},
+  expectedRevision: scannerBinding.body.revision,
+  status: "disabled",
+  tenantId: tenant.body.id,
+}, 200, "scanner kill switch");
 
 const issued = await expectCall(owner, "POST", "/v1/owner/requests", {
   intendedEmail: member.email,

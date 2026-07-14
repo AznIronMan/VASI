@@ -33,6 +33,12 @@ export function buildEvidenceBundle({ artifacts = [], record, signIndex }) {
     artifactIndex.push({
       byteLength: bytes.length,
       id: artifact.id,
+      ...(artifact.inspectionProfile && artifact.inspectionResult ? {
+        inspection: Object.freeze({
+          profile: artifact.inspectionProfile,
+          resultHash: hashCanonicalJSON(artifact.inspectionResult),
+        }),
+      } : {}),
       mediaType: artifact.mediaType || "application/octet-stream",
       originalFilename: artifact.originalFilename,
       path,

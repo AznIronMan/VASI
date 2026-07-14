@@ -105,6 +105,9 @@ function requestJSON<T>(
   const requestBody = engineRequest.body === undefined
     ? Buffer.alloc(0)
     : Buffer.from(JSON.stringify(engineRequest.body), "utf8");
+  const timeoutMilliseconds = engineRequest.path === "/v1/owner/artifact-finalizations"
+    ? 310_000
+    : 7_500;
   return new Promise<{ body?: T; status: number }>((resolve, reject) => {
     const request = httpsRequest(
       new URL(engineRequest.path, origin),
@@ -122,7 +125,7 @@ function requestJSON<T>(
         minVersion: "TLSv1.3",
         rejectUnauthorized: true,
         servername: origin.hostname,
-        timeout: 7_500,
+        timeout: timeoutMilliseconds,
       },
       (response) => {
         const chunks: Buffer[] = [];

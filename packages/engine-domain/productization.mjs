@@ -1,12 +1,31 @@
+import { X509Certificate } from "node:crypto";
+
 export const TENANT_PROFILE_SCHEMA = "vasi-tenant-profile/v1";
 export const INSTALLATION_PROFILE_SCHEMA = "vasi-installation-profile/v1";
-export const INTEGRATION_CAPABILITIES = Object.freeze(["notification.delivery"]);
+export const INTEGRATION_CAPABILITIES = Object.freeze([
+  "document.malware_scan",
+  "notification.delivery",
+]);
 
 export const BUILT_IN_ADAPTERS = Object.freeze([
   Object.freeze({
     capabilities: Object.freeze(["notification.delivery"]),
     id: "disabled",
     name: "Disabled delivery",
+    schema: "vasi-integration-adapter/v1",
+    version: "1",
+  }),
+  Object.freeze({
+    capabilities: Object.freeze(["document.malware_scan"]),
+    id: "scan_disabled",
+    name: "Disabled document malware scanning",
+    schema: "vasi-integration-adapter/v1",
+    version: "1",
+  }),
+  Object.freeze({
+    capabilities: Object.freeze(["document.malware_scan"]),
+    id: "https_malware_scanner",
+    name: "Signed HTTPS document malware scanner",
     schema: "vasi-integration-adapter/v1",
     version: "1",
   }),
@@ -41,6 +60,7 @@ export function defaultInstallationProfile(mode = "self_hosted") {
       microsoftGraphAllowedClientIds: Object.freeze([]),
       microsoftGraphAllowedSenders: Object.freeze([]),
       microsoftGraphAllowedTenantIds: Object.freeze([]),
+      malwareScannerAllowedHosts: Object.freeze([]),
       smtpAllowedHosts: Object.freeze([]),
       webhookAllowedHosts: Object.freeze([]),
     }),
@@ -111,7 +131,8 @@ export function validateInstallationProfile(value) {
   }
   const adapters = strictObject(input.adapters, "installation adapters", [
     "allow", "microsoftGraphAllowedClientIds", "microsoftGraphAllowedSenders",
-    "microsoftGraphAllowedTenantIds", "smtpAllowedHosts", "webhookAllowedHosts",
+    "microsoftGraphAllowedTenantIds", "malwareScannerAllowedHosts", "smtpAllowedHosts",
+    "webhookAllowedHosts",
   ]);
   if (!Array.isArray(adapters.allow) || !adapters.allow.length || adapters.allow.length > BUILT_IN_ADAPTERS.length) {
     invalid("The installation adapter allowlist is invalid.");
@@ -140,6 +161,12 @@ export function validateInstallationProfile(value) {
         microsoftGraphAllowedTenantIds: allowedUUIDs(
           adapters.microsoftGraphAllowedTenantIds,
           "microsoftGraphAllowedTenantIds",
+        ),
+      }),
+      ...(adapters.malwareScannerAllowedHosts === undefined ? {} : {
+        malwareScannerAllowedHosts: allowedHosts(
+          adapters.malwareScannerAllowedHosts,
+          "malwareScannerAllowedHosts",
         ),
       }),
       smtpAllowedHosts: allowedHosts(adapters.smtpAllowedHosts, "smtpAllowedHosts"),
@@ -258,9 +285,11 @@ export function validateIntegrationBindingCommand(value) {
   if (!INTEGRATION_CAPABILITIES.includes(capability) || !adapter.capabilities.includes(capability)) {
     invalid("The integration capability is unsupported by this adapter.");
   }
-  const status = input.status ?? (adapterId === "disabled" ? "disabled" : "active");
+  const status = input.status ?? (["disabled", "scan_disabled"].includes(adapterId) ? "disabled" : "active");
   if (!["active", "disabled"].includes(status)) invalid("The integration binding status is unsupported.");
-  if (adapterId === "disabled" && status !== "disabled") invalid("The disabled adapter cannot be active.");
+  if (["disabled", "scan_disabled"].includes(adapterId) && status !== "disabled") {
+    invalid("A disabled adapter cannot be active.");
+  }
   const normalized = normalizeAdapterConfiguration(adapterId, input.config, input.credentials);
   return Object.freeze({
     adapterId,
@@ -289,14 +318,45 @@ export function integrationDestinationAllowed(profileValue, binding) {
       (profile.adapters.microsoftGraphAllowedClientIds || []).includes(binding.config.clientId) &&
       (profile.adapters.microsoftGraphAllowedSenders || []).includes(binding.config.senderEmail);
   }
+  if (binding.adapterId === "https_malware_scanner") {
+    return (profile.adapters.malwareScannerAllowedHosts || [])
+      .includes(new URL(binding.config.url).hostname.toLowerCase());
+  }
   return false;
 }
 
 function normalizeAdapterConfiguration(adapterId, configValue, credentialValue) {
-  if (adapterId === "disabled") {
+  if (["disabled", "scan_disabled"].includes(adapterId)) {
     strictObject(configValue ?? {}, "disabled adapter configuration", []);
     strictObject(credentialValue ?? {}, "disabled adapter credentials", []);
     return { config: Object.freeze({}), credentials: Object.freeze({}) };
+  }
+  if (adapterId === "https_malware_scanner") {
+    const config = strictObject(configValue, "HTTPS malware scanner configuration", [
+      "timeoutSeconds", "url",
+    ]);
+    const credentials = strictObject(credentialValue, "HTTPS malware scanner credentials", [
+      "caCertificatePem", "secret",
+    ]);
+    let url;
+    try {
+      url = new URL(boundedString(config.url, "url", 1, 2_048));
+    } catch {
+      invalid("The malware scanner URL is invalid.");
+    }
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+      invalid("The malware scanner URL must use HTTPS without credentials, a query, or a fragment.");
+    }
+    return {
+      config: Object.freeze({
+        timeoutSeconds: safeInteger(config.timeoutSeconds, "timeoutSeconds", 5, 300),
+        url: url.toString(),
+      }),
+      credentials: Object.freeze({
+        caCertificatePem: optionalCertificateAuthorityBundle(credentials.caCertificatePem),
+        secret: boundedString(credentials.secret, "secret", 32, 1_024),
+      }),
+    };
   }
   if (adapterId === "webhook") {
     const config = strictObject(configValue, "webhook configuration", ["url"]);
@@ -371,6 +431,24 @@ function boundedString(value, field, minimum, maximum) {
 function optionalString(value, field, maximum) {
   if (value === undefined || value === null || value === "") return undefined;
   return boundedString(value, field, 1, maximum);
+}
+
+function optionalCertificateAuthorityBundle(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || Buffer.byteLength(value, "utf8") > 131_072) {
+    invalid("The scanner CA certificate bundle is invalid.");
+  }
+  const normalized = value.replace(/\r\n/g, "\n").trim();
+  const matches = normalized.match(/-----BEGIN CERTIFICATE-----\n[A-Za-z0-9+/=\n]+\n-----END CERTIFICATE-----/g) || [];
+  if (!matches.length || matches.length > 5 || matches.join("\n") !== normalized) {
+    invalid("The scanner CA certificate bundle is invalid.");
+  }
+  try {
+    for (const certificate of matches) new X509Certificate(certificate);
+  } catch {
+    invalid("The scanner CA certificate bundle is invalid.");
+  }
+  return `${matches.join("\n")}\n`;
 }
 
 function token(value, field) {

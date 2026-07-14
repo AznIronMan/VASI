@@ -1,6 +1,7 @@
 {
   "adapters": {
-    "allow": ["disabled", "microsoft_graph", "smtp", "webhook"],
+    "allow": ["disabled", "https_malware_scanner", "microsoft_graph", "scan_disabled", "smtp", "webhook"],
+    "malwareScannerAllowedHosts": [],
     "microsoftGraphAllowedClientIds": [],
     "microsoftGraphAllowedSenders": [],
     "microsoftGraphAllowedTenantIds": [],

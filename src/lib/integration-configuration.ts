@@ -37,6 +37,19 @@ export function integrationCommandFromForm(
       status: "active" as const,
     };
   }
+  if (adapterId === "https_malware_scanner") {
+    return {
+      config: {
+        timeoutSeconds: Number(data.get("scannerTimeoutSeconds")),
+        url: text(data, "scannerUrl"),
+      },
+      credentials: {
+        caCertificatePem: optionalText(data, "scannerCaCertificatePem"),
+        secret: text(data, "scannerSecret"),
+      },
+      status: "active" as const,
+    };
+  }
   return { config: {}, credentials: {}, status: "disabled" as const };
 }
 

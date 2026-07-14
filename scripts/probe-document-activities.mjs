@@ -170,6 +170,7 @@ if (
 }
 
 console.info("VASI PostgreSQL artifact, inspection, streaming, rich activity, response revision, scoring, and seal checks passed.");
+await import("./probe-document-malware-scanning.mjs");
 
 async function beginArtifact(actorContext, tenantId, content, metadata) {
   const createdArtifact = await call(actorContext, "POST", "/v1/owner/artifacts", {

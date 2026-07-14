@@ -35,9 +35,23 @@ const SUMMARY_QUERY = `
       where r."status" = 'active') as "activeBindings",
     (select count(*)::integer from "vasi_engine"."integration_binding_revision" r
       join "vasi_engine"."integration_binding_pointer" p on p."activeRevisionId" = r."id"
+      where r."status" = 'active' and r."capability" = 'notification.delivery') as "activeDeliveryBindings",
+    (select count(*)::integer from "vasi_engine"."integration_binding_revision" r
+      join "vasi_engine"."integration_binding_pointer" p on p."activeRevisionId" = r."id"
+      where r."status" = 'active' and r."capability" = 'document.malware_scan') as "activeScannerBindings",
+    (select count(*)::integer from "vasi_engine"."integration_binding_revision" r
+      join "vasi_engine"."integration_binding_pointer" p on p."activeRevisionId" = r."id"
       where r."status" = 'disabled') as "disabledBindings",
     (select count(*)::integer from "vasi_engine"."integration_adapter_registry"
       where "conformanceStatus" = 'built_in_verified') as "verifiedAdapters",
+    (select count(*)::integer from "vasi_engine"."document_artifact_scan_attempt"
+      where "outcome" = 'failed' and "completedAt" >= CURRENT_TIMESTAMP - interval '24 hours') as "scanFailures24Hours",
+    (select count(*)::integer from "vasi_engine"."document_artifact_scan_attempt"
+      where "verdict" in ('malicious', 'suspicious')
+        and "completedAt" >= CURRENT_TIMESTAMP - interval '24 hours') as "scanThreats24Hours",
+    (select count(*)::integer from "vasi_engine"."document_artifact"
+      where "status" = 'quarantined'
+        and "inspectionResult"->'external'->>'status' = 'unavailable') as "retryableScans",
     (select count(*)::integer from "vasi_engine"."record_lifecycle_state"
       where "evidenceStatus" = 'purge_due') as "purgeDueRecords",
     (select count(*)::integer from "vasi_engine"."record_lifecycle_event"
@@ -121,6 +135,7 @@ export async function collectOperationalSnapshot(database, {
     },
     delivery: {
       activeBindings: safeNumber(row.activeBindings),
+      activeDeliveryBindings: safeNumber(row.activeDeliveryBindings ?? row.activeBindings),
       delivered24Hours: safeNumber(row.delivered24Hours),
       disabledBindings: safeNumber(row.disabledBindings),
       failed24Hours: safeNumber(row.deliveryFailures24Hours),
@@ -143,6 +158,12 @@ export async function collectOperationalSnapshot(database, {
       pending: safeNumber(row.pendingJobs),
       running: safeNumber(row.runningJobs),
       staleRunning: safeNumber(row.staleRunningJobs),
+    },
+    scanning: {
+      activeBindings: safeNumber(row.activeScannerBindings),
+      failed24Hours: safeNumber(row.scanFailures24Hours),
+      retryable: safeNumber(row.retryableScans),
+      threats24Hours: safeNumber(row.scanThreats24Hours),
     },
     schema: "vasi-operational-snapshot/v1",
     signing: {
@@ -168,10 +189,15 @@ export function operationalAssessment(snapshot) {
   if (snapshot.queue.staleRunning > 0) critical.push("stale_running_jobs");
   if (snapshot.queue.failed24Hours > 0) attention.push("recent_failed_jobs");
   if (snapshot.delivery.gatewayFailures24Hours > 0) attention.push("recent_delivery_failures");
+  if (snapshot.scanning?.failed24Hours > 0) attention.push("recent_scan_failures");
+  if (snapshot.scanning?.retryable > 0) attention.push("documents_awaiting_scan_retry");
+  if (snapshot.scanning?.threats24Hours > 0) attention.push("recent_document_threats");
   if (snapshot.lifecycle.purgeBlocked24Hours > 0) attention.push("recent_purge_blocks");
   if (snapshot.database.pool.waiting > 0) attention.push("database_pool_waiting");
   if (snapshot.tenancy.active < 1) attention.push("no_active_tenants");
-  if (snapshot.delivery.activeBindings < 1) attention.push("no_active_delivery_binding");
+  if ((snapshot.delivery.activeDeliveryBindings ?? snapshot.delivery.activeBindings) < 1) {
+    attention.push("no_active_delivery_binding");
+  }
   const reasons = Object.freeze([...critical, ...attention]);
   return Object.freeze({
     reasons,

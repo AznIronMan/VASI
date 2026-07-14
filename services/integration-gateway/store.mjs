@@ -11,6 +11,7 @@ import {
   validateIntegrationBindingCommand,
 } from "../../packages/engine-domain/productization.mjs";
 import { createNotificationDispatcher } from "../worker/notification-adapters.mjs";
+import { scanArtifactWithHTTPS } from "./malware-scanner.mjs";
 
 export function createIntegrationGatewayStore(database, settings, installationId, dependencies = {}) {
   const credentialSecret = required32ByteSecret(
@@ -117,6 +118,101 @@ export function createIntegrationGatewayStore(database, settings, installationId
         client.release();
       }
     },
+
+    async scan(command) {
+      const requestHash = hashCanonicalJSON(command);
+      const client = await database.connect();
+      try {
+        await client.query("begin");
+        await client.query("select pg_advisory_xact_lock(hashtext($1))", [command.scanRequestId]);
+        const previous = await client.query(
+          `select * from "vasi_engine"."document_artifact_scan_attempt"
+           where "scanRequestId" = $1`,
+          [command.scanRequestId],
+        );
+        if (previous.rowCount) {
+          if (previous.rows[0].requestHash !== requestHash) throw gatewayError("artifact_scan_attempt_conflict");
+          await client.query("commit");
+          return scanAttemptProjection(previous.rows[0]);
+        }
+
+        const artifact = await client.query(
+          `select "status", "mediaType", "expectedByteLength"
+           from "vasi_engine"."document_artifact"
+           where "id" = $1 and "tenantId" = $2`,
+          [command.artifactId, command.tenantId],
+        );
+        if (!artifact.rowCount) throw gatewayError("artifact_scan_source_unavailable");
+        const startedAt = new Date();
+        let binding;
+        let bindingFailure;
+        try {
+          binding = await loadBinding(client, command, credentialSecret, installationId);
+        } catch (error) {
+          bindingFailure = error;
+          binding = Object.freeze({ adapterId: "unavailable", adapterVersion: "0", id: null });
+        }
+        let scan;
+        const source = artifact.rows[0];
+        if (
+          source.status !== "quarantined" || source.mediaType !== command.mediaType ||
+          Number(source.expectedByteLength) !== command.byteLength
+        ) {
+          scan = failedScan(binding, "artifact_scan_source_mismatch");
+        } else if (bindingFailure) {
+          scan = failedScan(binding, bindingFailure.code);
+        } else try {
+          const scanner = dependencies.scanArtifact || scanArtifactWithHTTPS;
+          scan = await scanner(client, binding, command, {
+            now: dependencies.now,
+            request: dependencies.httpsRequest,
+          });
+        } catch (error) {
+          scan = failedScan(binding, error?.code);
+        }
+        const completedAt = new Date();
+        const attempt = {
+          adapterId: binding.adapterId,
+          adapterVersion: binding.adapterVersion,
+          artifactId: command.artifactId,
+          bindingRevisionId: binding.id,
+          completedAt,
+          errorCode: scan.errorCode || null,
+          expectedByteLength: command.byteLength,
+          expectedSha256: command.sha256,
+          id: randomUUID(),
+          outcome: scan.outcome,
+          requestHash,
+          responseMetadata: boundedScanResponseMetadata(scan.responseMetadata),
+          scanRequestId: command.scanRequestId,
+          startedAt,
+          tenantId: command.tenantId,
+          verdict: scan.verdict || null,
+        };
+        await client.query(
+          `insert into "vasi_engine"."document_artifact_scan_attempt"
+            ("id", "tenantId", "artifactId", "scanRequestId", "bindingRevisionId",
+             "adapterId", "adapterVersion", "requestHash", "expectedSha256",
+             "expectedByteLength", "outcome", "verdict", "errorCode", "responseMetadata",
+             "startedAt", "completedAt")
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+          [
+            attempt.id, attempt.tenantId, attempt.artifactId, attempt.scanRequestId,
+            attempt.bindingRevisionId, attempt.adapterId, attempt.adapterVersion,
+            attempt.requestHash, attempt.expectedSha256, attempt.expectedByteLength,
+            attempt.outcome, attempt.verdict, attempt.errorCode, attempt.responseMetadata,
+            attempt.startedAt, attempt.completedAt,
+          ],
+        );
+        await client.query("commit");
+        return scanAttemptProjection(attempt);
+      } catch (error) {
+        await client.query("rollback").catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
   });
 }
 
@@ -194,6 +290,20 @@ function attemptProjection(row) {
   });
 }
 
+function scanAttemptProjection(row) {
+  return Object.freeze({
+    adapter: row.adapterId,
+    adapterVersion: row.adapterVersion,
+    attemptId: row.id,
+    bindingRevisionId: row.bindingRevisionId || undefined,
+    errorCode: row.errorCode || undefined,
+    outcome: row.outcome,
+    responseMetadata: row.responseMetadata || {},
+    scanRequestId: row.scanRequestId,
+    verdict: row.verdict || undefined,
+  });
+}
+
 function boundedResponseMetadata(value) {
   if (!value || Array.isArray(value) || typeof value !== "object") return {};
   const result = {};
@@ -206,10 +316,34 @@ function boundedResponseMetadata(value) {
   return Object.freeze(result);
 }
 
-function boundedErrorCode(value) {
+function boundedScanResponseMetadata(value) {
+  if (!value || Array.isArray(value) || typeof value !== "object") return Object.freeze({});
+  const allowed = ["reasonCode", "scanner", "scannerVersion", "signatureSet"];
+  const result = {};
+  for (const key of allowed) {
+    if (typeof value[key] !== "string") continue;
+    const normalized = value[key].normalize("NFC").trim();
+    const maximum = key === "signatureSet" ? 160 : key === "reasonCode" ? 64 : 80;
+    if (normalized && normalized.length <= maximum && !/[\u0000-\u001f\u007f]/.test(normalized)) {
+      result[key] = normalized;
+    }
+  }
+  return Object.freeze(result);
+}
+
+function failedScan(binding, code) {
+  return Object.freeze({
+    adapter: binding.adapterId,
+    errorCode: boundedErrorCode(code, "scan_failed"),
+    outcome: "failed",
+    responseMetadata: {},
+  });
+}
+
+function boundedErrorCode(value, fallback = "delivery_failed") {
   return typeof value === "string" && /^[a-z0-9_]{1,64}$/.test(value)
     ? value
-    : "delivery_failed";
+    : fallback;
 }
 
 function required32ByteSecret(value, name) {

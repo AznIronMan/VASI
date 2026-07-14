@@ -23,6 +23,7 @@ describe("productized deployment and transfer conformance", () => {
       "engine-document-activities.sql", "engine-media-evidence.sql", "engine-evidence-reports.sql",
       "engine-lifecycle-governance.sql", "engine-productization.sql",
       "engine-activity-interaction.sql", "engine-participant-context.sql",
+      "engine-document-malware-scanning.sql",
     ];
     const created = new Set();
     for (const filename of databaseFiles) {

@@ -23,6 +23,8 @@ authorized for the action, and the engine separately requires the actor's
 - 24-hour delivered, failed, suppressed, and gateway-failure counts plus at
   most ten syntax-bounded error codes;
 - active/disabled delivery-binding and verified-adapter counts;
+- active scanner-binding, 24-hour failed/threat-verdict, and currently
+  retryable-quarantine counts;
 - purge-due, recent purge-block, pending data-request, and oldest review age;
 - active standard/optional signing-key and untrusted historical-key counts;
 - installation-profile presence/revision and aggregate configuration/settings
@@ -31,9 +33,10 @@ authorized for the action, and the engine separately requires the actor's
 
 The engine derives `ready`, `attention`, or `critical` from structural
 conditions. Migration drift, a missing installation profile, an unavailable
-standard integrity key, or a stale worker lock is critical. Recent failures,
-purge blocks, pool waiting, or an installation with no active tenant/delivery
-binding receives attention without inventing a customer impact claim.
+standard integrity key, or a stale worker lock is critical. Recent delivery or
+scanner failures, scanner threat verdicts, retryable quarantines, purge blocks,
+pool waiting, or an installation with no active tenant/delivery binding receives
+attention without inventing a customer impact claim.
 
 ## Privacy boundary
 
@@ -61,6 +64,8 @@ The default versioned policy fails on:
 - any release migration drift or missing integrity/profile prerequisite;
 - database snapshot latency over 2,000 ms or any waiting pool client;
 - any failed outbox job or integration-gateway failure in the prior 24 hours;
+- any failed scanner call, scanner threat verdict, or retryable quarantined
+  artifact under the default zero-tolerance thresholds;
 - a pending job older than 900 seconds or a stale worker lock; or
 - a pending participant data request older than 30 days.
 

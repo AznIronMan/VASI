@@ -43,4 +43,21 @@ describe("owner integration configuration", () => {
       status: "disabled",
     });
   });
+
+  it("builds the write-only scanner command", () => {
+    const data = new FormData();
+    data.set("scannerUrl", "https://scanner.example.test/v1/scan");
+    data.set("scannerTimeoutSeconds", "45");
+    data.set("scannerSecret", "m".repeat(48));
+    expect(integrationCommandFromForm("https_malware_scanner", data)).toEqual({
+      config: { timeoutSeconds: 45, url: "https://scanner.example.test/v1/scan" },
+      credentials: { caCertificatePem: undefined, secret: "m".repeat(48) },
+      status: "active",
+    });
+    expect(integrationCommandFromForm("scan_disabled", data)).toEqual({
+      config: {},
+      credentials: {},
+      status: "disabled",
+    });
+  });
 });

@@ -1,6 +1,9 @@
 import { createServer } from "node:http";
 
-import { validateIntegrationDeliveryCommand } from "../../packages/engine-contracts/integration-gateway.mjs";
+import {
+  validateArtifactScanCommand,
+  validateIntegrationDeliveryCommand,
+} from "../../packages/engine-contracts/integration-gateway.mjs";
 import { verifyServiceRequest } from "../../packages/engine-crypto/index.mjs";
 import {
   createSettingsPool,
@@ -10,7 +13,7 @@ import {
 import { readRequestBody, sendJSON } from "../shared/http.mjs";
 import { createIntegrationGatewayStore } from "./store.mjs";
 
-const VERSION = "0.18.0";
+const VERSION = "0.19.0";
 const REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -25,16 +28,20 @@ const server = createServer(async (request, response) => {
     if (request.method === "GET" && path === "/healthz") {
       return sendJSON(response, 200, { service: "vasi-integration-gateway", status: "ok", version: VERSION });
     }
-    if (request.method !== "POST" || path !== "/v1/deliver") {
+    if (request.method !== "POST" || !["/v1/deliver", "/v1/scan"].includes(path)) {
       return sendJSON(response, 404, { error: "not_found" });
     }
     const body = await readRequestBody(request, 65_536);
-    authenticateWorker(request, body, path);
+    authenticateService(request, body, path);
+    if (path === "/v1/scan") {
+      const command = validateArtifactScanCommand(parseJSON(body));
+      return sendJSON(response, 200, await gateway.scan(command));
+    }
     const command = validateIntegrationDeliveryCommand(parseJSON(body));
     return sendJSON(response, 200, await gateway.deliver(command));
   } catch (error) {
     const code = publicErrorCode(error);
-    console.error("VASI integration delivery rejected", boundedDiagnostic(error?.code) || "internal_failure");
+    console.error("VASI integration request rejected", boundedDiagnostic(error?.code) || "internal_failure");
     return sendJSON(response, code.status, { error: code.error });
   }
 });
@@ -43,12 +50,13 @@ server.listen(8090, "0.0.0.0", () => {
   console.info(`VASI integration gateway ${VERSION} listening on its isolated container network.`);
 });
 
-function authenticateWorker(request, body, path) {
+function authenticateService(request, body, path) {
   const serviceId = singleHeader(request.headers["x-vasi-service"]);
   const requestId = singleHeader(request.headers["x-vasi-request-id"]);
   const signature = singleHeader(request.headers["x-vasi-signature"]);
   const timestamp = Number(singleHeader(request.headers["x-vasi-timestamp"]));
-  if (serviceId !== "vasi-worker" || !requestId || requestId.length > 128 || !Number.isSafeInteger(timestamp)) {
+  const expectedService = path === "/v1/scan" ? "vasi-engine" : "vasi-worker";
+  if (serviceId !== expectedService || !requestId || requestId.length > 128 || !Number.isSafeInteger(timestamp)) {
     throw authorizationError();
   }
   const now = Math.floor(Date.now() / 1_000);
@@ -82,11 +90,12 @@ function parseJSON(body) {
 
 function publicErrorCode(error) {
   if (error?.code === "AUTHORIZATION_FAILED") return { error: "unauthorized", status: 401 };
-  if (error?.code === "INVALID_JSON" || error?.code === "INVALID_INTEGRATION_DELIVERY") {
+  if (["INVALID_ARTIFACT_SCAN", "INVALID_JSON", "INVALID_INTEGRATION_DELIVERY"].includes(error?.code)) {
     return { error: "invalid_request", status: 400 };
   }
   if (error?.code === "BODY_LIMIT") return { error: "request_too_large", status: 413 };
   if (error?.code === "integration_attempt_conflict") return { error: "integration_attempt_conflict", status: 409 };
+  if (error?.code === "artifact_scan_attempt_conflict") return { error: "artifact_scan_attempt_conflict", status: 409 };
   return { error: "internal_error", status: 500 };
 }
 

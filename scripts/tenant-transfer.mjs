@@ -88,6 +88,7 @@ const TABLES = Object.freeze([
   direct("product_configuration_event", '"tenantId"', '"createdAt", "scopeType", "scopeId", "sequence"'),
   direct("integration_binding_revision", '"tenantId"', '"capability", "revision"'),
   direct("integration_binding_pointer", '"tenantId"', '"capability"'),
+  direct("document_artifact_scan_attempt", '"tenantId"', '"startedAt", "id"'),
   direct("integration_gateway_attempt", '"tenantId"', '"startedAt", "attempt", "id"'),
 ]);
 

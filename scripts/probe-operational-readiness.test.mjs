@@ -9,6 +9,7 @@ function snapshot(overrides = {}) {
     delivery: { activeBindings: 1, gatewayFailures24Hours: 0 },
     lifecycle: { oldestPendingDataRequestSeconds: 0, pendingDataRequests: 0 },
     queue: { failed24Hours: 0, oldestPendingSeconds: 0, pending: 0, staleRunning: 0 },
+    scanning: { failed24Hours: 0, retryable: 0, threats24Hours: 0 },
     reasons: [],
     signing: { activeIntegrityKeys: 1 },
     ...overrides,
@@ -22,6 +23,9 @@ const thresholds = {
   maximumGatewayFailures24Hours: 0,
   maximumOldestPendingDataRequestSeconds: 1000,
   maximumOldestPendingSeconds: 60,
+  maximumRetryableScans: 0,
+  maximumScanFailures24Hours: 0,
+  maximumScanThreats24Hours: 0,
   maximumStaleRunningJobs: 0,
 };
 
@@ -33,6 +37,21 @@ describe("operational readiness policy", () => {
       failures: [],
       status: "pass",
       warnings: ["no_active_delivery_binding", "no_active_tenants"],
+    });
+  });
+
+  it("fails scanner failure, retry, and threat thresholds without retaining customer detail", () => {
+    expect(evaluateOperationalReadiness(snapshot({
+      reasons: ["documents_awaiting_scan_retry", "recent_document_threats", "recent_scan_failures"],
+      scanning: { failed24Hours: 1, retryable: 1, threats24Hours: 1 },
+    }), thresholds)).toEqual({
+      failures: [
+        "scan_failure_threshold_exceeded",
+        "scan_retry_threshold_exceeded",
+        "scan_threat_threshold_exceeded",
+      ],
+      status: "fail",
+      warnings: [],
     });
   });
 
