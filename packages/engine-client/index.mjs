@@ -9,8 +9,20 @@ export async function createActorAssertion(settings, actor, now = Math.floor(Dat
     "EdDSA",
   );
   return new SignJWT({
-    authentication: actor.authentication,
+    authenticated_at: actor.authenticatedAt,
+    authentication: {
+      method: actor.authentication.method,
+      provider: actor.authentication.provider,
+      provider_subject: actor.authentication.providerSubject,
+    },
+    email: actor.email,
     gateway_session_id: actor.gatewaySessionId,
+    request_context: actor.requestContext && {
+      accept_language: actor.requestContext.acceptLanguage,
+      client_hints: actor.requestContext.clientHints,
+      ip_address: actor.requestContext.ipAddress,
+      user_agent: actor.requestContext.userAgent,
+    },
     roles: actor.roles || [],
     tenant_id: actor.tenantId,
     vasi_principal_id: actor.principalId,
@@ -30,18 +42,26 @@ export async function createActorAssertion(settings, actor, now = Math.floor(Dat
     .sign(privateKey);
 }
 
-export function requestEngine(settings, { method, path, token }) {
+export function requestEngine(settings, { body, method, path, token }) {
   const origin = new URL(required(settings, "ENGINE_ORIGIN"));
   if (origin.protocol !== "https:" || origin.pathname !== "/") {
     throw new Error("ENGINE_ORIGIN must be an HTTPS origin without a path.");
   }
   return new Promise((resolve, reject) => {
+    const requestBody = body === undefined
+      ? Buffer.alloc(0)
+      : Buffer.from(JSON.stringify(body), "utf8");
     const request = httpsRequest(
       new URL(path, origin),
       {
         ca: pem(settings, "ENGINE_CA_CERT"),
         cert: pem(settings, "ENGINE_CLIENT_CERT"),
-        headers: token ? { authorization: `Bearer ${token}` } : undefined,
+        headers: {
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+          ...(requestBody.length
+            ? { "content-length": requestBody.length, "content-type": "application/json" }
+            : {}),
+        },
         key: pem(settings, "ENGINE_CLIENT_KEY"),
         method,
         minVersion: "TLSv1.3",
@@ -51,7 +71,16 @@ export function requestEngine(settings, { method, path, token }) {
       },
       (response) => {
         const chunks = [];
-        response.on("data", (chunk) => chunks.push(chunk));
+        let length = 0;
+        response.on("data", (chunk) => {
+          length += chunk.length;
+          if (length > 1_048_576) {
+            response.destroy(new Error("The private VASI engine response was too large."));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        response.on("error", reject);
         response.on("end", () => {
           const body = Buffer.concat(chunks).toString("utf8");
           let json;
@@ -66,7 +95,7 @@ export function requestEngine(settings, { method, path, token }) {
     );
     request.on("error", reject);
     request.on("timeout", () => request.destroy(new Error("VASI engine request timed out.")));
-    request.end();
+    request.end(requestBody);
   });
 }
 

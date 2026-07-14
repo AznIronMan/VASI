@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { BrandMark } from "@/components/brand-mark";
@@ -114,6 +115,7 @@ export function AdminConsole({
           <p className="eyebrow eyebrow--green">INTERNAL / PORTLAND</p>
           <h1>Identity administration</h1>
         </div>
+        <Link className="admin-header__evidence" href="/admin/evidence">Sealed evidence</Link>
         <SignOutButton />
       </header>
 

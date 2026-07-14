@@ -3,10 +3,11 @@ import { request as httpRequest } from "node:http";
 import { createServer } from "node:https";
 
 import { signServiceRequest } from "../../packages/engine-crypto/index.mjs";
+import { resolveEngineRoute } from "../../packages/engine-contracts/index.mjs";
 import { loadBootstrapSettings, readRuntimeSettings } from "../../scripts/settings-core.mjs";
 import { readRequestBody, sendJSON } from "../shared/http.mjs";
 
-const ENGINE_VERSION = "0.4.0";
+const ENGINE_VERSION = "0.5.0";
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
 
@@ -25,7 +26,7 @@ const server = createServer(
         return sendJSON(response, 401, { error: "unauthorized" });
       }
       const path = new URL(request.url || "/", "https://engine.internal").pathname;
-      if (!isAllowedRoute(request.method, path)) {
+      if (!resolveEngineRoute(request.method || "GET", path)) {
         return sendJSON(response, 404, { error: "not_found" });
       }
       const body = await readRequestBody(request);
@@ -49,11 +50,6 @@ const server = createServer(
 server.listen(8443, "0.0.0.0", () => {
   console.info(`VASI private ingress ${ENGINE_VERSION} is ready for authenticated service traffic.`);
 });
-
-function isAllowedRoute(method, path) {
-  return (method === "GET" && path === "/healthz") ||
-    (method === "POST" && path === "/v1/whoami");
-}
 
 function hasExpectedClientCertificate(socket) {
   const fingerprint = socket.getPeerCertificate()?.fingerprint256;

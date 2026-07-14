@@ -9,7 +9,7 @@ database and login role, a dedicated deployment directory, and a unique
 - `engine` exposes port 8080 only to its internal Docker network and has no host
   port mapping.
 - `worker` has no listener or host port.
-- `private-ingress` exposes the two approved routes and is the only host
+- `private-ingress` exposes only the approved route table and is the only host
   listener.
 - The tracked Compose binds the facade to loopback. Put a private address in an
   ignored override only after confirming the address and port are reserved.
@@ -22,6 +22,12 @@ Approved routes are:
 | --- | --- | --- |
 | `GET` | `/healthz` | Authenticated service health proof |
 | `POST` | `/v1/whoami` | Validate and return bounded actor context |
+| `GET/POST` | `/v1/owner/tenants` | List or create an authorized company space |
+| `POST` | `/v1/owner/requests` | Issue the first immutable evidence request |
+| `POST` | `/v1/owner/records` | Verify and return an owner-authorized structured record |
+| `POST` | `/v1/participant/open` | Bind/open an opaque participant assignment |
+| `POST` | `/v1/participant/respond` | Record one authoritative response and seal its manifest |
+| `POST` | `/v1/participant/receipt` | Return a participant-safe verified receipt |
 
 Everything else returns 404 after service authentication.
 
@@ -38,8 +44,8 @@ docker compose -f compose.engine.yaml --profile tools run --rm --build settings 
 
 The engine initializer prompts for the dedicated PostgreSQL connection, creates
 the bootstrap, applies the engine settings/boundary migrations, generates the
-internal HMAC secret, and stores portable defaults. Complete these `engine`
-scope settings before startup:
+internal HMAC secret and evidence-seal key pair, and stores portable defaults.
+Complete these `engine` scope settings before startup:
 
 - `ENGINE_ASSERTION_PUBLIC_JWK`
 - `ENGINE_ASSERTION_ISSUER`
@@ -48,6 +54,9 @@ scope settings before startup:
 - `ENGINE_INGRESS_TLS_KEY`
 - `ENGINE_AUTHORIZED_CLIENT_CA_CERT`
 - `ENGINE_AUTHORIZED_CLIENT_FINGERPRINT_SHA256`
+- `EVIDENCE_SEAL_PRIVATE_JWK`
+- `EVIDENCE_SEAL_PUBLIC_JWK`
+- `EVIDENCE_SEAL_KEY_ID`
 
 The gateway scope needs the corresponding `ENGINE_ORIGIN`, server CA, client
 certificate/key, assertion private JWK/key ID, issuer, and audience. PEM values
@@ -58,6 +67,13 @@ write the object to disk or put values in command arguments.
 Use separate signing and certificate material for development and production.
 The service client certificate is not a participant signature and must never be
 described as one.
+
+The evidence-seal key is a separate Ed25519 identity. Keep an offline recovery
+copy or use a future signing-key adapter; do not reuse the gateway assertion key
+or TLS key. The private JWK is encrypted in the engine settings scope and the
+public JWK is embedded in each seal. Verification also anchors that public key
+to the configured key because a self-consistent replacement manifest and
+attacker key are not evidence of VASI origin.
 
 ## Release
 
@@ -71,6 +87,7 @@ Run the gateway proof after every trust, key, network, or engine release:
 
 ```bash
 npm run engine:probe
+npm run engine:probe:evidence # disposable conformance database only
 ```
 
 The proof verifies server trust, the V·Sign client certificate, engine health,

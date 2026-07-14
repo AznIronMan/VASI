@@ -142,6 +142,13 @@ links expire after one hour, and a completed password reset revokes the user's
 other active sessions. Sign-in and recovery responses use generic language to
 reduce account enumeration.
 
+An opaque evidence request path under `/r/` is preserved through social sign-in,
+manual registration, and email verification. The return value is accepted only
+when it exactly matches the fixed high-entropy request-path shape; arbitrary or
+external callback destinations are rejected. Link possession selects a request
+but does not authorize it. The private engine separately requires the intended
+verified email and binds first access to the stable V·Sign principal.
+
 ## Internal identity administration
 
 Configure the private console with:
@@ -181,6 +188,22 @@ sign-in, and revokes existing sessions. Invitations expire after seven days,
 store only a SHA-256 token digest, and are single-use. Administrative changes
 are recorded in `vasi_admin_audit`; audit metadata never contains invitation
 tokens, provider tokens, credentials, or message bodies.
+
+The `/admin/evidence` first-slice console is an internal adapter for creating a
+company evidence space and issuing the narrow terms/response transaction. The
+engine creates a separate tenant membership and enforces it for every issue and
+record query. Identity-administrator status is used only to bootstrap that
+membership; it is not treated as cross-tenant evidence authorization. The
+general owner roles and control plane are a later milestone.
+
+For the sealed slice, V·Sign signs and forwards bounded engine context from the
+authenticated session: stable principal and session IDs, verified email,
+available provider method/subject, authentication time, roles, and available
+gateway-observed IP headers, user agent, language, and browser client hints.
+These fields are contextual evidence with stated provenance. VASI does not
+collect raw keystrokes, browser plugin inventories, hidden camera/microphone
+data, or invasive device fingerprints, and does not claim that a user agent or
+duration proves comprehension.
 
 ## Transactional email
 

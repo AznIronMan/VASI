@@ -48,6 +48,9 @@
   { "scope": "engine", "name": "ENGINE_INGRESS_TLS_KEY", "required": true, "secret": true },
   { "scope": "engine", "name": "ENGINE_AUTHORIZED_CLIENT_CA_CERT", "required": true, "secret": false },
   { "scope": "engine", "name": "ENGINE_AUTHORIZED_CLIENT_FINGERPRINT_SHA256", "required": true, "secret": false },
+  { "scope": "engine", "name": "EVIDENCE_SEAL_PRIVATE_JWK", "required": true, "secret": true },
+  { "scope": "engine", "name": "EVIDENCE_SEAL_PUBLIC_JWK", "required": true, "secret": false },
+  { "scope": "engine", "name": "EVIDENCE_SEAL_KEY_ID", "required": true, "secret": false },
   { "scope": "engine", "name": "ENGINE_INGRESS_SERVICE_ID", "required": false, "secret": false, "default": "vasi-private-ingress" },
   { "scope": "engine", "name": "ENGINE_WORKER_POLL_MS", "required": false, "secret": false, "default": "5000" }
 ]

@@ -1,6 +1,22 @@
 export const ACTOR_ASSERTION_ALGORITHM = "EdDSA";
 export const ACTOR_ASSERTION_MAX_LIFETIME_SECONDS = 120;
 
+const engineRoutes = Object.freeze([
+  { action: "engine.health", method: "GET", path: "/healthz" },
+  { action: "actor.identity", method: "POST", path: "/v1/whoami" },
+  { action: "tenant.list", method: "GET", path: "/v1/owner/tenants" },
+  { action: "tenant.create", method: "POST", path: "/v1/owner/tenants" },
+  { action: "request.issue", method: "POST", path: "/v1/owner/requests" },
+  { action: "record.read", method: "POST", path: "/v1/owner/records" },
+  { action: "participant.open", method: "POST", path: "/v1/participant/open" },
+  { action: "participant.respond", method: "POST", path: "/v1/participant/respond" },
+  { action: "participant.receipt", method: "POST", path: "/v1/participant/receipt" },
+]);
+
+export function resolveEngineRoute(method, path) {
+  return engineRoutes.find((route) => route.method === method && route.path === path);
+}
+
 export function validateActorAssertionClaims(payload, now = Math.floor(Date.now() / 1000)) {
   const subject = requiredString(payload.sub, "sub");
   const assertionId = requiredString(payload.jti, "jti");
@@ -21,6 +37,10 @@ export function validateActorAssertionClaims(payload, now = Math.floor(Date.now(
   }
   const method = requiredString(authentication.method, "authentication.method");
   const provider = optionalString(authentication.provider, "authentication.provider");
+  const providerSubject = optionalString(
+    authentication.provider_subject,
+    "authentication.provider_subject",
+  );
   const roles = Array.isArray(payload.roles)
     ? payload.roles.map((role) => requiredString(role, "roles[]"))
     : [];
@@ -28,14 +48,39 @@ export function validateActorAssertionClaims(payload, now = Math.floor(Date.now(
 
   return Object.freeze({
     assertionId,
-    authentication: Object.freeze({ method, provider }),
+    authenticatedAt: optionalInteger(payload.authenticated_at, "authenticated_at"),
+    authentication: Object.freeze({ method, provider, providerSubject }),
+    email: optionalEmail(payload.email),
     expiresAt,
     gatewaySessionId,
     issuedAt,
     principalId,
+    requestContext: validateRequestContext(payload.request_context),
     roles: Object.freeze(roles),
     subject,
     tenantId: optionalString(payload.tenant_id, "tenant_id"),
+  });
+}
+
+function optionalEmail(value) {
+  if (value === undefined || value === null) return undefined;
+  const email = requiredString(value, "email").toLowerCase();
+  if (email.length > 320 || !/^[^@\s]+@[^@\s]+$/.test(email)) {
+    throw new Error("The actor assertion email claim is invalid.");
+  }
+  return email;
+}
+
+function validateRequestContext(value) {
+  if (value === undefined || value === null) return undefined;
+  if (Array.isArray(value) || typeof value !== "object") {
+    throw new Error("The actor assertion request context is invalid.");
+  }
+  return Object.freeze({
+    acceptLanguage: optionalString(value.accept_language, "request_context.accept_language"),
+    clientHints: optionalString(value.client_hints, "request_context.client_hints"),
+    ipAddress: optionalString(value.ip_address, "request_context.ip_address"),
+    userAgent: optionalString(value.user_agent, "request_context.user_agent"),
   });
 }
 
@@ -56,4 +101,9 @@ function requiredInteger(value, field) {
     throw new Error(`The actor assertion ${field} claim is invalid.`);
   }
   return value;
+}
+
+function optionalInteger(value, field) {
+  if (value === undefined || value === null) return undefined;
+  return requiredInteger(value, field);
 }

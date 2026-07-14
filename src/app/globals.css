@@ -35,8 +35,14 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
+}
+
+textarea {
+  resize: vertical;
 }
 
 button,
@@ -1765,6 +1771,261 @@ input:disabled {
 
   .connector-modal__list .danger-button {
     grid-column: 1 / -1;
+  }
+}
+
+.admin-header__evidence,
+.evidence-admin-header a {
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--green-800);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  background: var(--white);
+}
+
+.evidence-admin-shell,
+.participant-shell {
+  min-height: 100vh;
+  padding: clamp(22px, 4vw, 58px);
+  background: var(--paper);
+}
+
+.evidence-admin-header,
+.participant-shell > header {
+  display: flex;
+  width: min(1180px, 100%);
+  margin: 0 auto 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.evidence-admin-header > div {
+  max-width: 760px;
+}
+
+.evidence-admin-header h1,
+.participant-card h1,
+.receipt-card h1,
+.participant-error h1 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(36px, 5vw, 58px);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+}
+
+.evidence-admin-header > div > p:last-child,
+.participant-purpose {
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.evidence-admin-grid {
+  display: grid;
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  grid-template-columns: minmax(250px, 0.65fr) minmax(480px, 1.35fr);
+  gap: 20px;
+}
+
+.evidence-panel,
+.evidence-issued,
+.evidence-record,
+.participant-card,
+.receipt-card,
+.participant-error {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--white);
+  box-shadow: 0 18px 44px rgba(30, 45, 39, 0.08);
+}
+
+.evidence-panel,
+.evidence-issued,
+.participant-card,
+.receipt-card,
+.participant-error {
+  padding: clamp(24px, 4vw, 42px);
+}
+
+.evidence-panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.evidence-panel h2,
+.participant-terms h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 28px;
+  font-weight: 400;
+}
+
+.evidence-panel .field input,
+.evidence-panel .field select,
+.evidence-panel .field textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 13px;
+  border: 1px solid #d4d5cf;
+  border-radius: 10px;
+  color: var(--ink);
+  background: #fbfbf8;
+}
+
+.evidence-panel .field textarea {
+  line-height: 1.6;
+}
+
+.evidence-admin-shell > .admin-message,
+.evidence-issued,
+.evidence-record-form,
+.evidence-record {
+  width: min(1180px, 100%);
+  margin: 20px auto 0;
+}
+
+.evidence-issued a {
+  overflow-wrap: anywhere;
+  color: var(--green-700);
+  font-weight: 700;
+}
+
+.evidence-issued dl,
+.receipt-card dl {
+  display: grid;
+  margin: 24px 0 0;
+  gap: 12px;
+}
+
+.evidence-issued dl div,
+.receipt-card dl div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.35fr) 1fr;
+  gap: 12px;
+}
+
+.evidence-issued dt,
+.receipt-card dt {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.evidence-issued dd,
+.receipt-card dd {
+  margin: 0;
+}
+
+.evidence-record {
+  max-height: 680px;
+  overflow: auto;
+  padding: 24px;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.participant-card,
+.receipt-card,
+.participant-error {
+  width: min(820px, 100%);
+  margin: 0 auto;
+}
+
+.participant-terms {
+  margin: 32px 0;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #faf9f5;
+}
+
+.participant-terms > div {
+  margin: 18px 0;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.participant-terms small,
+.participant-card footer,
+.receipt-note {
+  color: var(--ink-soft);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.participant-response fieldset {
+  padding: 0;
+  border: 0;
+}
+
+.participant-response legend {
+  margin-bottom: 15px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.participant-response label,
+.participant-choices label {
+  display: flex;
+  min-height: 48px;
+  padding: 12px 15px;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fbfbf8;
+}
+
+.participant-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.participant-response > p {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.receipt-seal {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 24px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--white);
+  font-size: 27px;
+  background: var(--green-800);
+}
+
+.receipt-hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .evidence-admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .evidence-admin-header,
+  .participant-shell > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .participant-choices,
+  .evidence-issued dl div,
+  .receipt-card dl div {
+    grid-template-columns: 1fr;
   }
 }
 

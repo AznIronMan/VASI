@@ -21,10 +21,12 @@ const GENERIC_AUTH_ERROR =
   "We could not complete that request. Check your details and try again.";
 
 export function SsoOnboarding({
+  callbackURL: requestedCallbackURL,
   initialEmail,
   inviteToken,
   providers,
 }: {
+  callbackURL?: string;
   initialEmail?: string;
   inviteToken?: string;
   providers: AuthProviderAvailability[];
@@ -41,10 +43,12 @@ export function SsoOnboarding({
 
   const callbackURL = inviteToken
     ? `/invite/complete?token=${encodeURIComponent(inviteToken)}`
-    : "/workspace";
+    : requestedCallbackURL || "/workspace";
   const errorCallbackURL = inviteToken
     ? `/invite?token=${encodeURIComponent(inviteToken)}&error=oauth`
-    : "/?error=oauth";
+    : callbackURL === "/workspace"
+      ? "/?error=oauth"
+      : `/?error=oauth&returnTo=${encodeURIComponent(callbackURL)}`;
   const configuredProviders = useMemo(
     () => providers.filter((provider) => provider.configured),
     [providers],

@@ -6,15 +6,24 @@ import { importJWK, SignJWT } from "jose";
 import { getRuntimeSettings, type RuntimeSettings } from "@/lib/runtime-settings";
 
 export type EngineActor = {
+  authenticatedAt?: number;
   authentication: {
     method: string;
     provider?: string;
+    providerSubject?: string;
   };
+  email?: string;
   gatewaySessionId: string;
   principalId: string;
   roles: string[];
   subject: string;
   tenantId?: string;
+  requestContext?: {
+    acceptLanguage?: string;
+    clientHints?: string;
+    ipAddress?: string;
+    userAgent?: string;
+  };
 };
 
 export async function createEngineActorAssertion(
@@ -27,8 +36,20 @@ export async function createEngineActorAssertion(
     "EdDSA",
   );
   return new SignJWT({
-    authentication: actor.authentication,
+    authenticated_at: actor.authenticatedAt,
+    authentication: {
+      method: actor.authentication.method,
+      provider: actor.authentication.provider,
+      provider_subject: actor.authentication.providerSubject,
+    },
+    email: actor.email,
     gateway_session_id: actor.gatewaySessionId,
+    request_context: actor.requestContext && {
+      accept_language: actor.requestContext.acceptLanguage,
+      client_hints: actor.requestContext.clientHints,
+      ip_address: actor.requestContext.ipAddress,
+      user_agent: actor.requestContext.userAgent,
+    },
     roles: actor.roles,
     tenant_id: actor.tenantId,
     vasi_principal_id: actor.principalId,
@@ -49,30 +70,49 @@ export async function createEngineActorAssertion(
 }
 
 export async function requestEngineIdentity(actor: EngineActor) {
-  const settings = await getRuntimeSettings();
-  const assertion = await createEngineActorAssertion(settings, actor);
-  const result = await requestJSON(settings, "/v1/whoami", assertion);
+  const result = await requestEngineAction(actor, { method: "POST", path: "/v1/whoami" });
   if (result.status !== 200 || !result.body) {
     throw new Error("The private VASI engine identity check failed.");
   }
   return result.body;
 }
 
-function requestJSON(settings: RuntimeSettings, path: string, assertion: string) {
+export async function requestEngineAction<T>(
+  actor: EngineActor,
+  request: { body?: unknown; method: "GET" | "POST"; path: string },
+) {
+  const settings = await getRuntimeSettings();
+  const assertion = await createEngineActorAssertion(settings, actor);
+  return await requestJSON<T>(settings, request, assertion);
+}
+
+function requestJSON<T>(
+  settings: RuntimeSettings,
+  engineRequest: { body?: unknown; method: "GET" | "POST"; path: string },
+  assertion: string,
+) {
   const origin = new URL(required(settings, "ENGINE_ORIGIN"));
   if (origin.protocol !== "https:" || origin.pathname !== "/") {
     throw new Error("ENGINE_ORIGIN must be an HTTPS origin without a path.");
   }
 
-  return new Promise<{ body?: unknown; status: number }>((resolve, reject) => {
+  const requestBody = engineRequest.body === undefined
+    ? Buffer.alloc(0)
+    : Buffer.from(JSON.stringify(engineRequest.body), "utf8");
+  return new Promise<{ body?: T; status: number }>((resolve, reject) => {
     const request = httpsRequest(
-      new URL(path, origin),
+      new URL(engineRequest.path, origin),
       {
         ca: pem(settings, "ENGINE_CA_CERT"),
         cert: pem(settings, "ENGINE_CLIENT_CERT"),
-        headers: { authorization: `Bearer ${assertion}` },
+        headers: {
+          authorization: `Bearer ${assertion}`,
+          ...(requestBody.length
+            ? { "content-length": requestBody.length, "content-type": "application/json" }
+            : {}),
+        },
         key: pem(settings, "ENGINE_CLIENT_KEY"),
-        method: "POST",
+        method: engineRequest.method,
         minVersion: "TLSv1.3",
         rejectUnauthorized: true,
         servername: origin.hostname,
@@ -83,7 +123,7 @@ function requestJSON(settings: RuntimeSettings, path: string, assertion: string)
         let length = 0;
         response.on("data", (chunk: Buffer) => {
           length += chunk.length;
-          if (length > 65_536) {
+          if (length > 1_048_576) {
             response.destroy(new Error("The private VASI engine response was too large."));
             return;
           }
@@ -93,7 +133,7 @@ function requestJSON(settings: RuntimeSettings, path: string, assertion: string)
         response.on("end", () => {
           try {
             resolve({
-              body: JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown,
+              body: JSON.parse(Buffer.concat(chunks).toString("utf8")) as T,
               status: response.statusCode || 0,
             });
           } catch {
@@ -104,7 +144,7 @@ function requestJSON(settings: RuntimeSettings, path: string, assertion: string)
     );
     request.on("error", reject);
     request.on("timeout", () => request.destroy(new Error("The private VASI engine timed out.")));
-    request.end();
+    request.end(requestBody);
   });
 }
 

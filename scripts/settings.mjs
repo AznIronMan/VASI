@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import process from "node:process";
 import { createInterface } from "node:readline/promises";
@@ -98,6 +98,7 @@ async function initializeInteractively() {
 async function initializeEngineInteractively() {
   requireTTY();
   const bootstrap = await promptForBootstrap();
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
   await runEngineMigrations(bootstrap);
   await writeRuntimeSettings({
     bootstrap,
@@ -105,6 +106,9 @@ async function initializeEngineInteractively() {
     scope: "engine",
     source: "interactive-engine-init",
     values: {
+      EVIDENCE_SEAL_KEY_ID: `vasi-seal-${randomUUID()}`,
+      EVIDENCE_SEAL_PRIVATE_JWK: JSON.stringify(privateKey.export({ format: "jwk" })),
+      EVIDENCE_SEAL_PUBLIC_JWK: JSON.stringify(publicKey.export({ format: "jwk" })),
       ENGINE_INTERNAL_HMAC_SECRET: randomBytes(48).toString("base64url"),
     },
   });

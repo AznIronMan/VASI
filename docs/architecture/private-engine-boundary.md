@@ -85,6 +85,8 @@ value remains encrypted and bound to its installation, scope, and name.
 ## Current limits
 
 This boundary proves authenticated service identity, actor context, replay
-defense, process isolation, database ownership, and deployment posture. It does
-not yet implement tenants, workflow revisions, requests, content, responses,
-evidence chains, reports, seals, retention, or participant data exports.
+defense, process isolation, database ownership, and deployment posture. VASI
+0.5.0 adds the separately documented first sealed terms/response slice. The
+general workflow/control plane, document and media activities, reports/bundles,
+retention, legal hold, participant data requests, and productized integrations
+remain later milestones.

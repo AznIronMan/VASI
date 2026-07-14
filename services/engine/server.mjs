@@ -2,7 +2,10 @@ import { createServer } from "node:http";
 
 import { importJWK, jwtVerify } from "jose";
 
-import { validateActorAssertionClaims } from "../../packages/engine-contracts/index.mjs";
+import {
+  resolveEngineRoute,
+  validateActorAssertionClaims,
+} from "../../packages/engine-contracts/index.mjs";
 import { verifyServiceRequest } from "../../packages/engine-crypto/index.mjs";
 import { authorizeServiceAction } from "../../packages/engine-domain/index.mjs";
 import {
@@ -11,8 +14,9 @@ import {
   readRuntimeSettings,
 } from "../../scripts/settings-core.mjs";
 import { readRequestBody, sendJSON } from "../shared/http.mjs";
+import { createEvidenceStore, EvidenceStoreError } from "./evidence-store.mjs";
 
-const ENGINE_VERSION = "0.4.0";
+const ENGINE_VERSION = "0.5.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -21,14 +25,16 @@ const assertionPublicKey = await importJWK(
   "EdDSA",
 );
 const database = createSettingsPool(bootstrap);
+const evidence = createEvidenceStore(database, settings);
 const seenServiceRequests = new Map();
 
 const server = createServer(async (request, response) => {
   try {
     const body = await readRequestBody(request);
     const path = new URL(request.url || "/", "http://engine.internal").pathname;
-    const action = path === "/healthz" ? "engine.health" : "actor.identity";
-    const service = authenticateServiceRequest(request, body, path, action);
+    const route = resolveEngineRoute(request.method || "GET", path);
+    if (!route) return sendJSON(response, 404, { error: "not_found" });
+    const service = authenticateServiceRequest(request, body, path, route.action);
 
     if (request.method === "GET" && path === "/healthz") {
       return sendJSON(response, 200, {
@@ -39,30 +45,7 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === "POST" && path === "/v1/whoami") {
-      const token = bearerToken(request.headers.authorization);
-      const verified = await jwtVerify(token, assertionPublicKey, {
-        algorithms: ["EdDSA"],
-        audience: settings.ENGINE_ASSERTION_AUDIENCE,
-        clockTolerance: 5,
-        issuer: settings.ENGINE_ASSERTION_ISSUER,
-        maxTokenAge: "2 minutes",
-      });
-      const actor = validateActorAssertionClaims(verified.payload);
-      const replay = await database.query(
-        `insert into "vasi_engine"."actor_assertion_replay"
-          ("jti", "issuer", "subject", "expiresAt")
-         values ($1, $2, $3, $4)
-         on conflict ("jti") do nothing
-         returning "jti"`,
-        [
-          actor.assertionId,
-          settings.ENGINE_ASSERTION_ISSUER,
-          actor.subject,
-          new Date(actor.expiresAt * 1000),
-        ],
-      );
-      if (!replay.rowCount) return sendJSON(response, 409, { error: "assertion_replayed" });
-
+      const actor = await verifyActor(request);
       return sendJSON(response, 200, {
         actor: {
           assertionId: actor.assertionId,
@@ -75,11 +58,14 @@ const server = createServer(async (request, response) => {
       });
     }
 
-    return sendJSON(response, 404, { error: "not_found" });
+    const actor = await verifyActor(request);
+    const payload = parseJSONBody(body);
+    const result = await dispatchEvidence(route.action, actor, payload);
+    return sendJSON(response, 200, result);
   } catch (error) {
-    const status = error?.code === "BODY_LIMIT" ? 413 : 401;
+    const status = errorStatus(error);
     console.error("VASI engine request rejected", errorCode(error));
-    return sendJSON(response, status, { error: status === 413 ? "request_too_large" : "unauthorized" });
+    return sendJSON(response, status, { error: publicErrorCode(error, status) });
   }
 });
 
@@ -136,6 +122,59 @@ function bearerToken(header) {
   return header.slice("Bearer ".length);
 }
 
+async function verifyActor(request) {
+  const token = bearerToken(request.headers.authorization);
+  const verified = await jwtVerify(token, assertionPublicKey, {
+    algorithms: ["EdDSA"],
+    audience: settings.ENGINE_ASSERTION_AUDIENCE,
+    clockTolerance: 5,
+    issuer: settings.ENGINE_ASSERTION_ISSUER,
+    maxTokenAge: "2 minutes",
+  });
+  const actor = validateActorAssertionClaims(verified.payload);
+  const replay = await database.query(
+    `insert into "vasi_engine"."actor_assertion_replay"
+      ("jti", "issuer", "subject", "expiresAt")
+     values ($1, $2, $3, $4)
+     on conflict ("jti") do nothing
+     returning "jti"`,
+    [
+      actor.assertionId,
+      settings.ENGINE_ASSERTION_ISSUER,
+      actor.subject,
+      new Date(actor.expiresAt * 1000),
+    ],
+  );
+  if (!replay.rowCount) throw new EvidenceStoreError("assertion_replayed", 409);
+  return actor;
+}
+
+function parseJSONBody(body) {
+  if (!body.length) return {};
+  try {
+    const value = JSON.parse(body.toString("utf8"));
+    if (!value || Array.isArray(value) || typeof value !== "object") throw new Error();
+    return value;
+  } catch {
+    const error = new Error("The request body is invalid.");
+    error.code = "INVALID_JSON";
+    throw error;
+  }
+}
+
+function dispatchEvidence(action, actor, payload) {
+  switch (action) {
+    case "tenant.list": return evidence.listTenants(actor);
+    case "tenant.create": return evidence.createTenant(actor, payload);
+    case "request.issue": return evidence.issueRequest(actor, payload);
+    case "record.read": return evidence.ownerRecord(actor, payload);
+    case "participant.open": return evidence.openAssignment(actor, payload);
+    case "participant.respond": return evidence.respond(actor, payload);
+    case "participant.receipt": return evidence.participantReceipt(actor, payload);
+    default: throw new EvidenceStoreError("not_found", 404);
+  }
+}
+
 function singleHeader(value) {
   return Array.isArray(value) ? undefined : value;
 }
@@ -143,7 +182,23 @@ function singleHeader(value) {
 function errorCode(error) {
   if (error?.code === "ERR_JWT_EXPIRED") return "actor_expired";
   if (error?.code === "BODY_LIMIT") return "body_limit";
+  if (error instanceof EvidenceStoreError) return error.code;
+  if (error?.code === "INVALID_JSON") return "invalid_json";
   return "authorization_failed";
+}
+
+function errorStatus(error) {
+  if (error?.code === "BODY_LIMIT") return 413;
+  if (error?.code === "INVALID_JSON") return 400;
+  if (error instanceof EvidenceStoreError) return error.status;
+  return 401;
+}
+
+function publicErrorCode(error, status) {
+  if (error instanceof EvidenceStoreError) return error.code;
+  if (status === 413) return "request_too_large";
+  if (status === 400) return "invalid_request";
+  return "unauthorized";
 }
 
 async function shutDown() {

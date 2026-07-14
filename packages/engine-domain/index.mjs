@@ -1,5 +1,15 @@
 const serviceActions = Object.freeze({
-  "vasi-private-ingress": new Set(["engine.health", "actor.identity"]),
+  "vasi-private-ingress": new Set([
+    "actor.identity",
+    "engine.health",
+    "participant.open",
+    "participant.receipt",
+    "participant.respond",
+    "record.read",
+    "request.issue",
+    "tenant.create",
+    "tenant.list",
+  ]),
 });
 
 export function authorizeServiceAction(serviceId, action) {

@@ -4,7 +4,7 @@ import {
   readRuntimeSettings,
 } from "../../scripts/settings-core.mjs";
 
-const ENGINE_VERSION = "0.4.0";
+const ENGINE_VERSION = "0.5.0";
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
 const database = createSettingsPool(bootstrap);

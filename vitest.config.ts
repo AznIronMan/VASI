@@ -16,6 +16,7 @@ export default defineConfig({
       "src/**/*.test.ts",
       "scripts/**/*.test.mjs",
       "packages/**/*.test.mjs",
+      "services/**/*.test.mjs",
     ],
   },
 });

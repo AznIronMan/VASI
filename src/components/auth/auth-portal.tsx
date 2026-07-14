@@ -55,7 +55,9 @@ export function AuthPortal({
 
     setPendingAction(provider);
     try {
-      const errorCallbackURL = "/?error=oauth";
+      const errorCallbackURL = callbackURL === "/workspace"
+        ? "/?error=oauth"
+        : `/?error=oauth&returnTo=${encodeURIComponent(callbackURL)}`;
       const result = isGenericOAuthProvider(provider)
         ? await authClient.signIn.oauth2({
             providerId: provider,
@@ -197,7 +199,7 @@ export function AuthPortal({
           )}
 
           {mode === "register" ? (
-            <SsoOnboarding providers={providers} />
+            <SsoOnboarding callbackURL={callbackURL} providers={providers} />
           ) : (
             <>
               <div className="social-grid">

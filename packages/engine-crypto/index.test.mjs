@@ -1,6 +1,14 @@
+import { generateKeyPairSync } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
-import { signServiceRequest, verifyServiceRequest } from "./index.mjs";
+import {
+  canonicalJSON,
+  createIntegritySeal,
+  signServiceRequest,
+  verifyIntegritySeal,
+  verifyServiceRequest,
+} from "./index.mjs";
 
 const request = {
   body: Buffer.from('{"test":true}'),
@@ -26,5 +34,27 @@ describe("engine service request signatures", () => {
         signature,
       ),
     ).toBe(false);
+  });
+});
+
+describe("canonical evidence and integrity seals", () => {
+  it("orders object keys recursively and rejects non-integer numbers", () => {
+    expect(canonicalJSON({ z: 1, a: { y: true, b: "value" } })).toBe(
+      '{"a":{"b":"value","y":true},"z":1}',
+    );
+    expect(() => canonicalJSON({ value: 1.25 })).toThrow("safe integers");
+  });
+
+  it("detects manifest tampering", () => {
+    const { privateKey } = generateKeyPairSync("ed25519");
+    const manifest = { schema: "vasi-evidence-manifest/v1", value: "yes" };
+    const seal = createIntegritySeal({
+      keyId: "test-key",
+      manifest,
+      privateJWK: privateKey.export({ format: "jwk" }),
+    });
+
+    expect(verifyIntegritySeal(manifest, seal)).toBe(true);
+    expect(verifyIntegritySeal({ ...manifest, value: "no" }, seal)).toBe(false);
   });
 });

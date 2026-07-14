@@ -28,8 +28,8 @@ if (identity.status !== 200 || identity.body?.actor?.principalId !== principalId
 }
 
 const replay = await requestEngine(settings, {
-  method: "POST",
-  path: "/v1/whoami",
+  method: "GET",
+  path: "/v1/owner/tenants",
   token,
 });
 if (replay.status !== 409 || replay.body?.error !== "assertion_replayed") {

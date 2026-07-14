@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateActorAssertionClaims } from "./index.mjs";
+import { resolveEngineRoute, validateActorAssertionClaims } from "./index.mjs";
 
 const claims = {
   authentication: { method: "microsoft", provider: "microsoft" },
@@ -33,5 +33,15 @@ describe("actor assertion contract", () => {
     expect(() =>
       validateActorAssertionClaims({ ...claims, authentication: undefined }, 1_700_000_010),
     ).toThrow("authentication context is required");
+  });
+});
+
+describe("private engine routes", () => {
+  it("maps only explicit method and path pairs", () => {
+    expect(resolveEngineRoute("POST", "/v1/participant/respond")?.action).toBe(
+      "participant.respond",
+    );
+    expect(resolveEngineRoute("GET", "/v1/participant/respond")).toBeUndefined();
+    expect(resolveEngineRoute("POST", "/v1/participant/respond/extra")).toBeUndefined();
   });
 });

@@ -15,6 +15,10 @@ const migrations = [
     name: "0002_engine_boundary",
     path: path.join(repositoryRoot, "database", "engine-boundary-schema.sql"),
   },
+  {
+    name: "0003_engine_evidence_slice",
+    path: path.join(repositoryRoot, "database", "engine-evidence-slice.sql"),
+  },
 ];
 
 export async function runEngineMigrations(bootstrap = loadBootstrapSettings()) {

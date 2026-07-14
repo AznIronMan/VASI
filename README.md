@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.4.0`
+Version: `0.5.0`
 
 A CNB project maintained by Street Kings Productions.
 
@@ -15,18 +15,28 @@ username/password sign-in are available; Zoho is implemented and awaits a
 production client; Apple is implemented but hidden until Apple Developer
 approval is complete.
 
-This release also establishes the private engine boundary behind that gateway.
-It includes independently deployable engine, private-ingress, and worker
-processes; a separate PostgreSQL database/schema and migration history; mutual
-TLS from V·Sign; HMAC-authenticated ingress-to-engine requests; and short-lived,
-replay-protected EdDSA actor assertions. The engine and worker publish no host
-ports. The only listener is the mTLS private-ingress facade, which defaults to
-loopback and must be explicitly bound to an approved private interface.
+This release includes the independently deployed private engine boundary behind
+that gateway: separate engine, private-ingress, and worker processes; an
+engine-owned PostgreSQL database/schema and migration history; mutual TLS from
+V·Sign; HMAC-authenticated ingress requests; and short-lived, replay-protected
+EdDSA actor assertions. The engine and worker publish no host ports.
 
-Tenant, workflow, content, response, evidence-ledger, report, retention, and
-sealing domains remain subsequent milestones. `/workspace` is still the
-verified-session handoff point; this release proves the secure service boundary
-without claiming that evidence workflows are complete.
+Version 0.5.0 adds the first deliberately narrow evidence transaction. An
+authorized company owner can issue immutable text/terms with acknowledgement or
+yes/no response and receive a one-time opaque participant link. V·Sign returns
+an authenticated, email-verified participant to that request. The engine binds
+the account, exact content, available authentication/browser/network context,
+server timing, and response into an append-only per-assignment event chain,
+then signs a deterministic manifest with the standard VASI integrity seal.
+Participants receive a readable receipt; authorized owners can retrieve the
+verified structured record.
+
+The standard seal proves that the manifest and covered chain have not changed
+and were signed by the configured VASI seal key. It is not yet an independent
+CA identity, trusted timestamp, legal conclusion, or long-term validation
+profile. General workflow design, documents, media, reports/bundles, retention,
+participant data requests, and optional CA/TSA adapters remain subsequent
+milestones.
 
 ## Included
 
@@ -54,6 +64,10 @@ without claiming that evidence workflows are complete.
 - An admin-host-only engine identity diagnostic at `/api/admin/engine`; it
   translates the authenticated V·Sign administrator session into a one-minute
   internal actor assertion without forwarding provider tokens or cookies.
+- An internal first-slice issuance console at `/admin/evidence`, public opaque
+  request paths under `/r/`, authenticated participant response/receipt pages,
+  tenant membership enforcement, immutable workflow snapshots, append-only
+  evidence chains, deterministic manifests, and Ed25519 VASI integrity seals.
 
 ## Configuration model
 
@@ -161,12 +175,17 @@ public reverse proxy to supply the V·Sign client certificate.
 
 The engine uses its own PostgreSQL database or role/schema boundary and its own
 `data/VASI.settings`; do not reuse the gateway bootstrap. Service TLS keys,
-client trust, internal HMAC material, and assertion keys are encrypted in the
-appropriate PostgreSQL settings scope. Run `npm run engine:probe` from the
-gateway deployment to verify mTLS, actor identity, and replay rejection.
+client trust, internal HMAC material, assertion keys, and evidence-seal keys are
+encrypted in the appropriate PostgreSQL settings scope. Run
+`npm run engine:probe` from the gateway deployment to verify mTLS, actor
+identity, and replay rejection. The disposable conformance environment also
+runs `npm run engine:probe:evidence` for issuance, isolation, response, receipt,
+seal, replay, and tamper checks.
 
 See [Authentication setup](docs/authentication.md) for callbacks, provider and
 mailer settings, administration behavior, and the release checklist. See
 [Private engine deployment](docs/engine-deployment.md) and the
 [engine boundary decision](docs/architecture/private-engine-boundary.md) for
-the service trust and deployment contract.
+the service trust and deployment contract. The
+[sealed evidence slice](docs/architecture/sealed-evidence-slice.md) defines the
+first transaction, record, and assurance limits.

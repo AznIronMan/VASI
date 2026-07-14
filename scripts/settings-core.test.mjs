@@ -35,5 +35,6 @@ describe("runtime setting scopes", () => {
     expect(runtimeSettingNames("gateway")).toContain("BETTER_AUTH_SECRET");
     expect(runtimeSettingNames("gateway")).not.toContain("ENGINE_INTERNAL_HMAC_SECRET");
     expect(runtimeSettingNames("engine")).toContain("ENGINE_INTERNAL_HMAC_SECRET");
+    expect(runtimeSettingNames("engine")).toContain("EVIDENCE_SEAL_PRIVATE_JWK");
   });
 });
