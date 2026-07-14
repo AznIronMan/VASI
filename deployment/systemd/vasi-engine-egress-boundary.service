@@ -1,0 +1,20 @@
+[Unit]
+Description=Verify the VASI private-engine egress boundary
+Documentation=file:/opt/vasi-engine/current/docs/architecture/private-engine-egress.md
+Requires=docker.service
+After=docker.service network-online.target vasi-engine-database-egress-policy.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/vasi-engine/current
+ExecStart=/usr/bin/env node scripts/probe-engine-egress-boundary.mjs
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+LockPersonality=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

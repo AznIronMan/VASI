@@ -81,7 +81,9 @@
       },
       {
         "entrypoints": [
+          "scripts/probe-engine-egress-boundary.mjs",
           "scripts/probe-operational-readiness.mjs",
+          "scripts/render-database-egress-policy.mjs",
           "scripts/settings.mjs"
         ],
         "image": "vasi-engine-tools",
@@ -97,6 +99,14 @@
           "scripts/tenant-transfer.mjs"
         ],
         "image": "vasi-engine-maintenance",
+        "imageUser": "node",
+        "runUser": "1000:1000"
+      },
+      {
+        "entrypoints": [
+          "services/database-gateway/server.mjs"
+        ],
+        "image": "vasi-database-gateway",
         "imageUser": "node",
         "runUser": "1000:1000"
       }

@@ -1,16 +1,74 @@
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createBootstrapSettings,
+  databaseConnectionOptions,
+  loadDatabaseGatewayTransport,
   parseEnvironmentText,
   rebindBootstrapSettings,
   runtimeSettingNames,
   runtimeSettingScopes,
 } from "./settings-core.mjs";
+
+describe("database gateway transport", () => {
+  it("redirects only the raw socket while retaining the original TLS identity URL", () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "vasi-database-transport-"));
+    const transportPath = path.join(directory, "transport.json");
+    const databaseURL = new URL("postgresql://database.example.test:5444/vasi");
+    databaseURL.username = "user";
+    databaseURL.password = "password";
+    try {
+      writeFileSync(transportPath, JSON.stringify({
+        host: "database-gateway",
+        port: 5432,
+        schema: "vasi-database-gateway-transport/v1",
+      }));
+      const options = databaseConnectionOptions({
+        databasePoolMax: 5,
+        databaseSSL: "require",
+        databaseURL: databaseURL.toString(),
+      }, { transportPath });
+      expect(new URL(options.connectionString).hostname).toBe("database.example.test");
+      expect(new URL(options.connectionString).port).toBe("5444");
+      expect(options.ssl).toEqual({ rejectUnauthorized: true });
+      const connect = vi.spyOn(Socket.prototype, "connect").mockImplementation(function () { return this; });
+      try {
+        options.stream().connect(5444, "database.example.test");
+        expect(connect).toHaveBeenCalledWith(5432, "database-gateway");
+      } finally {
+        connect.mockRestore();
+      }
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("uses direct PostgreSQL transport when no marker exists and rejects marker drift", () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "vasi-database-transport-"));
+    const transportPath = path.join(directory, "transport.json");
+    try {
+      const direct = databaseConnectionOptions({
+        databasePoolMax: 5,
+        databaseSSL: "disable",
+        databaseURL: "postgresql://database.example.test/vasi",
+      }, { transportPath });
+      expect(direct.stream).toBeUndefined();
+      writeFileSync(transportPath, JSON.stringify({
+        host: "unapproved-proxy",
+        port: 5432,
+        schema: "vasi-database-gateway-transport/v1",
+      }));
+      expect(() => loadDatabaseGatewayTransport(transportPath)).toThrow("marker is invalid");
+    } finally {
+      rmSync(directory, { force: true, recursive: true });
+    }
+  });
+});
 
 describe("legacy environment parsing", () => {
   it("accepts streamed Docker environment output without exposing values", () => {

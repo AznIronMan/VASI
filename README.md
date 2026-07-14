@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.20.0`
+Version: `0.21.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -212,6 +212,20 @@ codes and bounded JSON omit host paths, database endpoints, processes,
 credentials, and customer data. The portable default reports replication
 posture without requiring a replica; an installation can make primary-replica
 presence a blocking approved threshold.
+
+Version 0.21.0 makes private-engine outbound access deny-by-default. Engine,
+worker, and private ingress now join internal networks only; the integration
+gateway alone receives a dedicated provider-egress network. Persistent
+PostgreSQL clients preserve end-to-end TLS hostname verification through a
+minimal raw transport gateway whose dedicated bridge is restricted by an
+exact resolved IPv4-and-port host policy. Packaged refresh and verification
+timers cover boot, network recreation, and bounded DNS change. Release
+assurance blocks network drift, missing read-only transport markers, host
+networking, Docker-socket mounts, `NET_ADMIN`, IPv6 expansion, unrecognized
+gateway images, or weakened persistence units. A privacy-safe live probe proves
+the exact firewall, private denial, integration egress, runtime health, and
+database transport without exposing route, endpoint, credential, or customer
+details.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
@@ -503,6 +517,9 @@ mailer settings, administration behavior, and the release checklist. See
 [Private engine deployment](docs/engine-deployment.md) and the
 [engine boundary decision](docs/architecture/private-engine-boundary.md) for
 the service trust and deployment contract. The
+[private-engine outbound-isolation decision](docs/architecture/private-engine-egress.md)
+defines the deny-by-default networks, raw PostgreSQL bridge, exact host policy,
+persistence, failure, rollback, and bounded verification contract. The
 [sealed evidence slice](docs/architecture/sealed-evidence-slice.md) defines the
 first transaction, record, and assurance limits. The
 [workflow control plane](docs/architecture/workflow-control-plane.md) defines

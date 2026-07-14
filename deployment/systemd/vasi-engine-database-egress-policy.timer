@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh the VASI engine exact PostgreSQL egress policy
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=2min
+AccuracySec=15s
+RandomizedDelaySec=15s
+Persistent=yes
+Unit=vasi-engine-database-egress-policy.service
+
+[Install]
+WantedBy=timers.target

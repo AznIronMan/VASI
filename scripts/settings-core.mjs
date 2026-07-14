@@ -14,6 +14,7 @@ import {
   rmSync,
   statSync,
 } from "node:fs";
+import { Socket } from "node:net";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import pg from "pg";
@@ -23,6 +24,7 @@ import settingDefinitions from "../config/runtime-settings.json" with { type: "j
 const { Pool } = pg;
 const BOOTSTRAP_SCHEMA_VERSION = 1;
 const DEFAULT_SETTINGS_SCOPE = "gateway";
+const DATABASE_GATEWAY_TRANSPORT_PATH = "/run/vasi/database-gateway.json";
 
 export function defaultSettingsPath() {
   return path.resolve(process.cwd(), "data", "VASI.settings");
@@ -224,19 +226,56 @@ export async function recordBootstrapRebind({ bootstrap, scope }) {
   }
 }
 
-export function createSettingsPool(bootstrap = loadBootstrapSettings()) {
+export function createSettingsPool(bootstrap = loadBootstrapSettings(), options = {}) {
+  return new Pool(databaseConnectionOptions(bootstrap, options));
+}
+
+export function databaseConnectionOptions(
+  bootstrap,
+  { transportPath = DATABASE_GATEWAY_TRANSPORT_PATH } = {},
+) {
+  validateDatabaseSettings(bootstrap);
   const databaseURL = new URL(bootstrap.databaseURL);
   databaseURL.searchParams.set(
     "sslmode",
     bootstrap.databaseSSL === "require" ? "verify-full" : "disable",
   );
-  return new Pool({
+  const transport = loadDatabaseGatewayTransport(transportPath);
+  return {
     connectionString: databaseURL.toString(),
     connectionTimeoutMillis: 5_000,
     idleTimeoutMillis: 30_000,
     max: bootstrap.databasePoolMax,
     ssl: bootstrap.databaseSSL === "require" ? { rejectUnauthorized: true } : false,
-  });
+    ...(transport ? { stream: () => databaseGatewaySocket(transport) } : {}),
+  };
+}
+
+export function loadDatabaseGatewayTransport(filename = DATABASE_GATEWAY_TRANSPORT_PATH) {
+  if (!existsSync(filename)) return null;
+  const metadata = statSync(filename);
+  if (!metadata.isFile() || metadata.size < 2 || metadata.size > 1_024) {
+    throw new Error("The VASI database-gateway transport marker is invalid.");
+  }
+  let value;
+  try {
+    value = JSON.parse(readFileSync(filename, "utf8"));
+  } catch {
+    throw new Error("The VASI database-gateway transport marker is invalid.");
+  }
+  if (
+    !value || Array.isArray(value) || typeof value !== "object" ||
+    Object.keys(value).sort().join(",") !== "host,port,schema" ||
+    value.schema !== "vasi-database-gateway-transport/v1" ||
+    value.host !== "database-gateway" || value.port !== 5432
+  ) throw new Error("The VASI database-gateway transport marker is invalid.");
+  return Object.freeze({ host: value.host, port: value.port });
+}
+
+function databaseGatewaySocket(transport) {
+  const socket = new Socket();
+  socket.connect = () => Socket.prototype.connect.call(socket, transport.port, transport.host);
+  return socket;
 }
 
 export async function writeRuntimeSettings({

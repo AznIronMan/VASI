@@ -1,0 +1,13 @@
+[Unit]
+Description=Continuously verify the VASI private-engine egress boundary
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+RandomizedDelaySec=30s
+Persistent=yes
+Unit=vasi-engine-egress-boundary.service
+
+[Install]
+WantedBy=timers.target

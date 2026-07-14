@@ -1,6 +1,7 @@
 # Private VASI engine boundary
 
-Status: accepted and implemented as the service foundation in VASI 0.4.0.
+Status: accepted and implemented as the service foundation in VASI 0.4.0;
+outbound isolation is implemented in VASI 0.21.0.
 
 ## Decision
 
@@ -17,17 +18,22 @@ flowchart LR
   public --> vsign["V·Sign gateway"]
   vsign -->|"mTLS + EdDSA actor assertion"| facade["Private ingress facade"]
   facade -->|"HMAC service request"| engine["VASI engine"]
-  engine --> database["Engine-owned PostgreSQL"]
-  worker["VASI worker"] --> database
+  engine --> transport["Raw PostgreSQL gateway"]
+  worker["VASI worker"] --> transport
   worker -->|"HMAC service request"| integrations["Integration gateway"]
-  integrations --> database
+  integrations --> transport
+  transport --> database["Engine-owned PostgreSQL"]
   integrations --> external["Allowlisted Graph / SMTP / HTTPS"]
 ```
 
 Only the private-ingress facade may have a host listener. The sanitized
 contract binds it to loopback. A live deployment may bind it to an explicitly
 approved private address, but the engine, worker, and integration gateway still
-have no published ports. The engine-facing Docker networks are internal.
+have no published ports. The engine-facing Docker networks are internal. Only
+the integration gateway joins a dedicated provider-egress network. A minimal
+raw transport process alone bridges the internal data network to an
+exact-destination PostgreSQL egress network, as defined by the
+[outbound-isolation decision](private-engine-egress.md).
 
 ## Layered service and actor trust
 
@@ -110,3 +116,6 @@ ages but no customer identity, request, content, response, link, payload, or
 credential data. VASI 0.19.0 adds the governed digest-bound document scanner
 through the same isolated gateway and extends the aggregate snapshot with
 scanner failure/threat/retry counts.
+VASI 0.21.0 makes engine, worker, and private-ingress outbound access
+deny-by-default, confines provider egress to the integration gateway, and adds
+the separately documented exact PostgreSQL transport and host-policy boundary.

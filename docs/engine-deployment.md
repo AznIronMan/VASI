@@ -12,6 +12,12 @@ database and login role, a dedicated deployment directory, and a unique
 - `integration-gateway` has no host port and is the only application process
   that decrypts integration credentials or contacts external Microsoft Graph,
   SMTP, webhook, or malware-scanner endpoints.
+- `engine`, `worker`, and `private-ingress` join internal networks only.
+  Persistent PostgreSQL sessions cross the non-terminating
+  `database-gateway`; only that minimal process joins the separately
+  firewalled database-egress network.
+- `integration-gateway` alone joins the provider-egress network. The engine,
+  worker, and private ingress cannot route through it as a general proxy.
 - `private-ingress` exposes only the approved route table and is the only host
   listener.
 - The tracked Compose binds the facade to loopback. Put a private address in an
@@ -182,13 +188,96 @@ settings scope, while public material is embedded in each seal and registered
 with an immutable key/status history. Rotation uses a new key ID and retains
 historical verification material.
 
-## Release
+## Outbound isolation
+
+VASI 0.21.0 requires Linux `iptables` with Docker's `DOCKER-USER` chain for
+the packaged host adapter. The sanitized database-egress bridge has a stable
+private IPv4 subnet and IPv6 disabled. Before startup, confirm that
+`172.29.254.0/28` does not overlap any host, VPN, container, or routed network.
+If it does, override that one subnet in ignored installation Compose and keep
+it stable, private, single-stack, and dedicated.
+
+Fresh initialization creates the protected bootstrap before an exact policy
+can be rendered. Immediately after `settings init`, and before migration or
+persistent startup, create the stopped transport container and apply the
+policy:
 
 ```bash
-docker compose -f compose.engine.yaml --profile release run --rm --build migrate
-docker compose -f compose.engine.yaml up -d --build engine integration-gateway worker private-ingress
-docker compose -f compose.engine.yaml ps
+docker compose -f compose.engine.yaml build database-gateway engine maintenance settings
+docker compose -f compose.engine.yaml create --no-recreate database-gateway
+sudo /bin/sh scripts/apply-database-egress-policy.sh apply
 ```
+
+The policy command runs a non-root, read-only renderer container, writes its
+temporary rules under `/run` with mode `0600`, validates them, loads the custom
+chain, and only then installs one Docker forwarding jump. It prints no subnet,
+address, hostname, URL, or credential. Do not start the persistent services if
+it fails.
+
+For a systemd installation using `/opt/vasi-engine/current`, install the four
+shipped units and enable the independent refresh and verification timers:
+
+```bash
+sudo install -m 0644 deployment/systemd/vasi-engine-database-egress-policy.* /etc/systemd/system/
+sudo install -m 0644 deployment/systemd/vasi-engine-egress-boundary.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now vasi-engine-database-egress-policy.timer
+sudo systemctl start vasi-engine-database-egress-policy.service
+```
+
+If the release symlink is elsewhere, change `WorkingDirectory` and the matching
+`Documentation` path in the installed service units before enabling them; do
+not use an environment or credentials file. Order any local engine-stack unit
+after and requiring `vasi-engine-database-egress-policy.service`. Enable the
+boundary timer only after the stack is healthy:
+
+```bash
+sudo systemctl enable --now vasi-engine-egress-boundary.timer
+sudo /usr/bin/env node scripts/probe-engine-egress-boundary.mjs
+```
+
+For multiple dedicated instances on one host, pass the same unique lowercase
+Compose project and uppercase firewall chain to both commands, and add them to
+the two installed service `ExecStart` lines:
+
+```bash
+sudo /bin/sh scripts/apply-database-egress-policy.sh apply \
+  --project-name vasi-example --chain VASI_EXAMPLE_EGRESS
+sudo node scripts/probe-engine-egress-boundary.mjs \
+  --project-name vasi-example --chain VASI_EXAMPLE_EGRESS
+```
+
+The policy refreshes every two minutes and the proof every five. A PostgreSQL
+DNS change can cause a bounded connection pause while the new address is still
+denied; it must never cause a broader allow. Alert on either unit's nonzero
+result. See the
+[outbound-isolation decision](architecture/private-engine-egress.md) for the
+policy semantics, privacy contract, assurance limits, and failure behavior.
+
+## Release
+
+This network change requires one controlled engine maintenance window. Take
+and verify a matched backup first. Stop the complete old Compose project so
+Docker can replace the former external data network with the internal one;
+never reuse an old network whose `Internal` value is false.
+
+```bash
+docker compose -f compose.engine.yaml down
+docker compose -f compose.engine.yaml build database-gateway engine maintenance settings
+docker compose -f compose.engine.yaml create database-gateway
+sudo /bin/sh scripts/apply-database-egress-policy.sh apply
+docker compose -f compose.engine.yaml --profile release run --rm migrate
+docker compose -f compose.engine.yaml up -d --no-build \
+  database-gateway engine integration-gateway worker private-ingress
+docker compose -f compose.engine.yaml ps
+sudo /usr/bin/env node scripts/probe-engine-egress-boundary.mjs
+```
+
+Use the same ignored live override on every command when one exists. Verify
+that the database gateway, engine, and integration gateway are healthy and the
+worker/private ingress are running before returning traffic. Then rerun the
+mTLS/replay, operational, deployment, capacity, backup, load, and accessibility
+proofs.
 
 Run the gateway proof after every trust, key, network, or engine release:
 
@@ -314,3 +403,10 @@ encrypted off-host custody or establish an RPO/RTO.
 
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.
+
+For rollback, first stop the complete 0.21.0 engine stack. Disable its two
+timers, remove the policy with
+`sudo /bin/sh scripts/apply-database-egress-policy.sh remove`, switch the whole
+release—not selected files—to the prior verified version, and follow that
+version's migration/network procedure. Never remove or broaden the policy
+while the database gateway or a database tool remains running.

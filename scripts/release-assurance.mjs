@@ -93,6 +93,8 @@ export async function validateVersionAlignment(repositoryRoot = root) {
     ["private-ingress", "services/private-ingress/server.mjs", /ENGINE_VERSION\s*=\s*"([^"]+)"/],
     ["worker", "services/worker/worker.mjs", /ENGINE_VERSION\s*=\s*"([^"]+)"/],
     ["integration-gateway", "services/integration-gateway/server.mjs", /VERSION\s*=\s*"([^"]+)"/],
+    ["database-gateway", "services/database-gateway/server.mjs", /DATABASE_GATEWAY_VERSION\s*=\s*"([^"]+)"/],
+    ["egress-boundary", "scripts/probe-engine-egress-boundary.mjs", /EGRESS_BOUNDARY_VERSION\s*=\s*"([^"]+)"/],
   ];
   for (const [name, filename, pattern] of runtimeSources) {
     actual[`runtime:${name}`] = pattern.exec(await readFile(path.join(repositoryRoot, filename), "utf8"))?.[1];
@@ -121,12 +123,14 @@ export async function validateComposeContracts(repositoryRoot = root) {
     ["engine.integration-gateway", engine?.services?.["integration-gateway"]],
     ["engine.worker", engine?.services?.worker],
     ["engine.private-ingress", engine?.services?.["private-ingress"]],
+    ["engine.database-gateway", engine?.services?.["database-gateway"]],
   ];
   const maintenance = [
     ["gateway.maintenance", production?.services?.maintenance],
     ["engine.maintenance", engine?.services?.maintenance],
     ["gateway.capacity", production?.services?.capacity],
     ["engine.capacity", engine?.services?.capacity],
+    ["engine.egress-policy", engine?.services?.["egress-policy"]],
   ];
   for (const [name, service] of hardened) {
     if (!service) {
@@ -166,6 +170,52 @@ export async function validateComposeContracts(repositoryRoot = root) {
   if (!portsAreLoopback(engine?.services?.["private-ingress"]?.ports)) {
     failures.push("engine.private-ingress must bind only loopback in the sanitized contract");
   }
+  const expectedNetworks = {
+    capacity: ["database-egress"],
+    "database-gateway": ["database-egress", "engine-data"],
+    "egress-policy": ["database-egress"],
+    engine: ["engine-data", "engine-private"],
+    "integration-gateway": ["engine-data", "engine-integrations", "integration-egress"],
+    maintenance: ["database-egress"],
+    migrate: ["database-egress"],
+    "private-ingress": ["engine-data", "engine-private"],
+    settings: ["database-egress"],
+    worker: ["engine-data", "engine-integrations"],
+  };
+  for (const [name, expected] of Object.entries(expectedNetworks)) {
+    const actual = serviceNetworks(engine?.services?.[name]);
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      failures.push(`engine.${name} must use only its approved networks`);
+    }
+  }
+  for (const name of ["engine-data", "engine-integrations", "engine-private"]) {
+    if (engine?.networks?.[name]?.internal !== true) failures.push(`engine network ${name} must be internal`);
+  }
+  for (const name of ["database-egress", "integration-egress"]) {
+    if (!engine?.networks?.[name] || engine.networks[name].internal === true) {
+      failures.push(`engine network ${name} must be a dedicated external network`);
+    }
+  }
+  for (const name of ["database-egress", "engine-data", "integration-egress"]) {
+    if (engine?.networks?.[name]?.enable_ipv6 !== false) {
+      failures.push(`engine network ${name} must keep IPv6 disabled`);
+    }
+  }
+  const databaseSubnets = engine?.networks?.["database-egress"]?.ipam?.config;
+  if (!Array.isArray(databaseSubnets) || databaseSubnets.length !== 1 ||
+      databaseSubnets[0]?.subnet !== "172.29.254.0/28") {
+    failures.push("engine database-egress must use the reviewed stable IPv4 subnet");
+  }
+  for (const name of ["engine", "integration-gateway", "private-ingress", "worker"]) {
+    if (!hasReadOnlyDatabaseTransportMarker(engine?.services?.[name]?.volumes)) {
+      failures.push(`engine.${name} must mount the fixed database transport marker read-only`);
+    }
+  }
+  for (const [name, service] of Object.entries(engine?.services || {})) {
+    if (service?.network_mode === "host") failures.push(`engine.${name} must not use host networking`);
+    if (arrayContains(service?.cap_add, "NET_ADMIN")) failures.push(`engine.${name} must not receive NET_ADMIN`);
+    if ((service?.volumes || []).some(isDockerSocketMount)) failures.push(`engine.${name} must not mount the Docker socket`);
+  }
   for (const [name, service] of [...hardened, ...maintenance, ["gateway.settings", production?.services?.settings], ["engine.settings", engine?.services?.settings]]) {
     for (const key of environmentKeys(service?.environment)) {
       if (/(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY)$/i.test(key)) {
@@ -195,6 +245,53 @@ export async function validateAutomationContract(repositoryRoot = root) {
   return { failures, jobs: jobs.length };
 }
 
+export async function validateEgressPersistenceContract(repositoryRoot = root) {
+  const directory = path.join(repositoryRoot, "deployment", "systemd");
+  const requirements = {
+    "vasi-engine-database-egress-policy.service": [
+      "After=docker.service network-online.target",
+      "ExecStart=/bin/sh scripts/apply-database-egress-policy.sh apply",
+      "NoNewPrivileges=yes",
+      "WorkingDirectory=/opt/vasi-engine/current",
+    ],
+    "vasi-engine-database-egress-policy.timer": [
+      "OnBootSec=15s",
+      "OnUnitActiveSec=2min",
+      "Persistent=yes",
+      "Unit=vasi-engine-database-egress-policy.service",
+    ],
+    "vasi-engine-egress-boundary.service": [
+      "After=docker.service network-online.target vasi-engine-database-egress-policy.service",
+      "ExecStart=/usr/bin/env node scripts/probe-engine-egress-boundary.mjs",
+      "NoNewPrivileges=yes",
+      "WorkingDirectory=/opt/vasi-engine/current",
+    ],
+    "vasi-engine-egress-boundary.timer": [
+      "OnBootSec=2min",
+      "OnUnitActiveSec=5min",
+      "Persistent=yes",
+      "Unit=vasi-engine-egress-boundary.service",
+    ],
+  };
+  const failures = [];
+  for (const [filename, required] of Object.entries(requirements)) {
+    let contents;
+    try {
+      contents = await readFile(path.join(directory, filename), "utf8");
+    } catch {
+      failures.push(`${filename} is missing`);
+      continue;
+    }
+    for (const line of required) {
+      if (!contents.split("\n").includes(line)) failures.push(`${filename} is missing ${line}`);
+    }
+    if (/EnvironmentFile=|docker\.sock|--privileged|--network(?:=|\s+)host/.test(contents)) {
+      failures.push(`${filename} contains a prohibited privilege or configuration path`);
+    }
+  }
+  return { failures, unitsChecked: Object.keys(requirements) };
+}
+
 async function sourceAssurance(output, { allowDirty }) {
   const dirtyOutput = await capture("git", ["status", "--porcelain=v1"], { cwd: root });
   const dirty = Boolean(dirtyOutput.trim());
@@ -204,6 +301,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const versions = await validateVersionAlignment(root);
   const compose = await validateComposeContracts(root);
   const automation = await validateAutomationContract(root);
+  const egressPersistence = await validateEgressPersistenceContract(root);
   if (source.forbiddenPaths.length) throw new Error(`Forbidden tracked paths: ${source.forbiddenPaths.join(", ")}.`);
   if (source.secretFindings.length) {
     throw new Error(`Tracked secret policy failed: ${source.secretFindings.map((entry) => `${entry.path}:${entry.rule}`).join(", ")}.`);
@@ -211,6 +309,9 @@ async function sourceAssurance(output, { allowDirty }) {
   if (versions.mismatches.length) throw new Error("VASI version declarations are not aligned.");
   if (compose.failures.length) throw new Error(`Compose hardening failed: ${compose.failures.join("; ")}.`);
   if (automation.failures.length) throw new Error(`Release automation hardening failed: ${automation.failures.join("; ")}.`);
+  if (egressPersistence.failures.length) {
+    throw new Error(`Egress persistence hardening failed: ${egressPersistence.failures.join("; ")}.`);
+  }
 
   await writeJSON(path.join(output, "tracked-source-files.json"), {
     files: source.files,
@@ -231,6 +332,7 @@ async function sourceAssurance(output, { allowDirty }) {
     automation,
     compose,
     dirty,
+    egressPersistence,
     sourceFileCount: source.files.length,
     versions: versions.actual,
     vulnerabilityCounts: {
@@ -417,6 +519,28 @@ function hasBoundedCapacityProcMounts(volumes) {
     { readOnly: true, source: "/proc/pressure", target: "/host/proc/pressure" },
     { readOnly: true, source: "/proc/stat", target: "/host/proc/stat" },
   ]);
+}
+
+function hasReadOnlyDatabaseTransportMarker(volumes) {
+  return Array.isArray(volumes) && volumes.some((volume) => {
+    if (typeof volume === "string") {
+      return volume === "./config/database-gateway-transport.json:/run/vasi/database-gateway.json:ro";
+    }
+    return volume?.source === "./config/database-gateway-transport.json" &&
+      volume?.target === "/run/vasi/database-gateway.json" && volume?.read_only === true;
+  });
+}
+
+function serviceNetworks(service) {
+  const networks = service?.networks;
+  if (Array.isArray(networks)) return [...networks].sort();
+  if (networks && typeof networks === "object") return Object.keys(networks).sort();
+  return [];
+}
+
+function isDockerSocketMount(volume) {
+  if (typeof volume === "string") return volume.split(":", 1)[0] === "/var/run/docker.sock";
+  return volume?.source === "/var/run/docker.sock" || volume?.target === "/var/run/docker.sock";
 }
 
 function portsAreLoopback(ports) {

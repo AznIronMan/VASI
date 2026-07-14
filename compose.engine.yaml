@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-tools
-    image: vasi-engine-tools:0.20.0
+    image: vasi-engine-tools:0.21.0
     entrypoint: ["node", "scripts/settings.mjs", "--scope", "engine"]
     command: ["list"]
     user: "0:0"
@@ -24,7 +24,7 @@ services:
     security_opt:
       - no-new-privileges:true
     networks:
-      - engine-data
+      - database-egress
     profiles:
       - tools
 
@@ -33,7 +33,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-runtime
-    image: vasi-engine:0.20.0
+    image: vasi-engine:0.21.0
     command: ["node", "scripts/engine-migrate.mjs"]
     user: "1000:1000"
     volumes:
@@ -46,7 +46,7 @@ services:
     security_opt:
       - no-new-privileges:true
     networks:
-      - engine-data
+      - database-egress
     profiles:
       - release
 
@@ -55,7 +55,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-maintenance
-    image: vasi-engine-maintenance:0.20.0
+    image: vasi-engine-maintenance:0.21.0
     command: ["scripts/backup.mjs"]
     user: "1000:1000"
     volumes:
@@ -68,7 +68,7 @@ services:
     security_opt:
       - no-new-privileges:true
     networks:
-      - engine-data
+      - database-egress
     profiles:
       - tools
 
@@ -77,7 +77,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-maintenance
-    image: vasi-engine-maintenance:0.20.0
+    image: vasi-engine-maintenance:0.21.0
     entrypoint: ["node", "scripts/probe-capacity-readiness.mjs"]
     user: "1000:1000"
     volumes:
@@ -114,21 +114,78 @@ services:
     security_opt:
       - no-new-privileges:true
     networks:
-      - engine-data
+      - database-egress
     profiles:
       - tools
+
+  egress-policy:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+      target: engine-tools
+    image: vasi-engine-tools:0.21.0
+    entrypoint: ["node", "scripts/render-database-egress-policy.mjs"]
+    user: "1000:1000"
+    volumes:
+      - ./data:/app/data:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - database-egress
+    profiles:
+      - tools
+
+  database-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+      target: database-gateway-runtime
+    image: vasi-database-gateway:0.21.0
+    restart: unless-stopped
+    init: true
+    user: "1000:1000"
+    volumes:
+      - ./data:/app/data:ro
+    expose:
+      - "5432"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - engine-data
+      - database-egress
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8081/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   engine:
     build:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-runtime
-    image: vasi-engine:0.20.0
+    image: vasi-engine:0.21.0
     command: ["node", "services/engine/server.mjs"]
     restart: unless-stopped
     init: true
     volumes:
       - ./data:/app/data:ro
+      - ./config/database-gateway-transport.json:/run/vasi/database-gateway.json:ro
     expose:
       - "8080"
     read_only: true
@@ -141,6 +198,9 @@ services:
     networks:
       - engine-private
       - engine-data
+    depends_on:
+      database-gateway:
+        condition: service_healthy
     healthcheck:
       test:
         - CMD
@@ -153,12 +213,13 @@ services:
       start_period: 15s
 
   worker:
-    image: vasi-engine:0.20.0
+    image: vasi-engine:0.21.0
     command: ["node", "services/worker/worker.mjs"]
     restart: unless-stopped
     init: true
     volumes:
       - ./data:/app/data:ro
+      - ./config/database-gateway-transport.json:/run/vasi/database-gateway.json:ro
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -174,14 +235,17 @@ services:
         condition: service_healthy
       integration-gateway:
         condition: service_healthy
+      database-gateway:
+        condition: service_healthy
 
   integration-gateway:
-    image: vasi-engine:0.20.0
+    image: vasi-engine:0.21.0
     command: ["node", "services/integration-gateway/server.mjs"]
     restart: unless-stopped
     init: true
     volumes:
       - ./data:/app/data:ro
+      - ./config/database-gateway-transport.json:/run/vasi/database-gateway.json:ro
     expose:
       - "8090"
     read_only: true
@@ -194,8 +258,11 @@ services:
     networks:
       - engine-data
       - engine-integrations
+      - integration-egress
     depends_on:
       engine:
+        condition: service_healthy
+      database-gateway:
         condition: service_healthy
     healthcheck:
       test:
@@ -209,7 +276,7 @@ services:
       start_period: 15s
 
   private-ingress:
-    image: vasi-engine:0.20.0
+    image: vasi-engine:0.21.0
     command: ["node", "services/private-ingress/server.mjs"]
     restart: unless-stopped
     init: true
@@ -217,6 +284,7 @@ services:
       - 127.0.0.1:11121:8443
     volumes:
       - ./data:/app/data:ro
+      - ./config/database-gateway-transport.json:/run/vasi/database-gateway.json:ro
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -230,10 +298,21 @@ services:
     depends_on:
       engine:
         condition: service_healthy
+      database-gateway:
+        condition: service_healthy
 
 networks:
   engine-private:
     internal: true
   engine-integrations:
     internal: true
-  engine-data: {}
+  engine-data:
+    internal: true
+    enable_ipv6: false
+  database-egress:
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 172.29.254.0/28
+  integration-egress:
+    enable_ipv6: false

@@ -1,0 +1,22 @@
+[Unit]
+Description=VASI engine exact PostgreSQL egress policy
+Documentation=file:/opt/vasi-engine/current/docs/architecture/private-engine-egress.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/vasi-engine/current
+ExecStart=/bin/sh scripts/apply-database-egress-policy.sh apply
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

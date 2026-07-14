@@ -20,7 +20,7 @@
 
 ## Documentation and Version Rules
 
-- The current VASI version is `0.20.0`.
+- The current VASI version is `0.21.0`.
 - Increment the VASI version for every completed tracked change according to
   semantic versioning.
 - Keep the version in `README.md` and this file aligned.

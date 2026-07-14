@@ -1,0 +1,5 @@
+{
+  "schema": "vasi-database-gateway-transport/v1",
+  "host": "database-gateway",
+  "port": 5432
+}

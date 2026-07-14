@@ -15,11 +15,13 @@ flowchart LR
   private_ui --> gateway
   gateway -->|"mTLS + signed actor assertion"| ingress["Private ingress"]
   ingress -->|"HMAC-authenticated request"| engine["VASI engine"]
-  engine --> engine_db[("Engine PostgreSQL")]
+  engine --> database_gateway["Raw PostgreSQL gateway"]
   gateway --> auth_db[("Identity PostgreSQL")]
-  worker["Private worker"] --> engine_db
+  worker["Private worker"] --> database_gateway
   worker -->|"bounded signed command"| integration["Integration gateway"]
   engine -->|"digest-bound scan command"| integration
+  integration --> database_gateway
+  database_gateway -->|"exact IPv4 + port host policy"| engine_db[("Engine PostgreSQL")]
   integration -->|"exact allowlist"| provider["Graph, SMTP, webhook, or malware scanner"]
   media["Provider-hosted media"] --> participant
 ```
@@ -75,6 +77,7 @@ legal enforceability by itself.
 | MEDIA-1 | False playback/attention claim or hostile embed | Exact provider/origin descriptors; sandboxed frames; capability-specific adapters; visibility/gap/seek limits; raw telemetry and confidence statements; accessibility alternatives | Provider/browser telemetry cannot prove attention or comprehension |
 | ACT-1 | False activity-presence claim, replay, or privacy-invasive browser capture | Fixed no-detail event vocabulary; no keys, input contents, coordinates, plugins, or fingerprinting signals; participant/activity/session binding; strict batch hashes, sequence and count bounds; immutable raw evidence and deterministic revisions; offline recalculation; explicit confidence limits | Browser events can be absent, automated, or spoofed and cannot prove attention or comprehension |
 | OUT-1 | SSRF, credential disclosure, duplicate delivery/scan, or provider response leakage | Installation exact Graph tenant/application/sender and SMTP/webhook/scanner host allowlists; fixed Graph origins; encrypted revisioned credentials; isolated integration process; bounded response handling; strict signed contracts; redaction; idempotency keys; immutable attempts | Graph and SMTP are at-least-once; webhook consumers must enforce idempotency; scanner service operation remains customer/provider controlled |
+| NET-1 | Private process obtains general outbound access or database egress broadens | Engine, worker, and private ingress join internal networks only; integration gateway alone joins provider egress; end-to-end PostgreSQL TLS crosses a minimal fixed-target raw bridge; exact IPv4/port host policy; IPv6 disabled; persistent refresh and bounded live denial/policy/database proof; release checks reject network, mount, capability, marker, image, and unit drift | Host/Docker/kernel/DNS administrators remain trusted; provider destinations also depend on integration application allowlists; IPv6-only databases require a future reviewed adapter |
 | CFG-1 | Secret leakage through source, environment, logs, exports, or settings tools | No environment files; mode-0600 SQLite bootstrap; AES-256-GCM PostgreSQL runtime settings; value-redacting CLI; no application secrets in container environments; tracked-source secret gate; export redaction | Host memory, database administrator, and backup custody remain trusted boundaries |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
 | SUP-1 | Vulnerable, unaccounted, or non-executable image content | Lockfile builds; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; explicit configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial; minimal non-root runtime images without npm | Vulnerability data changes over time, so every release and periodic rescan are required |
@@ -96,13 +99,20 @@ npm run assurance:source -- /protected/new-directory
 # all declared runtime commands in a no-network hardened container. Exact tar exports are then
 # scanned without giving the scanner a Docker socket. Vulnerability reports and
 # CycloneDX image SBOMs are retained.
-npm run assurance:images -- /protected/new-directory vasi:VERSION vasi-engine:VERSION
+npm run assurance:images -- /protected/new-directory \
+  vasi:VERSION vasi-settings:VERSION vasi-engine:VERSION \
+  vasi-engine-tools:VERSION vasi-engine-maintenance:VERSION \
+  vasi-database-gateway:VERSION
 
 # Read-only bounded load against only health and public brand endpoints.
 npm run assurance:load -- https://vsign.example.com
 
 # Browser-rendered WCAG 2.0/2.1 A/AA automation on public unauthenticated pages.
 npm run assurance:accessibility -- https://vsign.example.com --channel chrome
+
+# Root host proof of exact database policy, four private-service denials,
+# integration egress, runtime health, and PostgreSQL transport.
+sudo node scripts/probe-engine-egress-boundary.mjs
 ```
 
 Source assurance fails if the worktree is dirty, version declarations diverge,
@@ -212,6 +222,17 @@ malformed, or threshold-failing inputs exit nonzero with fixed reason codes.
 Paths, endpoints, process data, SQL, credentials, and customer fields never
 enter its bounded result. Each installation must schedule both host scopes and
 set the optional primary-replica requirement to match its approved topology.
+
+VASI 0.21.0 implements recurring outbound-boundary enforcement and
+verification with independent systemd timers. Policy refresh renders the
+protected database destination into an exact temporary host rule set without
+logging it. The separate probe compares the installed chain exactly, proves
+that the database gateway, engine, worker, and private ingress cannot reach a
+fixed public canary, proves the integration gateway can, checks declared
+runtime health, and executes a database query through the raw tunnel. Its
+bounded output contains no route, address, subnet, hostname, URL, container
+identity, response body, credential, or customer field. Both nonzero exits
+must reach the installation's approved monitoring destination.
 
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
