@@ -100,6 +100,13 @@ capabilities, no privilege escalation, native syscall architecture, restrictive
 umask, and idle scheduling where applicable. Containers retain their separate
 non-root, read-only, capability-dropped Compose contracts.
 
+The engine deployment-perimeter service runs Node directly on the trusted host
+because it must inspect public TLS and protected host storage. It intentionally
+does not use systemd `MemoryDenyWriteExecute`; V8 requires executable memory at
+isolate startup. Its remaining namespace, filesystem, capability, address
+family, and no-new-privileges controls stay mandatory, and source assurance
+rejects reintroducing the incompatible flag.
+
 Source assurance enumerates the complete reviewed unit set and fails on a
 missing or extra unit, absent persistence/recurrence/hardening lines,
 installation-specific origin or home path, environment file, ignored live

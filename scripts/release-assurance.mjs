@@ -409,6 +409,12 @@ export async function validateOperationalSchedulerContract(repositoryRoot = root
       if (!contents.split("\n").includes(line)) failures.push(`${filename} is missing ${line}`);
     }
     if (
+      filename === "vasi-engine-deployment-readiness.service" &&
+      contents.split("\n").includes("MemoryDenyWriteExecute=yes")
+    ) {
+      failures.push(`${filename} cannot deny executable memory to the direct Node runtime`);
+    }
+    if (
       /Environment(?:File)?=|compose\.live\.yaml|\.private|\.tasks|VASI-\d|https?:\/\/|\/home\/|docker\.sock|--privileged|--network(?:=|\s+)host/.test(contents)
     ) {
       failures.push(`${filename} contains a prohibited privilege or configuration path`);

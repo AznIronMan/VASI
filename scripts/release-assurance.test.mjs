@@ -68,10 +68,20 @@ describe("release assurance policy", () => {
       await writeFile(timer, (await readFile(timer, "utf8")).replace("Persistent=yes", "Persistent=no"));
       const service = path.join(fixture, "deployment", "systemd", "vasi-gateway-backup-create.service");
       await writeFile(service, `${await readFile(service, "utf8")}\nEnvironmentFile=/home/customer/.env\n`);
+      const nodeService = path.join(
+        fixture,
+        "deployment",
+        "systemd",
+        "vasi-engine-deployment-readiness.service",
+      );
+      await writeFile(nodeService, `${await readFile(nodeService, "utf8")}\nMemoryDenyWriteExecute=yes\n`);
       const result = await validateOperationalSchedulerContract(fixture);
       expect(result.failures).toContain("vasi-engine-operational-readiness.timer is missing Persistent=yes");
       expect(result.failures).toContain(
         "vasi-gateway-backup-create.service contains a prohibited privilege or configuration path",
+      );
+      expect(result.failures).toContain(
+        "vasi-engine-deployment-readiness.service cannot deny executable memory to the direct Node runtime",
       );
     } finally {
       await rm(fixture, { force: true, recursive: true });

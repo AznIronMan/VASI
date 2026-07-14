@@ -16,7 +16,6 @@ Nice=10
 IOSchedulingClass=idle
 CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
 LockPersonality=yes
-MemoryDenyWriteExecute=yes
 NoNewPrivileges=yes
 PrivateDevices=yes
 PrivateTmp=yes
