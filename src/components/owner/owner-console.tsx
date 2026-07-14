@@ -11,6 +11,7 @@ import type { IssuedEvidenceRequest } from "@/lib/evidence-types";
 import type {
   OwnerArtifact,
   OwnerMember,
+  OwnerNotificationDeliveryState,
   OwnerRequest,
   OwnerTenant,
   OwnerWorkflow,
@@ -346,7 +347,7 @@ export function OwnerConsole({ baseURL, initialTenants }: {
 
       {permissions.has("request.manage") && <section className="owner-grid">
         <form className="evidence-panel" onSubmit={issueRequest}><p className="eyebrow eyebrow--green">ISSUE PUBLISHED REVISION</p><h2>Participant request</h2><label className="field"><span>Workflow</span><select name="workflowRevisionId" required>{published.map((workflow) => <option key={workflow.definitionId} value={workflow.publishedRevisionId}>{workflow.name} · revision {workflow.publishedRevision}</option>)}</select></label><label className="field"><span>Verified participant email</span><input name="intendedEmail" type="email" required /></label><label className="field"><span>Schedule for (optional)</span><input name="scheduledFor" type="datetime-local" /></label><div className="form-row"><label className="field"><span>Due (optional)</span><input name="dueAt" type="datetime-local" /></label><label className="field"><span>Expires (optional)</span><input name="expiresAt" type="datetime-local" /></label></div><button className="primary-button" disabled={!published.length || pending === "issue"} type="submit">{pending === "issue" ? "Issuing…" : "Create request"}</button></form>
-        <section className="evidence-panel"><p className="eyebrow eyebrow--green">REQUEST STATUS</p><h2>Lifecycle controls</h2>{requests.map((request) => <article className="owner-request" key={request.requestId}><div><strong>{request.title}</strong><span>{request.intendedEmail} · {request.status}</span><small>Due {request.dueAt ? new Date(request.dueAt).toLocaleString() : "not set"}</small></div><div>{!["completed", "expired", "revoked"].includes(request.status) && <><button type="button" onClick={() => void requestAction(request, "remind")}>Remind</button><button type="button" onClick={() => void requestAction(request, "reissue")}>Reissue</button><button type="button" onClick={() => void requestAction(request, "revoke")}>Revoke</button></>}{request.status === "completed" && permissions.has("record.read") && <><a href={evidenceExportURL(tenantId, request.assignmentId, "report", "nontechnical", "html")}>Plain-language report</a><a href={evidenceExportURL(tenantId, request.assignmentId, "report", "technical", "json")}>Forensic JSON</a><a href={evidenceExportURL(tenantId, request.assignmentId, "bundle", "full", "zip")}>Evidence bundle</a></>}</div></article>)}</section>
+        <section className="evidence-panel"><p className="eyebrow eyebrow--green">REQUEST STATUS</p><h2>Lifecycle and delivery controls</h2><p>Provider accepted means the configured adapter accepted a notification; it does not prove inbox delivery, receipt, or reading.</p>{requests.map((request) => <article className="owner-request" key={request.requestId}><div><strong>{request.title}</strong><span>{request.intendedEmail} · {request.status}</span><small>Due {request.dueAt ? new Date(request.dueAt).toLocaleString() : "not set"}</small><small>{notificationDeliveryText(request)}</small></div><div>{!["completed", "expired", "revoked"].includes(request.status) && <><button type="button" onClick={() => void requestAction(request, "remind")}>Remind</button><button type="button" onClick={() => void requestAction(request, "reissue")}>Reissue</button><button type="button" onClick={() => void requestAction(request, "revoke")}>Revoke</button></>}{request.status === "completed" && permissions.has("record.read") && <><a href={evidenceExportURL(tenantId, request.assignmentId, "report", "nontechnical", "html")}>Plain-language report</a><a href={evidenceExportURL(tenantId, request.assignmentId, "report", "technical", "json")}>Forensic JSON</a><a href={evidenceExportURL(tenantId, request.assignmentId, "bundle", "full", "zip")}>Evidence bundle</a></>}</div></article>)}</section>
       </section>}
 
       {issued && <section className="evidence-issued"><p className="eyebrow eyebrow--green">ONE-TIME PARTICIPANT LINK</p><a href={`${baseURL}${issued.participantPath}`}>{baseURL}{issued.participantPath}</a><p>Copy this now. VASI stores only its digest after the encrypted delivery outbox is completed.</p></section>}
@@ -489,6 +490,42 @@ function outcomesFor(activity: EditableActivity) {
   if (activity.type === "single_choice") return (activity.content.choices || []).map((choice) => ({ label: choice.label, value: choice.id }));
   if (activity.type === "questionnaire") return [{ label: "Failed", value: "failed" }];
   return [];
+}
+
+function notificationDeliveryText(request: OwnerRequest) {
+  const delivery = request.notificationDelivery || {};
+  const values = [
+    delivery.invitation
+      ? `Invitation: ${notificationStateText(delivery.invitation)}`
+      : "Invitation: manual link only",
+  ];
+  if (delivery.reminder) {
+    values.push(`Latest reminder${delivery.reminder.totalJobs > 1 ? ` (${delivery.reminder.totalJobs} queued)` : ""}: ${notificationStateText(delivery.reminder)}`);
+  }
+  if (delivery.completion) values.push(`Completion notice: ${notificationStateText(delivery.completion)}`);
+  return values.join(" · ");
+}
+
+function notificationStateText(state: OwnerNotificationDeliveryState) {
+  const at = state.completedAt || state.updatedAt || state.availableAt;
+  const date = at ? new Date(at).toLocaleString() : undefined;
+  const adapter = state.adapter ? ` via ${notificationAdapterText(state.adapter)}` : "";
+  if (state.status === "provider_accepted") return `provider accepted${adapter}${date ? ` at ${date}` : ""}`;
+  if (state.status === "scheduled") return `scheduled for ${new Date(state.availableAt).toLocaleString()}`;
+  if (state.status === "queued") return "queued";
+  if (state.status === "processing") return `processing${adapter}`;
+  if (state.status === "suppressed") return `suppressed${date ? ` at ${date}` : ""}`;
+  if (state.status === "failed") return `failed${state.errorCode ? ` (${state.errorCode})` : ""}${date ? ` at ${date}` : ""}`;
+  return `state unavailable${date ? ` as of ${date}` : ""}`;
+}
+
+function notificationAdapterText(value: string) {
+  if (value === "microsoft_graph") return "Microsoft Graph";
+  if (value === "smtp") return "SMTP";
+  if (value === "webhook") return "webhook";
+  if (value === "disabled") return "disabled delivery";
+  if (value === "engine") return "VASI lifecycle control";
+  return "configured adapter";
 }
 
 function toWorkflowActivity(entry: EditableActivity): WorkflowActivity {

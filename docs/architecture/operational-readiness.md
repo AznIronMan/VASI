@@ -20,8 +20,9 @@ authorized for the action, and the engine separately requires the actor's
 - release version and exact migration-ledger count/checksum agreement;
 - PostgreSQL query latency and pool total, idle, waiting, and maximum counts;
 - pending/running/stale/failed outbox counts and oldest pending age;
-- 24-hour delivered, failed, suppressed, and gateway-failure counts plus at
-  most ten syntax-bounded error codes;
+- 24-hour provider-accepted, failed, suppressed, and gateway-failure counts
+  plus at most ten syntax-bounded error codes (the stable JSON field remains
+  `delivered24Hours` for contract compatibility);
 - active/disabled delivery-binding and verified-adapter counts;
 - active scanner-binding, 24-hour failed/threat-verdict, and currently
   retryable-quarantine counts;

@@ -368,6 +368,17 @@ export type PublishedWorkflow = {
   tenantId: string;
 };
 
+export type OwnerNotificationDeliveryState = {
+  adapter?: string;
+  attempts: number;
+  availableAt: string;
+  completedAt?: string;
+  errorCode?: string;
+  status: "scheduled" | "queued" | "processing" | "provider_accepted" | "suppressed" | "failed" | "indeterminate";
+  totalJobs: number;
+  updatedAt: string;
+};
+
 export type OwnerMember = {
   email?: string;
   principalId?: string;
@@ -382,6 +393,7 @@ export type OwnerRequest = Omit<IssuedEvidenceRequest, "participantPath" | "tena
   dueAt?: string;
   intendedEmail: string;
   issuedAt: string;
+  notificationDelivery: Partial<Record<"invitation" | "reminder" | "completion", OwnerNotificationDeliveryState>>;
   reissuedFromRequestId?: string;
   revision: number;
   scheduledFor?: string;

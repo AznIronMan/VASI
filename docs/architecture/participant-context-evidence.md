@@ -78,8 +78,9 @@ and participant-data-request checks succeed.
 ## Sealing, verification, and portability
 
 Every accepted snapshot appends `participant.context.recorded` to the
-assignment evidence chain. Manifest `vasi-evidence-manifest/v6` contains the
-complete policy and normalized snapshot rows. The offline verifier:
+assignment evidence chain. Participant context was introduced in manifest
+`vasi-evidence-manifest/v6` and remains complete in the current version 7
+manifest. The offline verifier:
 
 1. validates the fixed schema and policy;
 2. rejects duplicate IDs and sequence identities;

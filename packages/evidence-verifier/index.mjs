@@ -11,6 +11,7 @@ import {
   participantContextPolicy,
   validateStoredParticipantContextSnapshot,
 } from "../engine-domain/context.mjs";
+import { validateNotificationDeliveryEvidence } from "../engine-domain/notifications.mjs";
 
 const GENESIS_HASH = "0".repeat(64);
 
@@ -65,11 +66,14 @@ export function verifyEvidenceRecord(record, options = {}) {
     if (JSON.stringify(evidence?.eventHashes) !== JSON.stringify(eventHashes)) {
       errors.push("manifest_event_hashes_invalid");
     }
-    if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6"].includes(manifest.schema)) {
+    if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7"].includes(manifest.schema)) {
       verifyActivityInteractionEvidence(manifest.activityInteraction, events, errors);
     }
-    if (manifest.schema === "vasi-evidence-manifest/v6") {
+    if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7"].includes(manifest.schema)) {
       verifyParticipantContextEvidence(manifest.participantContext, events, errors);
+    }
+    if (manifest.schema === "vasi-evidence-manifest/v7") {
+      verifyNotificationDeliveryEvidence(manifest.notificationDelivery, manifest.timestamps?.completedAt, errors);
     }
   }
 
@@ -107,6 +111,7 @@ export function verifyEvidenceRecord(record, options = {}) {
     checks: Object.freeze({
       eventChain: !errors.some((error) => error.startsWith("event_") || error.startsWith("manifest_event") || error === "manifest_head_hash_invalid"),
       activityInteraction: !errors.some((error) => error.startsWith("activity_interaction_")),
+      notificationDelivery: !errors.some((error) => error.startsWith("notification_delivery_")),
       participantContext: !errors.some((error) => error.startsWith("participant_context_")),
       manifest: Boolean(manifest) && !errors.includes("manifest_missing"),
       primarySeal: Boolean(primary) && !errors.includes("primary_seal_missing") && sealResults.some((seal) => seal.role === "vasi_integrity" && seal.verified),
@@ -115,6 +120,17 @@ export function verifyEvidenceRecord(record, options = {}) {
     seals: Object.freeze(sealResults),
     verified: errors.length === 0,
   });
+}
+
+function verifyNotificationDeliveryEvidence(value, completedAt, errors) {
+  try {
+    validateNotificationDeliveryEvidence(value, completedAt);
+  } catch (error) {
+    const code = typeof error?.message === "string" && error.message.startsWith("notification_")
+      ? error.message
+      : "notification_delivery_evidence_invalid";
+    errors.push(code);
+  }
 }
 
 function verifyActivityInteractionEvidence(value, evidenceEvents, errors) {

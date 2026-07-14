@@ -11,12 +11,13 @@ import {
 } from "../../scripts/settings-core.mjs";
 import { createSigningProvider } from "../engine/signing-provider.mjs";
 import { createIntegrationGatewayClient } from "./integration-gateway-client.mjs";
+import { suppressObsoleteJobs } from "./notification-lifecycle.mjs";
 import {
   advanceOneRetentionLifecycle,
   expireOneParticipantDataRequest,
 } from "./retention-worker.mjs";
 
-const ENGINE_VERSION = "0.21.4";
+const ENGINE_VERSION = "0.22.0";
 const GENESIS_HASH = "0".repeat(64);
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -33,6 +34,7 @@ while (!stopping) {
       'delete from "vasi_engine"."actor_assertion_replay" where "expiresAt" < CURRENT_TIMESTAMP',
     );
     await recoverStaleJobs(database);
+    await suppressObsoleteJobs(database);
     await advanceOneLifecycle(database);
     await expireOneParticipantDataRequest(database);
     await advanceOneRetentionLifecycle(database, signingProvider);
@@ -51,7 +53,13 @@ export async function claimJob(databaseClient) {
        select j."id" from "vasi_engine"."outbox_job" j
        left join "vasi_engine"."request_instance" r on r."id" = j."requestId"
        where j."status" = 'pending' and j."availableAt" <= CURRENT_TIMESTAMP
-         and (r."id" is null or r."status" not in ('revoked', 'expired'))
+         and (
+           r."id" is null or
+           (j."notificationType" in ('request.issued', 'request.reminder') and
+             r."status" in ('scheduled', 'issued', 'in_progress')) or
+           (j."notificationType" = 'request.completed' and r."status" = 'completed') or
+           (j."notificationType" is null and r."status" not in ('revoked', 'expired'))
+         )
        order by j."availableAt", j."createdAt", j."id"
        limit 1 for update of j skip locked
      )
@@ -198,9 +206,11 @@ async function advanceOneLifecycle(databaseClient) {
     if (expired) {
       await client.query(
         `update "vasi_engine"."outbox_job"
-         set "status" = 'completed', "completedAt" = $2, "result" = '{"outcome":"suppressed"}'::jsonb,
+         set "status" = 'completed', "completedAt" = $2,
+             "result" = '{"adapter":"engine","outcome":"suppressed","reason":"request_expired"}'::jsonb,
              "payload" = '{"redacted":true}'::jsonb, "updatedAt" = $2
-         where "requestId" = $1 and "status" = 'pending'`,
+         where "requestId" = $1 and "status" = 'pending'
+           and "notificationType" in ('request.issued', 'request.reminder')`,
         [row.requestId, now],
       );
     }

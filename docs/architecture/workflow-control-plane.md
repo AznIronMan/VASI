@@ -1,6 +1,6 @@
 # Workflow and company-owner control plane
 
-Status: implemented in VASI 0.6.0 and extended in VASI 0.7.0.
+Status: implemented in VASI 0.6.0 and extended through VASI 0.22.0.
 
 ## Ownership boundary
 
@@ -12,9 +12,8 @@ them to explicit member, workflow, request, and record permissions on every
 command. Owners grant access by verified email. The engine binds that grant to
 the stable V·Sign principal when the recipient first lists their companies.
 
-The current owner gateway is restricted to the configured private origin. A
-future productized owner/integration gateway can use the same engine contracts
-without direct engine or database access.
+The productized owner gateway is restricted to the configured private origin
+and uses the same engine contracts without direct engine or database access.
 
 ## Draft, publication, and execution
 
@@ -35,10 +34,10 @@ edges, cycles, and tenant-provided code are rejected before publication.
 Each assignment receives immutable activity definitions and hashes. The engine,
 not the browser, selects the current activity, validates its response, evaluates
 the next transition, marks bypassed activities as skipped, and decides when the
-request is complete. The final version 3 evidence manifest covers the full
+request is complete. The current version 7 evidence manifest covers the full
 workflow snapshot, ordered activity outcomes and response revisions, exact
-artifact bindings, policies, timestamps, event chain, and standard VASI
-integrity seal.
+artifact bindings, notification state and attempts available at completion,
+policies, timestamps, event chain, and standard VASI integrity seal.
 
 ## Request lifecycle and access
 
@@ -63,6 +62,16 @@ outbox jobs. Sensitive delivery payloads, including a pending participant path,
 are AES-256-GCM envelopes under a dedicated engine setting; plaintext paths are
 not stored in the assignment or outbox row. Terminal jobs redact the envelope
 while preserving its payload hash and immutable delivery attempts.
+
+VASI 0.22.0 gives every job an explicit invitation, reminder, or completion
+purpose outside the encrypted envelope. Revoked, reissued, expired, and
+completed requests suppress obsolete pending invitations and reminders;
+completion notices remain eligible only for completed requests. The owner
+request list exposes a privacy-bounded normalized state and the evidence
+manifest seals attempts completed before the transaction seal. Adapter success
+is described as provider acceptance, not proof of inbox delivery or reading.
+The complete contract and race limits are documented in the
+[notification delivery decision](notification-delivery-evidence.md).
 
 The worker submits a signed, bounded, versioned delivery contract to the
 internal integration gateway. That gateway resolves the tenant binding,

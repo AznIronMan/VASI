@@ -7,6 +7,12 @@ privacy-bounded participant-context observations. Technical and structured
 profiles retain those values; participant and plain-language profiles expose
 only their presence, purposes, provenance class, and limitations.
 
+VASI 0.22.0 extends the current sealed record to manifest version 7 with
+privacy-bounded notification jobs and immutable adapter attempts available at
+completion. Participant and plain-language reports omit internal job IDs and
+failure codes. Every audience is told that provider acceptance does not prove
+inbox delivery, receipt, reading, attention, or identity.
+
 ## Purpose and boundary
 
 VASI turns a sealed transaction into deterministic evidence that a participant,
@@ -33,10 +39,12 @@ format for the same manifest reuses the same immutable PostgreSQL export.
 The supported profiles are:
 
 - `participant`: identity method, requester, outcomes, material times, event
-  references, latest browser-reported activity timing, and integrity
+  references, reduced notification state, latest browser-reported activity
+  timing, and integrity
   information without forensic IP/user-agent or raw interaction-event detail;
 - `nontechnical`: a plain-language chronology, requester and participant
-  identity, outcomes, latest activity timing, limitations, and integrity
+  identity, outcomes, reduced notification state, latest activity timing,
+  limitations, and integrity
   explanation;
 - `technical`: the complete available sealed events, manifest, response and
   generalized activity/media detail, authentication/client context, seals, and
@@ -70,8 +78,9 @@ settings; the default complete bundle limit is 64 MiB.
 `npm run evidence:verify -- <bundle.zip>` verifies ZIP structure, CRC values,
 every declared entry length and SHA-256 digest, absence of undeclared entries,
 the bundle root, every bundle seal, the evidence event chain, manifest binding,
-generalized activity batch hashes and latest summaries, every record seal, and
-regenerated report bytes. It needs no private key, LLM,
+generalized activity batch hashes and latest summaries, strict notification
+delivery fields/times/outcomes, every record seal, and regenerated report
+bytes. It needs no private key, LLM,
 network service, or database. `--json` produces a machine-readable result. A
 sealed record JSON can be verified directly with the same command.
 

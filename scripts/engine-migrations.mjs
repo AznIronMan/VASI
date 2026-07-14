@@ -55,6 +55,10 @@ export const ENGINE_MIGRATIONS = Object.freeze([
     name: "0012_engine_document_malware_scanning",
     path: path.join(repositoryRoot, "database", "engine-document-malware-scanning.sql"),
   },
+  {
+    name: "0013_engine_notification_delivery",
+    path: path.join(repositoryRoot, "database", "engine-notification-delivery.sql"),
+  },
 ].map((migration) => Object.freeze(migration)));
 
 export async function engineMigrationManifest() {

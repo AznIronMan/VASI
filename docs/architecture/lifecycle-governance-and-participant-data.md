@@ -68,7 +68,9 @@ requires all of the following:
 Only a `SECURITY DEFINER` PostgreSQL function can perform the controlled delete.
 It rechecks the deadline, state, blockers, and tombstone within the same
 transaction. Transaction and participant rows are removed in dependency order;
-the immutable lifecycle chain, hold history, policy revision, and sealed
+request-level purge also removes immutable outbox and integration-gateway
+delivery attempts before their parent jobs under the same tombstone-authorized
+transaction. The immutable lifecycle chain, hold history, policy revision, and sealed
 tombstone remain. Purging one assignment in a multi-participant request does not
 delete request-level rows needed by another assignment.
 

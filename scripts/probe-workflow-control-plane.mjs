@@ -81,6 +81,14 @@ if (publicationTwo.body.revision !== 2 || publicationOne.body.snapshotHash === p
 }
 
 const issued = await issue(manager, tenant.body.id, publicationOne.body.revisionId);
+const invitationState = await waitForDeliveryStatus(
+  manager,
+  tenant.body.id,
+  issued.body.requestId,
+  "invitation",
+  ["provider_accepted", "suppressed"],
+  15_000,
+);
 const lifecycleRecords = await call(manager, "POST", "/v1/owner/lifecycle-record-list", {
   tenantId: tenant.body.id,
 });
@@ -110,9 +118,15 @@ const record = await call(auditor, "POST", "/v1/owner/records", {
 });
 expectStatus(record, 200, "auditor record access");
 if (
-  record.body.manifest?.schema !== "vasi-evidence-manifest/v6" ||
+  record.body.manifest?.schema !== "vasi-evidence-manifest/v7" ||
   record.body.manifest.workflow.snapshot.title !== "Published revision one" ||
   record.body.manifest.outcome.activities.length !== 2 ||
+  record.body.manifest.notificationDelivery?.jobs?.find((job) =>
+    job.notificationType === "request.issued"
+  )?.status !== invitationState.status ||
+  !record.body.manifest.notificationDelivery.jobs.find((job) =>
+    job.notificationType === "request.issued"
+  )?.attempts?.length ||
   !verifyEvidenceRecord(record.body)
 ) {
   throw new Error("The revision-bound structured record proof failed.");
@@ -178,6 +192,12 @@ const reissued = await call(manager, "POST", "/v1/owner/request-actions", {
 });
 expectStatus(reissued, 200, "request reissue");
 if (!reissued.body.participantPath) throw new Error("The one-time reissue link proof failed.");
+const reissueList = await call(manager, "POST", "/v1/owner/request-list", { tenantId: tenant.body.id });
+expectStatus(reissueList, 200, "reissue delivery state");
+const revokedDelivery = reissueList.body.find((request) => request.requestId === scheduled.body.requestId)?.notificationDelivery;
+if (revokedDelivery?.invitation?.status !== "suppressed" || revokedDelivery?.reminder?.status !== "suppressed") {
+  throw new Error("Reissue did not suppress obsolete invitation and reminder delivery.");
+}
 
 await expectCall(owner, "POST", "/v1/owner/members", {
   email: owner.email,
@@ -189,6 +209,9 @@ await expectCall(owner, "POST", "/v1/owner/members", {
 const requestList = await call(manager, "POST", "/v1/owner/request-list", { tenantId: tenant.body.id });
 expectStatus(requestList, 200, "request status list");
 if (requestList.body.length < 4) throw new Error("The request lifecycle projection proof failed.");
+if (JSON.stringify(requestList.body).match(/participantPath|responseMetadata|credentials|\"payload\"/)) {
+  throw new Error("The owner delivery projection exposed a restricted delivery field.");
+}
 
 console.info("VASI workflow draft, publication, role, branch, lifecycle, access, outbox, and seal checks passed.");
 
@@ -277,6 +300,19 @@ async function waitForRequestStatus(actorContext, tenantId, requestId, status, t
     await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
   throw new Error(`The worker did not transition request ${requestId} to ${status}.`);
+}
+
+async function waitForDeliveryStatus(actorContext, tenantId, requestId, kind, statuses, timeoutMilliseconds) {
+  const deadline = Date.now() + timeoutMilliseconds;
+  while (Date.now() < deadline) {
+    const list = await call(actorContext, "POST", "/v1/owner/request-list", { tenantId });
+    expectStatus(list, 200, `request ${kind} delivery poll`);
+    const state = list.body.find((request) => request.requestId === requestId)
+      ?.notificationDelivery?.[kind];
+    if (state && statuses.includes(state.status)) return state;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+  throw new Error(`The worker did not reach a terminal ${kind} delivery state for ${requestId}.`);
 }
 
 function expectStatus(result, status, label) {

@@ -142,6 +142,15 @@ issue/reminder messages should contain the VASI request link. Pre-0.11 global
 `ENGINE_NOTIFICATION_*` values are consumed only for one-time compatibility
 conversion and should be unset after the new binding is verified.
 
+The owner console reports `provider accepted` when Graph, SMTP, or the webhook
+adapter accepts a notification. That state does not prove inbox placement,
+receipt, reading, attention, or identity. VASI 0.22.0 stores explicit
+invitation/reminder/completion purpose outside the encrypted payload, suppresses
+obsolete pending invitation/reminder jobs at terminal lifecycle transitions,
+and seals only the bounded attempts available when a participant transaction
+completes. See the
+[notification delivery decision](architecture/notification-delivery-evidence.md).
+
 Document scanning also starts with a disabled per-tenant
 `document.malware_scan` binding. An operator must add
 `https_malware_scanner` and the exact scanner hostname to the active
@@ -424,7 +433,7 @@ encrypted off-host custody or establish an RPO/RTO.
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.
 
-For rollback, first stop the complete 0.21.4 engine stack. Disable its two
+For rollback, first stop the complete 0.22.0 engine stack. Disable its two
 timers, remove the policy with
 `sudo /bin/sh scripts/apply-database-egress-policy.sh remove`, switch the whole
 release—not selected files—to the prior verified version, and follow that

@@ -51,7 +51,7 @@ export function OperationalReadinessPanel() {
       <div className="admin-overview operations-overview">
         <OperationsMetric label="Engine release" value={snapshot.engineVersion} detail={`${snapshot.configuration.migrationsApplied}/${snapshot.configuration.migrationsExpected} migrations`} />
         <OperationsMetric label="Pending work" value={snapshot.queue.pending} detail={`oldest ${duration(snapshot.queue.oldestPendingSeconds)} · ${snapshot.queue.staleRunning} stale`} />
-        <OperationsMetric label="Delivery (24h)" value={snapshot.delivery.delivered24Hours} detail={`${snapshot.delivery.gatewayFailures24Hours} failed · ${snapshot.delivery.suppressed24Hours} suppressed`} />
+        <OperationsMetric label="Provider accepted (24h)" value={snapshot.delivery.delivered24Hours} detail={`${snapshot.delivery.gatewayFailures24Hours} failed · ${snapshot.delivery.suppressed24Hours} suppressed`} />
         <OperationsMetric label="Document scanning" value={snapshot.scanning.retryable} detail={`${snapshot.scanning.failed24Hours} failed · ${snapshot.scanning.threats24Hours} threats (24h)`} />
         <OperationsMetric label="Integrity keys" value={snapshot.signing.activeIntegrityKeys} detail={`${snapshot.signing.activeOptionalKeys} optional active`} />
         <OperationsMetric label="Lifecycle" value={snapshot.lifecycle.purgeDueRecords} detail={`${snapshot.lifecycle.purgeBlocked24Hours} purge blocks · ${snapshot.lifecycle.pendingDataRequests} data requests`} />

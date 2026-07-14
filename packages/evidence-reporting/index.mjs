@@ -41,6 +41,7 @@ function buildReport(profile, context) {
       template: EVIDENCE_REPORT_TEMPLATE,
     },
     integrity: context.integrity,
+    ...(context.notificationDelivery ? { notificationDelivery: context.notificationDelivery } : {}),
     profile,
     schema: EVIDENCE_REPORT_TEMPLATE,
     transaction: context.transaction,
@@ -75,7 +76,7 @@ function buildReport(profile, context) {
   if (profile === "technical") {
     return Object.freeze({
       ...common,
-      explanation: "This forensic report preserves complete event, manifest, authentication, server-observed request context, privacy-bounded browser-reported participant context, generalized activity-interaction, media, artifact, response-revision, and seal data available in the sealed record.",
+      explanation: "This forensic report preserves complete event, manifest, authentication, server-observed request context, privacy-bounded browser-reported participant context, generalized activity-interaction, notification-delivery, media, artifact, response-revision, and seal data available in the sealed record.",
       events: context.record.events,
       limitations: context.limitations,
       manifest: context.manifest,
@@ -111,6 +112,7 @@ function reportContext(record) {
   })));
   const limitations = evidenceLimitations(manifest);
   const contextEvidence = participantContextSummary(manifest);
+  const notificationDelivery = notificationDeliverySummary(manifest.notificationDelivery);
   const activityTiming = latestActivityInteractionSummaries(manifest).map((entry) => Object.freeze({
     activityId: entry.activityId,
     confidence: entry.summary?.confidence?.level,
@@ -152,6 +154,7 @@ function reportContext(record) {
     limitations,
     manifest,
     manifestHash: primarySeal.manifestHash,
+    notificationDelivery,
     outcomes: Object.freeze(outcomes.map((activity) => Object.freeze({
       activityId: activity.activityId,
       outcome: activity.outcome,
@@ -215,15 +218,36 @@ function evidenceLimitations(manifest) {
   for (const limitation of manifest.participantContext?.policy?.limitations || []) {
     limitations.push(limitation);
   }
-  if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6"].includes(manifest.schema) &&
+  if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7"].includes(manifest.schema) &&
       !(manifest.activityInteraction?.events || []).length) {
     limitations.push("No browser-reported generalized activity-presence events were available when the record was sealed.");
   }
-  if (manifest.schema === "vasi-evidence-manifest/v6" &&
+  if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7"].includes(manifest.schema) &&
       !(manifest.participantContext?.snapshots || []).length) {
     limitations.push("No privacy-bounded browser/device context snapshot was available when the record was sealed.");
   }
+  for (const limitation of manifest.notificationDelivery?.limitations || []) limitations.push(limitation);
   return Object.freeze([...new Set(limitations)]);
+}
+
+function notificationDeliverySummary(value) {
+  if (!value?.jobs || !Array.isArray(value.jobs)) return undefined;
+  return Object.freeze({
+    capturedAt: value.capturedAt,
+    limitations: Object.freeze([...(value.limitations || [])]),
+    notifications: Object.freeze(value.jobs.map((job) => Object.freeze({
+      attempts: Object.freeze((job.attempts || []).map((attempt) => Object.freeze({
+        adapter: attempt.adapter,
+        completedAt: attempt.completedAt,
+        outcome: attempt.outcome,
+        startedAt: attempt.startedAt,
+      }))),
+      notificationType: job.notificationType,
+      queuedAt: job.queuedAt,
+      scheduledFor: job.scheduledFor,
+      status: job.status,
+    }))),
+  });
 }
 
 function eventDescription(eventType, payload) {
@@ -280,6 +304,18 @@ function reportText(report) {
       lines.push(`${outcome.activityId}: ${outcome.responseLabel || printable(outcome.response)}${outcome.outcome ? ` (${outcome.outcome})` : ""}`);
     }
   }
+  if (report.notificationDelivery?.notifications?.length) {
+    lines.push("", "NOTIFICATION DELIVERY (PROVIDER-ACCEPTANCE EVIDENCE)");
+    for (const notification of report.notificationDelivery.notifications) {
+      const attempt = notification.attempts.at(-1);
+      lines.push(
+        `${notificationTypeText(notification.notificationType)}: ${statusText(notification.status)}; ` +
+        `queued ${notification.queuedAt || "Unspecified"}; ` +
+        `${attempt ? `latest adapter ${attempt.adapter}, ${statusText(attempt.outcome)} at ${attempt.completedAt}` : "no provider attempt recorded before sealing"}`,
+      );
+    }
+    for (const limitation of report.notificationDelivery.limitations || []) lines.push(`Limit: ${limitation}`);
+  }
   if (report.activityTiming?.length) {
     lines.push("", "ACTIVITY PRESENCE (BROWSER-REPORTED SUPPORTING EVIDENCE)");
     for (const activity of report.activityTiming) {
@@ -319,6 +355,17 @@ function reportText(report) {
     lines.push("", "STRUCTURED DETAIL", JSON.stringify(JSON.parse(canonicalJSON(report.profile === "structured" ? report.record : { events: report.events, manifest: report.manifest, seals: report.seals })), null, 2));
   }
   return `${lines.join("\n")}\n`;
+}
+
+function notificationTypeText(value) {
+  if (value === "request.issued") return "Invitation";
+  if (value === "request.reminder") return "Reminder";
+  if (value === "request.completed") return "Completion notice";
+  return "Notification";
+}
+
+function statusText(value) {
+  return String(value || "indeterminate").replaceAll("_", " ");
 }
 
 function reportHTML(report, text) {

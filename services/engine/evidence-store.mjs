@@ -23,6 +23,14 @@ import { validateActivityResponse } from "../../packages/engine-domain/activitie
 import { validateParticipantArtifactInput } from "../../packages/engine-domain/artifacts.mjs";
 import { participantContextPolicy } from "../../packages/engine-domain/context.mjs";
 import { activityInteractionPolicy } from "../../packages/engine-domain/interaction.mjs";
+import {
+  NOTIFICATION_DELIVERY_LIMITATIONS,
+  NOTIFICATION_JOB_LIMIT,
+  notificationEvidenceOutcome,
+  notificationOperationalStatus,
+  requireNotificationType,
+  validateNotificationDeliveryEvidence,
+} from "../../packages/engine-domain/notifications.mjs";
 import { readArtifactChunk } from "./artifact-store.mjs";
 import { loadParticipantContextEvidence } from "./context-store.mjs";
 import { appendEvent } from "./evidence-events.mjs";
@@ -555,8 +563,14 @@ export function createEvidenceStore(database, settings) {
            where r."tenantId" = $1 order by r."issuedAt" desc, r."id" limit 250`,
           [tenantId],
         );
+        const delivery = await ownerNotificationDelivery(
+          client,
+          tenantId,
+          result.rows.map((row) => row.requestId),
+        );
         return result.rows.map((row) => ({
           ...row,
+          notificationDelivery: delivery.get(row.requestId) || {},
           revision: Number(row.revision),
         }));
       } finally {
@@ -1076,6 +1090,11 @@ async function respondToWorkflowActivity({
      set "status" = 'completed', "completedAt" = $2 where "id" = $1`,
     [record.requestId, completedAt],
   );
+  await suppressPendingRequestNotifications(client, {
+    reason: "request_completed",
+    requestId: record.requestId,
+    suppressedAt: completedAt,
+  });
   await anchorRecordLifecycle(client, {
     actor,
     assignmentId: record.assignmentId,
@@ -1109,6 +1128,12 @@ async function respondToWorkflowActivity({
     record.assignmentId,
     contextEvidencePolicy,
   );
+  const notificationDelivery = await loadNotificationDeliveryEvidence(
+    client,
+    record.tenantId,
+    record.requestId,
+    completedAt,
+  );
   const manifestId = randomUUID();
   const manifest = buildWorkflowManifest({
     actor,
@@ -1120,6 +1145,7 @@ async function respondToWorkflowActivity({
     record,
     responses: responses.rows,
     media,
+    notificationDelivery,
     participantContext,
   });
   const sealedRecord = await persistSeal(client, {
@@ -1160,6 +1186,7 @@ function buildWorkflowManifest({
   interaction,
   manifestId,
   media,
+  notificationDelivery,
   participantContext,
   record,
   responses,
@@ -1180,6 +1207,7 @@ function buildWorkflowManifest({
     },
     manifestId,
     media,
+    notificationDelivery,
     participantContext,
     outcome: {
       activities: responses.map((row) => ({
@@ -1203,7 +1231,7 @@ function buildWorkflowManifest({
       purpose: record.purpose,
       scheduledFor: record.scheduledFor ? new Date(record.scheduledFor).toISOString() : undefined,
     },
-    schema: "vasi-evidence-manifest/v6",
+    schema: "vasi-evidence-manifest/v7",
     tenant: tenantEvidenceProjection(record),
     timestamps: {
       completedAt: completedAt.toISOString(),
@@ -1289,6 +1317,9 @@ async function applyRequestAction(client, actor, input, outboxEncryptionSecret) 
   if (["completed", "expired"].includes(request.status)) {
     throw new EvidenceStoreError("request_state_conflict", 409);
   }
+  if (input.action === "remind" && request.status === "revoked") {
+    throw new EvidenceStoreError("request_state_conflict", 409);
+  }
   const now = new Date();
   let actionResult = { action: input.action, requestId: input.requestId, status: request.status };
   if (input.action === "revoke" || input.action === "reissue") {
@@ -1301,6 +1332,11 @@ async function applyRequestAction(client, actor, input, outboxEncryptionSecret) 
       `update "vasi_engine"."participant_assignment" set "status" = 'revoked' where "id" = $1`,
       [request.assignmentId],
     );
+    await suppressPendingRequestNotifications(client, {
+      reason: input.action === "reissue" ? "request_reissued" : "request_revoked",
+      requestId: input.requestId,
+      suppressedAt: now,
+    });
     await appendEvent(client, {
       actor,
       assignmentId: request.assignmentId,
@@ -1330,7 +1366,7 @@ async function applyRequestAction(client, actor, input, outboxEncryptionSecret) 
   }
   if (input.action === "remind") {
     await queueNotification(client, {
-      availableAt: now,
+      availableAt: new Date(request.scheduledFor) > now ? new Date(request.scheduledFor) : now,
       idempotencyKey: `${input.requestId}:manual-reminder:${input.commandId}`,
       outboxEncryptionSecret,
       payload: {
@@ -1369,15 +1405,156 @@ async function queueNotification(client, {
   requestId,
   tenantId,
 }) {
+  const notificationType = requireNotificationType(payload?.eventType);
+  const count = await client.query(
+    `select count(*)::integer as "count" from "vasi_engine"."outbox_job"
+     where "requestId" = $1 and "jobType" = 'notification'`,
+    [requestId],
+  );
+  const maximumBeforeInsert = notificationType === "request.completed"
+    ? NOTIFICATION_JOB_LIMIT
+    : NOTIFICATION_JOB_LIMIT - 1;
+  if (Number(count.rows[0].count) >= maximumBeforeInsert) {
+    throw new EvidenceStoreError("notification_limit_exceeded", 409);
+  }
   const envelope = encryptJSONEnvelope(payload, outboxEncryptionSecret);
   await client.query(
     `insert into "vasi_engine"."outbox_job"
-      ("id", "jobType", "tenantId", "requestId", "idempotencyKey", "payload", "payloadHash",
-       "status", "availableAt")
-     values ($1, 'notification', $2, $3, $4, $5, $6, 'pending', $7)
+      ("id", "jobType", "notificationType", "tenantId", "requestId", "idempotencyKey",
+       "payload", "payloadHash", "status", "availableAt")
+     values ($1, 'notification', $2, $3, $4, $5, $6, $7, 'pending', $8)
      on conflict ("idempotencyKey") where "idempotencyKey" is not null do nothing`,
-    [randomUUID(), tenantId, requestId, idempotencyKey, { envelope }, hashCanonicalJSON(payload), availableAt],
+    [
+      randomUUID(), notificationType, tenantId, requestId, idempotencyKey,
+      { envelope }, hashCanonicalJSON(payload), availableAt,
+    ],
   );
+}
+
+async function suppressPendingRequestNotifications(client, { reason, requestId, suppressedAt }) {
+  await client.query(
+    `update "vasi_engine"."outbox_job"
+     set "status" = 'completed', "completedAt" = $2,
+         "result" = jsonb_build_object('adapter', 'engine', 'outcome', 'suppressed', 'reason', $3::text),
+         "payload" = '{"redacted":true}'::jsonb, "updatedAt" = $2
+     where "requestId" = $1 and "status" = 'pending'
+       and "notificationType" in ('request.issued', 'request.reminder')`,
+    [requestId, suppressedAt, reason],
+  );
+}
+
+async function ownerNotificationDelivery(client, tenantId, requestIds) {
+  const byRequest = new Map();
+  if (!requestIds.length) return byRequest;
+  const result = await client.query(
+    `with ranked as (
+       select j.*,
+              count(*) over (partition by j."requestId", j."notificationType")::integer as "totalJobs",
+              row_number() over (
+                partition by j."requestId", j."notificationType"
+                order by j."createdAt" desc, j."id" desc
+              ) as "recency"
+       from "vasi_engine"."outbox_job" j
+       where j."tenantId" = $1 and j."requestId" = any($2::text[])
+         and j."jobType" = 'notification' and j."notificationType" is not null
+     )
+     select j."requestId", j."notificationType", j."status", j."attempts", j."availableAt",
+            j."completedAt", j."updatedAt", j."lastErrorCode", j."totalJobs",
+            j."result"->>'outcome' as "resultOutcome", j."result"->>'adapter' as "resultAdapter",
+            a."adapter" as "attemptAdapter", a."outcome" as "attemptOutcome",
+            a."completedAt" as "attemptCompletedAt"
+     from ranked j
+     left join lateral (
+       select "adapter", "outcome", "completedAt"
+       from "vasi_engine"."notification_delivery_attempt"
+       where "jobId" = j."id" order by "attempt" desc limit 1
+     ) a on true
+     where j."recency" = 1
+     order by j."requestId", j."notificationType"`,
+    [tenantId, requestIds],
+  );
+  const now = new Date();
+  for (const row of result.rows) {
+    const entry = byRequest.get(row.requestId) || {};
+    const key = row.notificationType === "request.issued"
+      ? "invitation"
+      : row.notificationType === "request.reminder"
+        ? "reminder"
+        : "completion";
+    entry[key] = {
+      ...(safeNotificationAdapter(row.attemptAdapter || row.resultAdapter)
+        ? { adapter: safeNotificationAdapter(row.attemptAdapter || row.resultAdapter) }
+        : {}),
+      attempts: Number(row.attempts),
+      availableAt: new Date(row.availableAt).toISOString(),
+      ...(row.completedAt ? { completedAt: new Date(row.completedAt).toISOString() } : {}),
+      ...(safeNotificationErrorCode(row.lastErrorCode) ? { errorCode: row.lastErrorCode } : {}),
+      status: notificationOperationalStatus(row, now),
+      totalJobs: Number(row.totalJobs),
+      updatedAt: new Date(row.updatedAt).toISOString(),
+    };
+    byRequest.set(row.requestId, entry);
+  }
+  return byRequest;
+}
+
+function safeNotificationAdapter(value) {
+  return ["disabled", "engine", "microsoft_graph", "notification", "smtp", "webhook"].includes(value)
+    ? value
+    : undefined;
+}
+
+function safeNotificationErrorCode(value) {
+  return typeof value === "string" && /^[a-z0-9_]{1,64}$/.test(value) ? value : undefined;
+}
+
+async function loadNotificationDeliveryEvidence(client, tenantId, requestId, capturedAt) {
+  const result = await client.query(
+    `select j."id", j."notificationType", j."status", j."availableAt", j."createdAt",
+            j."result"->>'outcome' as "resultOutcome",
+            a."attempt", a."adapter", a."outcome" as "attemptOutcome", a."errorCode",
+            a."startedAt", a."completedAt" as "attemptCompletedAt"
+     from "vasi_engine"."outbox_job" j
+     left join "vasi_engine"."notification_delivery_attempt" a
+       on a."jobId" = j."id" and a."completedAt" <= $3
+     where j."tenantId" = $1 and j."requestId" = $2 and j."jobType" = 'notification'
+       and j."notificationType" is not null and j."createdAt" <= $3
+     order by j."createdAt", j."id", a."attempt"`,
+    [tenantId, requestId, capturedAt],
+  );
+  const jobs = [];
+  const byId = new Map();
+  for (const row of result.rows) {
+    let job = byId.get(row.id);
+    if (!job) {
+      job = {
+        attempts: [],
+        id: row.id,
+        notificationType: row.notificationType,
+        queuedAt: new Date(row.createdAt).toISOString(),
+        scheduledFor: new Date(row.availableAt).toISOString(),
+        status: notificationOperationalStatus(row, capturedAt),
+      };
+      jobs.push(job);
+      byId.set(row.id, job);
+    }
+    if (row.attempt !== null && row.attempt !== undefined) {
+      job.attempts.push({
+        adapter: row.adapter,
+        attempt: Number(row.attempt),
+        completedAt: new Date(row.attemptCompletedAt).toISOString(),
+        ...(row.errorCode ? { errorCode: row.errorCode } : {}),
+        outcome: notificationEvidenceOutcome(row.attemptOutcome),
+        startedAt: new Date(row.startedAt).toISOString(),
+      });
+    }
+  }
+  return validateNotificationDeliveryEvidence({
+    capturedAt: capturedAt.toISOString(),
+    jobs,
+    limitations: [...NOTIFICATION_DELIVERY_LIMITATIONS],
+    schema: "vasi-notification-delivery-evidence/v1",
+  }, capturedAt.toISOString());
 }
 
 async function evidenceEvents(client, assignmentId) {

@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.21.4`
+Version: `0.22.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -251,6 +251,17 @@ Both systemd timers now schedule a first run relative to timer activation and
 subsequent runs relative to the service becoming inactive, preventing an
 enabled timer from remaining elapsed with no future trigger.
 
+Version 0.22.0 makes workflow notification delivery visible, lifecycle-safe,
+and part of the sealed record. Every notification job carries an explicit
+invitation, reminder, or completion purpose outside its encrypted payload.
+Company owners see a bounded per-request state while recipient links, message
+bodies, credentials, and provider responses remain excluded. Revocation,
+reissue, expiration, and completion suppress obsolete queued invitations and
+reminders without suppressing a valid completion notice. Manifest version 7
+seals the immutable adapter attempts available at completion, and reports use
+the accurate term “provider accepted” because Graph, SMTP, or webhook success
+does not prove inbox delivery, receipt, reading, attention, or identity.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -296,9 +307,11 @@ assessment remain installation or pilot gates.
   activity execution, request lifecycle controls, and revision-bound access and
   notification policies.
 - AES-256-GCM encrypted outbox envelopes, immutable delivery-attempt records,
-  bounded retry and stale-lock recovery, tenant-scoped mailbox-restricted
-  Microsoft Graph, generic SMTP, and HMAC-signed HTTPS webhook adapters behind
-  exact installation allowlists, and session-level authentication provenance.
+  explicit notification purpose, bounded retry and stale-lock recovery,
+  lifecycle-safe suppression, owner-visible provider-acceptance state, and
+  manifest-sealed attempt snapshots; tenant-scoped mailbox-restricted Microsoft
+  Graph, generic SMTP, and HMAC-signed HTTPS webhook adapters remain behind
+  exact installation allowlists.
 - Revisioned installation/tenant profiles, transactional capacity enforcement,
   evidence-bound branding/policy snapshots, encrypted integration credentials,
   hash-chained configuration events, and owner/operator control panels.
@@ -525,7 +538,7 @@ open/visible/engaged/idle/gap calculations, resumed sessions, version 5 sealing,
 and offline tamper rejection.
 `npm run engine:probe:context` verifies participant-context schema privacy,
 participant isolation, idempotency and changed-replay denial, sequence binding,
-manifest version 6 sealing, report audience reduction, and offline tamper
+current manifest sealing, report audience reduction, and offline tamper
 rejection.
 `npm run engine:probe:lifecycle` verifies named retention-policy binding,
 legal-hold enforcement and release, sealed purge tombstones, retired public
@@ -555,6 +568,10 @@ persistence, failure, rollback, and bounded verification contract. The
 first transaction, record, and assurance limits. The
 [workflow control plane](docs/architecture/workflow-control-plane.md) defines
 the company roles, state machine, publication, lifecycle, and outbox contracts.
+The [notification delivery evidence decision](docs/architecture/notification-delivery-evidence.md)
+defines explicit delivery purpose, lifecycle suppression, bounded owner status,
+manifest version 7 evidence, provider-acceptance wording, and at-least-once
+limits.
 The [document and electronic activity decision](docs/architecture/document-artifacts-and-activities.md)
 defines the PostgreSQL artifact lifecycle, supported contracts, streaming
 boundary, assurance language, and inspection limitations.
@@ -564,8 +581,9 @@ deterministic duration model, PostgreSQL evidence, report and verifier
 behavior, lifecycle integration, and assurance limits.
 The [participant context evidence decision](docs/architecture/participant-context-evidence.md)
 defines its fixed browser-reported schema, explicit exclusions, authenticated
-binding, PostgreSQL immutability, manifest version 6, report/data-access
-behavior, lifecycle and transfer integration, and assurance limits.
+binding, PostgreSQL immutability, manifest version 6 introduction and version 7
+carriage, report/data-access behavior, lifecycle and transfer integration, and
+assurance limits.
 The [evidence report and verification decision](docs/architecture/evidence-reports-and-verification.md)
 defines deterministic report profiles, portable bundle contents, offline and
 online verification, PostgreSQL persistence, key rotation, certificate seals,

@@ -9,12 +9,14 @@ import {
   participantContextPolicy,
   withParticipantContextProvenance,
 } from "../engine-domain/context.mjs";
+import { NOTIFICATION_DELIVERY_LIMITATIONS } from "../engine-domain/notifications.mjs";
 
 export function sealedTestRecord() {
   const { privateKey } = generateKeyPairSync("ed25519");
   const privateJWK = privateKey.export({ format: "jwk" });
   const activityInteraction = interactionEvidence();
   const participantContext = contextEvidence();
+  const notificationDelivery = notificationEvidence();
   const firstData = eventData(1, "0".repeat(64), "request.issued", "owner", "owner@example.test", {}, "2026-01-01T00:00:00.000Z");
   const first = eventRecord(firstData);
   const secondData = eventData(2, first.eventHash, "participant.opened", "participant", "person@example.test", {}, "2026-01-01T00:00:10.000Z");
@@ -93,9 +95,10 @@ export function sealedTestRecord() {
       }],
       status: "completed",
     },
+    notificationDelivery,
     participantContext,
     request: { expiresAt: "2026-01-08T00:00:00.000Z", id: "request-1", purpose: "Test evidence reporting" },
-    schema: "vasi-evidence-manifest/v6",
+    schema: "vasi-evidence-manifest/v7",
     tenant: { id: "tenant-1", name: "Example Company" },
     timestamps: {
       completedAt: "2026-01-01T00:02:00.000Z",
@@ -118,6 +121,28 @@ export function sealedTestRecord() {
   return {
     privateJWK,
     record: { events, manifest, seal, seals: [seal] },
+  };
+}
+
+function notificationEvidence() {
+  return {
+    capturedAt: "2026-01-01T00:02:00.000Z",
+    jobs: [{
+      attempts: [{
+        adapter: "microsoft_graph",
+        attempt: 1,
+        completedAt: "2026-01-01T00:00:02.000Z",
+        outcome: "provider_accepted",
+        startedAt: "2026-01-01T00:00:01.000Z",
+      }],
+      id: "notification-job-1",
+      notificationType: "request.issued",
+      queuedAt: "2026-01-01T00:00:00.000Z",
+      scheduledFor: "2026-01-01T00:00:00.000Z",
+      status: "provider_accepted",
+    }],
+    limitations: [...NOTIFICATION_DELIVERY_LIMITATIONS],
+    schema: "vasi-notification-delivery-evidence/v1",
   };
 }
 

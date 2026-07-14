@@ -33,4 +33,14 @@ describe("portable evidence record verification", () => {
     expect(result.verified).toBe(false);
     expect(result.errors).toContain("participant_context_snapshot_hash_invalid");
   });
+
+  it("rejects sealed notification evidence with provider response or participant data", () => {
+    const { record } = sealedTestRecord();
+    expect(verifyEvidenceRecord(record).checks.notificationDelivery).toBe(true);
+    const altered = structuredClone(record);
+    altered.manifest.notificationDelivery.jobs[0].recipient = "person@example.test";
+    const result = verifyEvidenceRecord(altered);
+    expect(result.verified).toBe(false);
+    expect(result.errors).toContain("notification_delivery_field_unsupported");
+  });
 });
