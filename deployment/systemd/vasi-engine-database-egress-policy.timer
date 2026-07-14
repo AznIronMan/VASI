@@ -1,5 +1,5 @@
 [Unit]
-Description=Refresh the VASI engine exact PostgreSQL egress policy
+Description=Refresh the VASI engine exact database and private-ingress egress policy
 
 [Timer]
 OnBootSec=15s

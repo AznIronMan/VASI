@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.21.1`
+Version: `0.21.2`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -213,9 +213,9 @@ credentials, and customer data. The portable default reports replication
 posture without requiring a replica; an installation can make primary-replica
 presence a blocking approved threshold.
 
-Version 0.21.0 makes private-engine outbound access deny-by-default. Engine,
-worker, and private ingress now join internal networks only; the integration
-gateway alone receives a dedicated provider-egress network. Persistent
+Version 0.21.0 introduces deny-by-default private-engine outbound access. The
+engine and worker join internal networks only; the integration gateway alone
+receives a dedicated provider-egress network. Persistent
 PostgreSQL clients preserve end-to-end TLS hostname verification through a
 minimal raw transport gateway whose dedicated bridge is restricted by an
 exact resolved IPv4-and-port host policy. Packaged refresh and verification
@@ -231,6 +231,14 @@ Version 0.21.1 makes the database-gateway image a mandatory target in the
 commit-pinned CI build, runtime-contract check, SBOM export, and vulnerability
 scan. Source assurance derives the complete release-image set from the
 versioned policy and rejects a workflow that omits any declared image.
+
+Version 0.21.2 gives private ingress a dedicated single-stack listener bridge
+so Docker can publish its approved private listener without giving the process
+general outbound access. A second exact host chain permits established reply
+traffic from that bridge and rejects every new forwarded flow. The recurring
+boundary proof now requires both host chains, four private-service denial
+canaries, a reachable published listener, integration egress, runtime health,
+and database transport.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
@@ -463,8 +471,12 @@ gateway contract:
 ```bash
 install -d -m 700 data
 docker compose -f compose.engine.yaml --profile tools run --rm --build settings init
+docker compose -f compose.engine.yaml build database-gateway engine maintenance settings
+docker compose -f compose.engine.yaml up --no-start --no-deps database-gateway private-ingress
+sudo /bin/sh scripts/apply-database-egress-policy.sh apply
 docker compose -f compose.engine.yaml --profile release run --rm --build migrate
-docker compose -f compose.engine.yaml up -d --build engine integration-gateway worker private-ingress
+docker compose -f compose.engine.yaml up -d --no-build database-gateway engine integration-gateway worker private-ingress
+sudo /usr/bin/env node scripts/probe-engine-egress-boundary.mjs
 ```
 
 `engine`, `integration-gateway`, and `worker` have no `ports` mappings.
@@ -472,7 +484,10 @@ docker compose -f compose.engine.yaml up -d --build engine integration-gateway w
 `127.0.0.1:11121` in the sanitized template. A
 deployment-specific, untracked Compose override may replace that with an
 approved private address. Never bind it to a public interface or configure a
-public reverse proxy to supply the V·Sign client certificate.
+public reverse proxy to supply the V·Sign client certificate. Its dedicated
+listener bridge is externally routable at Docker's network layer only so port
+publication works; the required host chain allows established replies and
+denies every new outbound flow from that bridge.
 
 The engine uses its own PostgreSQL database or role/schema boundary and its own
 `data/VASI.settings`; do not reuse the gateway bootstrap. Service TLS keys,

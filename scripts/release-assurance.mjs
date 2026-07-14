@@ -178,7 +178,7 @@ export async function validateComposeContracts(repositoryRoot = root) {
     "integration-gateway": ["engine-data", "engine-integrations", "integration-egress"],
     maintenance: ["database-egress"],
     migrate: ["database-egress"],
-    "private-ingress": ["engine-data", "engine-private"],
+    "private-ingress": ["engine-data", "engine-private", "private-ingress-listener"],
     settings: ["database-egress"],
     worker: ["engine-data", "engine-integrations"],
   };
@@ -191,20 +191,39 @@ export async function validateComposeContracts(repositoryRoot = root) {
   for (const name of ["engine-data", "engine-integrations", "engine-private"]) {
     if (engine?.networks?.[name]?.internal !== true) failures.push(`engine network ${name} must be internal`);
   }
-  for (const name of ["database-egress", "integration-egress"]) {
+  for (const name of ["database-egress", "integration-egress", "private-ingress-listener"]) {
     if (!engine?.networks?.[name] || engine.networks[name].internal === true) {
       failures.push(`engine network ${name} must be a dedicated external network`);
     }
   }
-  for (const name of ["database-egress", "engine-data", "integration-egress"]) {
+  for (const name of [
+    "database-egress",
+    "engine-data",
+    "engine-integrations",
+    "engine-private",
+    "integration-egress",
+    "private-ingress-listener",
+  ]) {
     if (engine?.networks?.[name]?.enable_ipv6 !== false) {
       failures.push(`engine network ${name} must keep IPv6 disabled`);
     }
   }
-  const databaseSubnets = engine?.networks?.["database-egress"]?.ipam?.config;
-  if (!Array.isArray(databaseSubnets) || databaseSubnets.length !== 1 ||
-      databaseSubnets[0]?.subnet !== "172.29.254.0/28") {
-    failures.push("engine database-egress must use the reviewed stable IPv4 subnet");
+  const expectedSubnets = {
+    "database-egress": "172.29.254.0/28",
+    "private-ingress-listener": "172.29.254.16/28",
+    "engine-private": "172.29.254.32/28",
+    "engine-data": "172.29.254.48/28",
+    "engine-integrations": "172.29.254.64/28",
+    "integration-egress": "172.29.254.80/28",
+  };
+  for (const [name, expectedSubnet] of Object.entries(expectedSubnets)) {
+    const subnets = engine?.networks?.[name]?.ipam?.config;
+    if (!Array.isArray(subnets) || subnets.length !== 1 || subnets[0]?.subnet !== expectedSubnet) {
+      failures.push(`engine ${name} must use its reviewed stable IPv4 subnet`);
+    }
+  }
+  if (engine?.services?.["private-ingress"]?.networks?.["private-ingress-listener"]?.gw_priority !== 1) {
+    failures.push("engine.private-ingress must use the listener bridge as its default gateway");
   }
   for (const name of ["engine", "integration-gateway", "private-ingress", "worker"]) {
     if (!hasReadOnlyDatabaseTransportMarker(engine?.services?.[name]?.volumes)) {

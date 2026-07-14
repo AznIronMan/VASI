@@ -1,6 +1,6 @@
 {
   "name": "vasi",
-  "version": "0.21.1",
+  "version": "0.21.2",
   "private": true,
   "description": "Verified Authorized Signing Infrastructure",
   "engines": {

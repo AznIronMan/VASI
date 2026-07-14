@@ -12,14 +12,15 @@ database and login role, a dedicated deployment directory, and a unique
 - `integration-gateway` has no host port and is the only application process
   that decrypts integration credentials or contacts external Microsoft Graph,
   SMTP, webhook, or malware-scanner endpoints.
-- `engine`, `worker`, and `private-ingress` join internal networks only.
-  Persistent PostgreSQL sessions cross the non-terminating
-  `database-gateway`; only that minimal process joins the separately
-  firewalled database-egress network.
+- `engine` and `worker` join internal networks only. Persistent PostgreSQL
+  sessions cross the non-terminating `database-gateway`; only that minimal
+  process joins the separately firewalled database-egress network.
 - `integration-gateway` alone joins the provider-egress network. The engine,
   worker, and private ingress cannot route through it as a general proxy.
 - `private-ingress` exposes only the approved route table and is the only host
-  listener.
+  listener. It also joins a dedicated single-stack listener bridge so Docker
+  can publish the port; an exact host policy permits established replies and
+  denies every new outbound flow from that bridge.
 - The tracked Compose binds the facade to loopback. Put a private address in an
   ignored override only after confirming the address and port are reserved.
 - Public reverse proxies must not receive the client certificate or key. A
@@ -190,12 +191,16 @@ historical verification material.
 
 ## Outbound isolation
 
-VASI 0.21.0 requires Linux `iptables` with Docker's `DOCKER-USER` chain for
-the packaged host adapter. The sanitized database-egress bridge has a stable
-private IPv4 subnet and IPv6 disabled. Before startup, confirm that
-`172.29.254.0/28` does not overlap any host, VPN, container, or routed network.
-If it does, override that one subnet in ignored installation Compose and keep
-it stable, private, single-stack, and dedicated.
+VASI 0.21.2 requires Linux `iptables` with Docker's `DOCKER-USER` chain for
+the packaged host adapter. The sanitized database-egress and private-ingress
+listener bridges have stable private IPv4 subnets and IPv6 disabled. All six
+engine bridges reserve distinct `/28` allocations inside
+`172.29.254.0/24`; this prevents Docker's automatic subnet allocation order
+from colliding with the firewall-controlled bridges. Before startup, confirm
+that the whole `/24` does not overlap any host, VPN, container, or routed
+network. Override all six allocations as one non-overlapping private block in
+ignored installation Compose and keep them stable, single-stack, dedicated,
+and distinct.
 
 Fresh initialization creates the protected bootstrap before an exact policy
 can be rendered. Immediately after `settings init`, and before migration or
@@ -204,15 +209,17 @@ policy:
 
 ```bash
 docker compose -f compose.engine.yaml build database-gateway engine maintenance settings
-docker compose -f compose.engine.yaml create --no-recreate database-gateway
+docker compose -f compose.engine.yaml up --no-start --no-deps database-gateway private-ingress
 sudo /bin/sh scripts/apply-database-egress-policy.sh apply
 ```
 
-The policy command runs a non-root, read-only renderer container, writes its
-temporary rules under `/run` with mode `0600`, validates them, loads the custom
-chain, and only then installs one Docker forwarding jump. It prints no subnet,
-address, hostname, URL, or credential. Do not start the persistent services if
-it fails.
+The policy command runs non-root, read-only renderers, writes both temporary
+rule sets under `/run` with mode `0600`, validates them, loads the custom
+chains, and only then installs one Docker forwarding jump per chain. The
+database chain allows only the protected PostgreSQL target; the listener chain
+allows established replies and rejects new forwarded traffic. It prints no
+subnet, address, hostname, URL, or credential. Do not start the persistent
+services if it fails.
 
 For a systemd installation using `/opt/vasi-engine/current`, install the four
 shipped units and enable the independent refresh and verification timers:
@@ -227,7 +234,12 @@ sudo systemctl start vasi-engine-database-egress-policy.service
 
 If the release symlink is elsewhere, change `WorkingDirectory` and the matching
 `Documentation` path in the installed service units before enabling them; do
-not use an environment or credentials file. Order any local engine-stack unit
+not use an environment or credentials file. For a release below `/home`, add a
+systemd drop-in to both service units with `ProtectHome=read-only` and
+`CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_DAC_READ_SEARCH`, then run
+`systemd-analyze verify` and both one-shots manually before enabling timers.
+This permits traversal of protected release parents without a writable home.
+Order any local engine-stack unit
 after and requiring `vasi-engine-database-egress-policy.service`. Enable the
 boundary timer only after the stack is healthy:
 
@@ -237,14 +249,16 @@ sudo /usr/bin/env node scripts/probe-engine-egress-boundary.mjs
 ```
 
 For multiple dedicated instances on one host, pass the same unique lowercase
-Compose project and uppercase firewall chain to both commands, and add them to
-the two installed service `ExecStart` lines:
+Compose project and two distinct uppercase firewall chains to both commands,
+and add them to the two installed service `ExecStart` lines:
 
 ```bash
 sudo /bin/sh scripts/apply-database-egress-policy.sh apply \
-  --project-name vasi-example --chain VASI_EXAMPLE_EGRESS
+  --project-name vasi-example \
+  --database-chain VASI_EXAMPLE_DATABASE --ingress-chain VASI_EXAMPLE_INGRESS
 sudo node scripts/probe-engine-egress-boundary.mjs \
-  --project-name vasi-example --chain VASI_EXAMPLE_EGRESS
+  --project-name vasi-example \
+  --database-chain VASI_EXAMPLE_DATABASE --ingress-chain VASI_EXAMPLE_INGRESS
 ```
 
 The policy refreshes every two minutes and the proof every five. A PostgreSQL
@@ -264,7 +278,7 @@ never reuse an old network whose `Internal` value is false.
 ```bash
 docker compose -f compose.engine.yaml down
 docker compose -f compose.engine.yaml build database-gateway engine maintenance settings
-docker compose -f compose.engine.yaml create database-gateway
+docker compose -f compose.engine.yaml up --no-start --no-deps database-gateway private-ingress
 sudo /bin/sh scripts/apply-database-egress-policy.sh apply
 docker compose -f compose.engine.yaml --profile release run --rm migrate
 docker compose -f compose.engine.yaml up -d --no-build \
@@ -404,7 +418,7 @@ encrypted off-host custody or establish an RPO/RTO.
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.
 
-For rollback, first stop the complete 0.21.1 engine stack. Disable its two
+For rollback, first stop the complete 0.21.2 engine stack. Disable its two
 timers, remove the policy with
 `sudo /bin/sh scripts/apply-database-egress-policy.sh remove`, switch the whole
 release—not selected files—to the prior verified version, and follow that

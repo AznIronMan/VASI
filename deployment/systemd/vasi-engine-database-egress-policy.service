@@ -1,5 +1,5 @@
 [Unit]
-Description=VASI engine exact PostgreSQL egress policy
+Description=VASI engine exact database and private-ingress egress policy
 Documentation=file:/opt/vasi-engine/current/docs/architecture/private-engine-egress.md
 Requires=docker.service
 After=docker.service network-online.target

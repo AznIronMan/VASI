@@ -1,12 +1,14 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { connect, isIP } from "node:net";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const EGRESS_BOUNDARY_VERSION = "0.21.1";
-export const EGRESS_BOUNDARY_SCHEMA = "vasi-engine-egress-boundary/v1";
+export const EGRESS_BOUNDARY_VERSION = "0.21.2";
+export const EGRESS_BOUNDARY_SCHEMA = "vasi-engine-egress-boundary/v2";
 const DEFAULT_DATABASE_CHAIN = "VASI_DATABASE_EGRESS";
+const DEFAULT_INGRESS_CHAIN = "VASI_INGRESS_EGRESS";
 const DEFAULT_PROJECT_NAME = "vasi-engine";
 const PUBLIC_CANARY = "https://example.com/";
 const PRIVATE_SERVICES = ["database-gateway", "engine", "private-ingress", "worker"];
@@ -15,12 +17,19 @@ const ALL_SERVICES = [...PRIVATE_SERVICES, "integration-gateway"];
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export async function probeEngineEgressBoundary({
-  chain = DEFAULT_DATABASE_CHAIN,
+  chain,
+  databaseChain = chain || DEFAULT_DATABASE_CHAIN,
+  ingressChain = DEFAULT_INGRESS_CHAIN,
   projectName = DEFAULT_PROJECT_NAME,
   repositoryRoot = root,
   runner = runBounded,
+  tcpProbe = probeTCP,
 } = {}) {
-  const checkedChain = validatedChain(chain);
+  const checkedDatabaseChain = validatedChain(databaseChain);
+  const checkedIngressChain = validatedChain(ingressChain);
+  if (checkedDatabaseChain === checkedIngressChain) {
+    throw new Error("The VASI egress boundary arguments are invalid.");
+  }
   const checkedProjectName = validatedProjectName(projectName);
   const compose = composeArguments(repositoryRoot, checkedProjectName);
   const containers = Object.fromEntries(await Promise.all(ALL_SERVICES.map(async (service) => [
@@ -29,7 +38,19 @@ export async function probeEngineEgressBoundary({
   ])));
 
   await verifyRuntimeHealth({ containers, runner });
-  await verifyDatabaseFirewall({ chain: checkedChain, compose, projectName: checkedProjectName, repositoryRoot, runner });
+  await verifyHostFirewall({
+    compose,
+    databaseChain: checkedDatabaseChain,
+    ingressChain: checkedIngressChain,
+    projectName: checkedProjectName,
+    repositoryRoot,
+    runner,
+  });
+  await verifyPublishedListener({
+    identifier: containers["private-ingress"],
+    runner,
+    tcpProbe,
+  });
   await Promise.all(PRIVATE_SERVICES.map(async (service) => {
     const result = await runner("docker", canaryArguments(containers[service]), { timeoutMilliseconds: 10_000 });
     if (result.code !== 42) throw new Error("The VASI private service egress boundary is unavailable.");
@@ -50,6 +71,8 @@ export async function probeEngineEgressBoundary({
       databaseTransport: "ok",
       deniedPrivateServices: PRIVATE_SERVICES.length,
       integrationEgress: "ok",
+      privateIngress: "ok",
+      privateIngressPolicy: "ok",
       runtimeHealth: "ok",
     }),
     schema: EGRESS_BOUNDARY_SCHEMA,
@@ -58,17 +81,19 @@ export async function probeEngineEgressBoundary({
   });
 }
 
-export function verifyDatabaseFirewallRules(expectedText, actualText, chain = DEFAULT_DATABASE_CHAIN) {
+export function verifyFirewallRules(expectedText, actualText, chain = DEFAULT_DATABASE_CHAIN) {
   const checkedChain = validatedChain(chain);
   const expected = chainRules(expectedText, checkedChain);
   const actual = chainRules(actualText, checkedChain);
   const jumps = String(actualText).split("\n")
     .filter((line) => line === `-A DOCKER-USER -j ${checkedChain}`);
   if (!expected.length || JSON.stringify(actual) !== JSON.stringify(expected) || jumps.length !== 1) {
-    throw new Error("The VASI database egress firewall policy is unavailable.");
+    throw new Error("The VASI engine egress firewall policy is unavailable.");
   }
   return true;
 }
+
+export const verifyDatabaseFirewallRules = verifyFirewallRules;
 
 function chainRules(value, chain) {
   return String(value).split("\n")
@@ -111,24 +136,70 @@ async function verifyRuntimeHealth({ containers, runner }) {
   }));
 }
 
-async function verifyDatabaseFirewall({ chain, compose, projectName, repositoryRoot, runner }) {
+async function verifyHostFirewall({
+  compose,
+  databaseChain,
+  ingressChain,
+  projectName,
+  repositoryRoot,
+  runner,
+}) {
+  const [databaseSubnet, ingressSubnet] = await Promise.all([
+    inspectedSubnet({ name: `${projectName}_database-egress`, runner }),
+    inspectedSubnet({ name: `${projectName}_private-ingress-listener`, runner }),
+  ]);
+  const [databaseExpected, ingressExpected, actual] = await Promise.all([
+    runner("docker", [
+      ...compose, "--profile", "tools", "run", "--rm", "--no-deps",
+      "egress-policy", "--subnet", databaseSubnet, "--chain", databaseChain,
+    ], { cwd: repositoryRoot, timeoutMilliseconds: 30_000 }),
+    runner("docker", [
+      ...compose, "--profile", "tools", "run", "--rm", "--no-deps", "--entrypoint", "node",
+      "egress-policy", "scripts/render-private-ingress-egress-policy.mjs",
+      "--subnet", ingressSubnet, "--chain", ingressChain,
+    ], { cwd: repositoryRoot, timeoutMilliseconds: 30_000 }),
+    runner("iptables-save", ["-t", "filter"], { timeoutMilliseconds: 10_000 }),
+  ]);
+  if (databaseExpected.code !== 0 || ingressExpected.code !== 0 || actual.code !== 0) {
+    throw new Error("The VASI engine egress firewall policy is unavailable.");
+  }
+  verifyFirewallRules(databaseExpected.stdout, actual.stdout, databaseChain);
+  verifyFirewallRules(ingressExpected.stdout, actual.stdout, ingressChain);
+}
+
+async function inspectedSubnet({ name, runner }) {
   const network = await runner("docker", [
-    "network", "inspect", `${projectName}_database-egress`, "--format",
-    "{{(index .IPAM.Config 0).Subnet}}",
+    "network", "inspect", name, "--format", "{{(index .IPAM.Config 0).Subnet}}",
   ], { timeoutMilliseconds: 10_000 });
   const subnet = network.stdout.trim();
   if (network.code !== 0 || !/^\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}$/.test(subnet)) {
-    throw new Error("The VASI database egress firewall policy is unavailable.");
+    throw new Error("The VASI engine egress firewall policy is unavailable.");
   }
-  const expected = await runner("docker", [
-    ...compose, "--profile", "tools", "run", "--rm", "--no-deps",
-    "egress-policy", "--subnet", subnet, "--chain", chain,
-  ], { cwd: repositoryRoot, timeoutMilliseconds: 30_000 });
-  const actual = await runner("iptables-save", ["-t", "filter"], { timeoutMilliseconds: 10_000 });
-  if (expected.code !== 0 || actual.code !== 0) {
-    throw new Error("The VASI database egress firewall policy is unavailable.");
+  return subnet;
+}
+
+async function verifyPublishedListener({ identifier, runner, tcpProbe }) {
+  const result = await runner("docker", [
+    "inspect", "--format", "{{json (index .HostConfig.PortBindings \"8443/tcp\")}}", identifier,
+  ], { timeoutMilliseconds: 10_000 });
+  let bindings;
+  try {
+    bindings = JSON.parse(result.stdout.trim());
+  } catch {
+    bindings = null;
   }
-  verifyDatabaseFirewallRules(expected.stdout, actual.stdout, chain);
+  if (result.code !== 0 || !Array.isArray(bindings) || bindings.length !== 1) {
+    throw new Error("The VASI private ingress listener is unavailable.");
+  }
+  const binding = bindings[0];
+  const port = Number(binding?.HostPort);
+  let host = String(binding?.HostIp || "");
+  if (host === "" || host === "0.0.0.0") host = "127.0.0.1";
+  if (host === "::") host = "::1";
+  if (!isIP(host) || !Number.isSafeInteger(port) || port < 1 || port > 65_535 ||
+      !await tcpProbe({ host, port, timeoutMilliseconds: 5_000 })) {
+    throw new Error("The VASI private ingress listener is unavailable.");
+  }
 }
 
 function validatedChain(value) {
@@ -148,19 +219,52 @@ function validatedProjectName(value) {
 }
 
 function parseArguments(args) {
-  const parsed = { chain: DEFAULT_DATABASE_CHAIN, projectName: DEFAULT_PROJECT_NAME };
+  const parsed = {
+    databaseChain: DEFAULT_DATABASE_CHAIN,
+    ingressChain: DEFAULT_INGRESS_CHAIN,
+    projectName: DEFAULT_PROJECT_NAME,
+  };
   const seen = new Set();
   for (let index = 0; index < args.length; index += 2) {
     const option = args[index];
     const value = args[index + 1];
-    if (!value || seen.has(option) || !["--chain", "--project-name"].includes(option)) {
+    if (!value || seen.has(option) ||
+        !["--chain", "--database-chain", "--ingress-chain", "--project-name"].includes(option)) {
+      throw new Error("The VASI egress boundary arguments are invalid.");
+    }
+    if ((option === "--chain" && seen.has("--database-chain")) ||
+        (option === "--database-chain" && seen.has("--chain"))) {
       throw new Error("The VASI egress boundary arguments are invalid.");
     }
     seen.add(option);
-    if (option === "--chain") parsed.chain = validatedChain(value);
+    if (option === "--chain" || option === "--database-chain") parsed.databaseChain = validatedChain(value);
+    if (option === "--ingress-chain") parsed.ingressChain = validatedChain(value);
     if (option === "--project-name") parsed.projectName = validatedProjectName(value);
   }
   return parsed;
+}
+
+function probeTCP({ host, port, timeoutMilliseconds }) {
+  return new Promise((resolve) => {
+    const socket = connect({ host, port });
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMilliseconds);
+    timer.unref();
+    socket.once("connect", () => {
+      clearTimeout(timer);
+      finish(true);
+    });
+    socket.once("error", () => {
+      clearTimeout(timer);
+      finish(false);
+    });
+  });
 }
 
 function canaryArguments(identifier) {
