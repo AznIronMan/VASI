@@ -2,6 +2,11 @@
 
 Status: implemented in VASI 0.9.0.
 
+VASI 0.18.0 extends the sealed record to manifest version 6 with fixed,
+privacy-bounded participant-context observations. Technical and structured
+profiles retain those values; participant and plain-language profiles expose
+only their presence, purposes, provenance class, and limitations.
+
 ## Purpose and boundary
 
 VASI turns a sealed transaction into deterministic evidence that a participant,

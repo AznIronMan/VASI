@@ -47,6 +47,10 @@ export const ENGINE_MIGRATIONS = Object.freeze([
     name: "0010_engine_activity_interaction",
     path: path.join(repositoryRoot, "database", "engine-activity-interaction.sql"),
   },
+  {
+    name: "0011_engine_participant_context",
+    path: path.join(repositoryRoot, "database", "engine-participant-context.sql"),
+  },
 ].map((migration) => Object.freeze(migration)));
 
 export async function engineMigrationManifest() {

@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.17.0`
+Version: `0.18.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -165,6 +165,18 @@ confidence limits in human reports, included in approved participant data
 exports, independently recalculated by the offline verifier, and removed only
 through the existing controlled retention purge.
 
+Version 0.18.0 adds immutable, privacy-bounded participant browser/device
+context observations at activity presentation and immediately before saves or
+submissions. A strict schema accepts only reported locale/time zone,
+viewport/screen, pixel/color, touch, cookie/storage/PDF capability,
+accessibility preference, online, and coarse connection values. It explicitly
+excludes plugin/font enumeration, invasive fingerprinting, precise location,
+hardware identifiers, hidden media, keys, input contents, coordinates, and
+secrets. Authenticated context rows are replay-safe, sealed in manifest version
+6, independently hash/chain verified, summarized by audience, included only in
+approved technical participant exports, governed by retention, and transferred
+with every generalized interaction table in encrypted tenant archives.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -235,6 +247,10 @@ milestones.
   replay-safe batch envelopes, immutable deterministic revisions, version 5
   sealing, human-readable timing summaries, offline recalculation, participant
   data access, and controlled purge.
+- Immutable presentation/save/submission browser-context snapshots with fixed
+  passive browser-reported fields, explicit provenance, participant
+  and session binding, version 6 sealing, audience-reduced reports, forensic
+  verification, reviewed data access, purge, and encrypted tenant transfer.
 - Deterministic human and machine evidence reports, immutable PostgreSQL export
   chunks, portable sealed ZIP bundles with authoritative document revisions,
   an offline verifier, a privacy-minimized public fingerprint verifier, key
@@ -416,6 +432,10 @@ lookup privacy, isolation, and tamper rejection.
 strict privacy bounds, idempotency and changed-replay denial, deterministic
 open/visible/engaged/idle/gap calculations, resumed sessions, version 5 sealing,
 and offline tamper rejection.
+`npm run engine:probe:context` verifies participant-context schema privacy,
+participant isolation, idempotency and changed-replay denial, sequence binding,
+manifest version 6 sealing, report audience reduction, and offline tamper
+rejection.
 `npm run engine:probe:lifecycle` verifies named retention-policy binding,
 legal-hold enforcement and release, sealed purge tombstones, retired public
 verification, participant history, reviewed data export, controlled expiry,
@@ -446,6 +466,10 @@ The [generalized activity interaction evidence decision](docs/architecture/gener
 defines its fixed privacy-bounded events, authorization and replay controls,
 deterministic duration model, PostgreSQL evidence, report and verifier
 behavior, lifecycle integration, and assurance limits.
+The [participant context evidence decision](docs/architecture/participant-context-evidence.md)
+defines its fixed browser-reported schema, explicit exclusions, authenticated
+binding, PostgreSQL immutability, manifest version 6, report/data-access
+behavior, lifecycle and transfer integration, and assurance limits.
 The [evidence report and verification decision](docs/architecture/evidence-reports-and-verification.md)
 defines deterministic report profiles, portable bundle contents, offline and
 online verification, PostgreSQL persistence, key rotation, certificate seals,

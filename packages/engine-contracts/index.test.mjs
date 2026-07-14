@@ -56,6 +56,9 @@ describe("private engine routes", () => {
       "participant.data_request.list",
     );
     expect(resolveEngineRoute("GET", "/v1/admin/operations")?.action).toBe("operations.read");
+    expect(resolveEngineRoute("POST", "/v1/participant/context-snapshots")?.action).toBe(
+      "participant.context.record",
+    );
     expect(resolveEngineRoute("POST", "/v1/admin/operations")).toBeUndefined();
   });
 });

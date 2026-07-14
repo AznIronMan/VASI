@@ -32,5 +32,8 @@ describe("engine service authorization", () => {
     expect(authorizeServiceAction("vasi-private-ingress", "operations.read").action).toBe(
       "operations.read",
     );
+    expect(authorizeServiceAction("vasi-private-ingress", "participant.context.record").action).toBe(
+      "participant.context.record",
+    );
   });
 });

@@ -169,6 +169,16 @@ external callback destinations are rejected. Link possession selects a request
 but does not authorize it. The private engine separately requires the intended
 verified email and binds first access to the stable V·Sign principal.
 
+On an authorized request page, VASI records separately labeled server-observed
+request headers and fixed browser-reported context at presentation and before a
+save/submission. The browser contract is limited to locale/time zone,
+viewport/screen, touch, basic storage/cookie/PDF capabilities, accessibility
+preferences, online state, and coarse connection values when exposed. It does
+not enumerate plugins/fonts, create canvas/WebGL/audio fingerprints, request
+precise location, capture hidden media, or retain keys, input contents, pointer
+coordinates, credentials, or tokens. Collection failure never prevents the
+participant from responding.
+
 ## Internal identity administration
 
 Configure the private console with:

@@ -112,6 +112,11 @@ Participant data access accepts `ENGINE_PARTICIPANT_DATA_EXPORT_MAX_BYTES`
 enforced by the engine and worker; export bytes remain in bounded PostgreSQL
 chunks until controlled expiry.
 
+Privacy-bounded participant browser/device context accepts
+`ENGINE_PARTICIPANT_CONTEXT_MAX_SNAPSHOTS_PER_ACTIVITY` (default `16`, allowed
+range `2` through `64`). This is a storage/abuse bound, not permission to add
+fields beyond the fixed `vasi-participant-context/v1` schema.
+
 The certificate private key is secret. Its chain is public verification
 material. Use signing material distinct from the service TLS identity. Local
 certificate verification proves the leaf signature and key match, not public
@@ -175,6 +180,7 @@ npm run engine:probe:media # disposable conformance database only
 npm run engine:probe:reports # disposable conformance database only
 npm run engine:probe:lifecycle # disposable conformance database only
 npm run engine:probe:productization # disposable conformance database only
+npm run engine:probe:context # disposable conformance database only
 ```
 
 Run the privacy-safe operational probe on the engine host after migration and

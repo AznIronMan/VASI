@@ -162,3 +162,8 @@ Deployment-specific privacy/legal owners must still approve the notice,
 purpose, lawful basis, retention schedule, subject-access treatment, and any
 jurisdiction-specific use of browser evidence. Independent security and manual
 accessibility review remain external assurance gates.
+
+VASI 0.18.0 advances completed workflow records to manifest version 6 by adding
+separately bounded participant browser/device context. The version 5 interaction
+batch/event/summary structure and its verifier calculations remain unchanged
+inside that newer manifest.

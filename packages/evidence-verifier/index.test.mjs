@@ -23,4 +23,14 @@ describe("portable evidence record verification", () => {
     expect(result.verified).toBe(false);
     expect(result.errors).toContain("activity_interaction_summary_calculation_invalid");
   });
+
+  it("recomputes participant-context hashes and rejects forensic snapshot tampering", () => {
+    const { record } = sealedTestRecord();
+    expect(verifyEvidenceRecord(record).checks.participantContext).toBe(true);
+    const altered = structuredClone(record);
+    altered.manifest.participantContext.snapshots[0].snapshot.display.viewportWidth = 1280;
+    const result = verifyEvidenceRecord(altered);
+    expect(result.verified).toBe(false);
+    expect(result.errors).toContain("participant_context_snapshot_hash_invalid");
+  });
 });

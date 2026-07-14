@@ -7,6 +7,10 @@ import {
 import { parseStoredZip } from "../evidence-bundle/index.mjs";
 import { buildEvidenceReports, renderEvidenceReport } from "../evidence-reporting/index.mjs";
 import { calculateActivityInteractionSummary } from "../engine-domain/interaction.mjs";
+import {
+  participantContextPolicy,
+  validateStoredParticipantContextSnapshot,
+} from "../engine-domain/context.mjs";
 
 const GENESIS_HASH = "0".repeat(64);
 
@@ -61,8 +65,11 @@ export function verifyEvidenceRecord(record, options = {}) {
     if (JSON.stringify(evidence?.eventHashes) !== JSON.stringify(eventHashes)) {
       errors.push("manifest_event_hashes_invalid");
     }
-    if (manifest.schema === "vasi-evidence-manifest/v5") {
+    if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6"].includes(manifest.schema)) {
       verifyActivityInteractionEvidence(manifest.activityInteraction, events, errors);
+    }
+    if (manifest.schema === "vasi-evidence-manifest/v6") {
+      verifyParticipantContextEvidence(manifest.participantContext, events, errors);
     }
   }
 
@@ -100,6 +107,7 @@ export function verifyEvidenceRecord(record, options = {}) {
     checks: Object.freeze({
       eventChain: !errors.some((error) => error.startsWith("event_") || error.startsWith("manifest_event") || error === "manifest_head_hash_invalid"),
       activityInteraction: !errors.some((error) => error.startsWith("activity_interaction_")),
+      participantContext: !errors.some((error) => error.startsWith("participant_context_")),
       manifest: Boolean(manifest) && !errors.includes("manifest_missing"),
       primarySeal: Boolean(primary) && !errors.includes("primary_seal_missing") && sealResults.some((seal) => seal.role === "vasi_integrity" && seal.verified),
     }),
@@ -291,6 +299,145 @@ function verifyActivityInteractionEvidence(value, evidenceEvents, errors) {
   }
   for (const activityId of latestSummaries.keys()) {
     if (!activityEvents.has(activityId)) errors.push("activity_interaction_summary_orphaned");
+  }
+}
+
+function verifyParticipantContextEvidence(value, evidenceEvents, errors) {
+  if (!value || typeof value !== "object" || Array.isArray(value) ||
+      !value.policy || typeof value.policy !== "object" || Array.isArray(value.policy) ||
+      !Array.isArray(value.snapshots)) {
+    errors.push("participant_context_evidence_invalid");
+    return;
+  }
+  if (value.snapshots.length > 100_000) {
+    errors.push("participant_context_evidence_unbounded");
+    return;
+  }
+  const maximum = value.policy.maxSnapshotsPerActivity;
+  if (!Number.isSafeInteger(maximum) || maximum < 2 || maximum > 64) {
+    errors.push("participant_context_policy_invalid");
+    return;
+  }
+  try {
+    const expectedPolicy = participantContextPolicy({
+      ENGINE_PARTICIPANT_CONTEXT_MAX_SNAPSHOTS_PER_ACTIVITY: maximum,
+    });
+    if (hashCanonicalJSON(value.policy) !== hashCanonicalJSON(expectedPolicy)) {
+      errors.push("participant_context_policy_invalid");
+    }
+  } catch {
+    errors.push("participant_context_policy_invalid");
+  }
+
+  const contextChainEvents = evidenceEvents.filter((entry) =>
+    entry?.eventData?.eventType === "participant.context.recorded"
+  );
+  const snapshotIds = new Set();
+  const sequenceIds = new Set();
+  const sessionProgress = new Map();
+  const activityCounts = new Map();
+  for (const entry of value.snapshots) {
+    const activityId = boundedText(entry?.activityId, 64);
+    const actorPrincipalId = boundedText(entry?.actorPrincipalId, 512);
+    const contextSessionId = boundedText(entry?.contextSessionId, 128);
+    const gatewaySessionId = boundedText(entry?.gatewaySessionId, 512);
+    const id = boundedText(entry?.id, 128);
+    const interactionId = boundedText(entry?.interactionId, 128);
+    const sequence = entry?.sequence;
+    if (!activityId || !actorPrincipalId || !contextSessionId || !gatewaySessionId || !id ||
+        !interactionId || !Number.isSafeInteger(sequence) || sequence < 1 || sequence > 64 ||
+        !["presentation", "save", "submission"].includes(entry?.purpose) ||
+        entry?.schema !== "vasi-participant-context/v1" ||
+        !/^[a-f0-9]{64}$/.test(entry?.payloadHash || "") ||
+        !canonicalTimestamp(entry?.receivedAt) || !validRequestContext(entry?.requestContext)) {
+      errors.push("participant_context_snapshot_invalid");
+      continue;
+    }
+    let snapshot;
+    try {
+      snapshot = validateStoredParticipantContextSnapshot(entry.snapshot);
+      if (hashCanonicalJSON(snapshot) !== hashCanonicalJSON(entry.snapshot) ||
+          snapshot.id !== id || snapshot.sequence !== sequence ||
+          snapshot.purpose !== entry.purpose || snapshot.schema !== entry.schema) {
+        errors.push("participant_context_snapshot_invalid");
+        continue;
+      }
+    } catch {
+      errors.push("participant_context_snapshot_invalid");
+      continue;
+    }
+    if (snapshotIds.has(id)) errors.push("participant_context_snapshot_duplicate");
+    snapshotIds.add(id);
+    const sequenceId = `${activityId}\u0000${contextSessionId}\u0000${sequence}`;
+    if (sequenceIds.has(sequenceId)) errors.push("participant_context_sequence_duplicate");
+    sequenceIds.add(sequenceId);
+    const sessionId = `${activityId}\u0000${contextSessionId}`;
+    const previous = sessionProgress.get(sessionId);
+    if (!previous && (sequence !== 1 || entry.purpose !== "presentation")) {
+      errors.push("participant_context_sequence_invalid");
+    }
+    if (previous && (sequence <= previous.sequence || snapshot.monotonicMs < previous.monotonicMs)) {
+      errors.push("participant_context_sequence_invalid");
+    }
+    sessionProgress.set(sessionId, { monotonicMs: snapshot.monotonicMs, sequence });
+    const activityCount = Number(activityCounts.get(activityId) || 0) + 1;
+    activityCounts.set(activityId, activityCount);
+    if (activityCount > maximum) errors.push("participant_context_activity_limit_invalid");
+
+    try {
+      const expectedHash = hashCanonicalJSON({
+        activityId,
+        contextSessionId,
+        interactionId,
+        snapshot,
+      });
+      if (expectedHash !== entry.payloadHash) errors.push("participant_context_snapshot_hash_invalid");
+    } catch {
+      errors.push("participant_context_snapshot_hash_invalid");
+    }
+
+    const links = contextChainEvents.filter((event) =>
+      event?.eventData?.payload?.snapshot?.id === id
+    );
+    const link = links[0];
+    if (links.length !== 1 ||
+        link?.eventData?.payload?.activityId !== activityId ||
+        link?.eventData?.payload?.contextSessionId !== contextSessionId ||
+        link?.eventData?.payload?.interactionId !== interactionId ||
+        link?.eventData?.payload?.snapshot?.payloadHash !== entry.payloadHash ||
+        link?.eventData?.payload?.snapshot?.purpose !== entry.purpose ||
+        link?.eventData?.payload?.snapshot?.schema !== entry.schema ||
+        link?.eventData?.payload?.snapshot?.sequence !== sequence ||
+        link?.eventData?.actor?.principalId !== actorPrincipalId ||
+        link?.eventData?.actor?.gatewaySessionId !== gatewaySessionId ||
+        !sameCanonicalValue(link?.eventData?.actor?.requestContext, entry.requestContext)) {
+      errors.push("participant_context_snapshot_chain_binding_invalid");
+    }
+  }
+  for (const event of contextChainEvents) {
+    const id = event?.eventData?.payload?.snapshot?.id;
+    if (!snapshotIds.has(id)) errors.push("participant_context_snapshot_missing");
+  }
+  if (contextChainEvents.length !== value.snapshots.length) {
+    errors.push("participant_context_snapshot_chain_count_invalid");
+  }
+}
+
+function validRequestContext(value) {
+  if (value === undefined || value === null) return true;
+  if (typeof value !== "object" || Array.isArray(value)) return false;
+  const allowed = new Set(["acceptLanguage", "clientHints", "ipAddress", "userAgent"]);
+  return Object.entries(value).every(([key, entry]) =>
+    allowed.has(key) && typeof entry === "string" && entry.length > 0 && entry.length <= 512 &&
+    !/[\u0000-\u001f\u007f]/.test(entry)
+  );
+}
+
+function sameCanonicalValue(left, right) {
+  try {
+    return hashCanonicalJSON(left ?? null) === hashCanonicalJSON(right ?? null);
+  } catch {
+    return false;
   }
 }
 

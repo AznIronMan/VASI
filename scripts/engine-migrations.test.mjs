@@ -18,5 +18,6 @@ describe("engine migration ledger", () => {
     expect(source).toContain("0008_engine_lifecycle_governance");
     expect(source).toContain("0009_engine_productization");
     expect(source).toContain("0010_engine_activity_interaction");
+    expect(source).toContain("0011_engine_participant_context");
   });
 });

@@ -4,6 +4,7 @@ import { FormEvent, PointerEvent, useRef, useState } from "react";
 
 import { useActivityInteractionRecorder } from "@/components/evidence/activity-interaction-recorder";
 import { ExternalMediaActivity } from "@/components/evidence/external-media-activity";
+import { useParticipantContextRecorder } from "@/components/evidence/participant-context-recorder";
 import type { OpenParticipantAssignment } from "@/lib/evidence-types";
 import type { WorkflowActivityContent } from "@/lib/owner-types";
 
@@ -17,6 +18,7 @@ export function ParticipantRequest({ assignment, handle }: {
   const clientStartedAt = useRef(new Date().toISOString());
   const participantCard = useRef<HTMLElement>(null);
   const interactionEvidence = useActivityInteractionRecorder(assignment, handle, participantCard);
+  const contextEvidence = useParticipantContextRecorder(assignment, handle);
   const [pending, setPending] = useState<"save" | "submit">();
   const [message, setMessage] = useState<string>();
   const [strokes, setStrokes] = useState<SignatureStroke[]>([]);
@@ -38,6 +40,7 @@ export function ParticipantRequest({ assignment, handle }: {
     setPending(intent);
     setMessage(undefined);
     try {
+      await contextEvidence.recordResponse(intent === "save" ? "save" : "submission");
       if (intent === "submit") await interactionEvidence.disconnectAndFlush();
       else await interactionEvidence.flush();
       const request = await fetch("/api/evidence/respond", {
@@ -92,9 +95,10 @@ export function ParticipantRequest({ assignment, handle }: {
             setStrokes={setStrokes}
           />
         </fieldset>
-        <p>Submitting records your authenticated account, exact response and labels, server timing, available browser/network context, coarse browser-reported presence timing, and the immutable activity revision in a tamper-evident VASI record. Presence evidence does not record keys or input contents and does not prove attention or comprehension.</p>
+        <p>VASI records your authenticated account, exact response and labels, server timing, available server-observed browser/network headers, privacy-bounded browser-reported locale, time zone, display, touch, capability, accessibility-preference and coarse connection context, coarse presence timing, and the immutable activity revision in a tamper-evident record. It does not enumerate plugins or fonts, fingerprint canvas/WebGL/audio hardware, collect precise location, keys, input contents, pointer coordinates, camera or microphone data, or treat browser reports as proof of identity, attention, comprehension, or physical location.</p>
         {assignment.savedResponseLabel && <p className="form-message">Last saved revision: {assignment.savedResponseLabel}</p>}
         {interactionEvidence.error && <p className="form-message form-message--error" role="status">{interactionEvidence.error} Your response can still be submitted.</p>}
+        {contextEvidence.error && <p className="form-message form-message--error" role="status">{contextEvidence.error} Your response can still be submitted.</p>}
         {message && <p className={message.includes("could not") ? "form-message form-message--error" : "form-message"} role="status">{message}</p>}
         <div className="participant-actions">
           <button className="secondary-button" disabled={Boolean(pending)} name="intent" type="submit" value="save">{pending === "save" ? "Saving…" : "Save progress"}</button>

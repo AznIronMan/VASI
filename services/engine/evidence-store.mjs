@@ -21,8 +21,10 @@ import {
 } from "../../packages/engine-domain/workflow.mjs";
 import { validateActivityResponse } from "../../packages/engine-domain/activities.mjs";
 import { validateParticipantArtifactInput } from "../../packages/engine-domain/artifacts.mjs";
+import { participantContextPolicy } from "../../packages/engine-domain/context.mjs";
 import { activityInteractionPolicy } from "../../packages/engine-domain/interaction.mjs";
 import { readArtifactChunk } from "./artifact-store.mjs";
+import { loadParticipantContextEvidence } from "./context-store.mjs";
 import { appendEvent } from "./evidence-events.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import {
@@ -46,6 +48,7 @@ export class EvidenceStoreError extends EngineStoreError {}
 
 export function createEvidenceStore(database, settings) {
   const signingProvider = createSigningProvider(settings);
+  const contextEvidencePolicy = participantContextPolicy(settings);
   const interactionEvidencePolicy = activityInteractionPolicy(settings);
   const outboxEncryptionSecret = requiredSetting(settings, "ENGINE_OUTBOX_ENCRYPTION_SECRET");
 
@@ -317,6 +320,7 @@ export function createEvidenceStore(database, settings) {
             client,
             clientContext,
             commandId,
+            contextEvidencePolicy,
             interactionId,
             interactionEvidencePolicy,
             payload,
@@ -840,6 +844,7 @@ async function respondToWorkflowActivity({
   client,
   clientContext,
   commandId,
+  contextEvidencePolicy,
   interactionId,
   interactionEvidencePolicy,
   payload,
@@ -1099,6 +1104,11 @@ async function respondToWorkflowActivity({
   const events = await evidenceEvents(client, record.assignmentId);
   const media = await loadMediaEvidence(client, record.assignmentId);
   const activityInteraction = await loadActivityInteractionEvidence(client, record.assignmentId);
+  const participantContext = await loadParticipantContextEvidence(
+    client,
+    record.assignmentId,
+    contextEvidencePolicy,
+  );
   const manifestId = randomUUID();
   const manifest = buildWorkflowManifest({
     actor,
@@ -1110,6 +1120,7 @@ async function respondToWorkflowActivity({
     record,
     responses: responses.rows,
     media,
+    participantContext,
   });
   const sealedRecord = await persistSeal(client, {
     completedAt,
@@ -1149,6 +1160,7 @@ function buildWorkflowManifest({
   interaction,
   manifestId,
   media,
+  participantContext,
   record,
   responses,
 }) {
@@ -1168,6 +1180,7 @@ function buildWorkflowManifest({
     },
     manifestId,
     media,
+    participantContext,
     outcome: {
       activities: responses.map((row) => ({
         activityId: row.activityId,
@@ -1190,7 +1203,7 @@ function buildWorkflowManifest({
       purpose: record.purpose,
       scheduledFor: record.scheduledFor ? new Date(record.scheduledFor).toISOString() : undefined,
     },
-    schema: "vasi-evidence-manifest/v5",
+    schema: "vasi-evidence-manifest/v6",
     tenant: tenantEvidenceProjection(record),
     timestamps: {
       completedAt: completedAt.toISOString(),

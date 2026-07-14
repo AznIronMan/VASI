@@ -22,6 +22,7 @@ describe("productized deployment and transfer conformance", () => {
       "engine-boundary-schema.sql", "engine-evidence-slice.sql", "engine-workflow-control-plane.sql",
       "engine-document-activities.sql", "engine-media-evidence.sql", "engine-evidence-reports.sql",
       "engine-lifecycle-governance.sql", "engine-productization.sql",
+      "engine-activity-interaction.sql", "engine-participant-context.sql",
     ];
     const created = new Set();
     for (const filename of databaseFiles) {

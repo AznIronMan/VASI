@@ -25,6 +25,7 @@ const serviceActions = Object.freeze({
     "data_request.review",
     "data_request.review.list",
     "participant.open",
+    "participant.context.record",
     "participant.history.list",
     "participant.interaction.events",
     "participant.data_request.create",
@@ -66,5 +67,6 @@ export function authorizeServiceAction(serviceId, action) {
 
 export * from "./media.mjs";
 export * from "./interaction.mjs";
+export * from "./context.mjs";
 export * from "./lifecycle.mjs";
 export * from "./productization.mjs";

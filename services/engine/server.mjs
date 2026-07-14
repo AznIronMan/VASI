@@ -15,6 +15,7 @@ import {
 } from "../../scripts/settings-core.mjs";
 import { readRequestBody, sendJSON } from "../shared/http.mjs";
 import { createArtifactStore } from "./artifact-store.mjs";
+import { createContextStore } from "./context-store.mjs";
 import { createEvidenceStore, EvidenceStoreError } from "./evidence-store.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { createLifecycleStore } from "./lifecycle-store.mjs";
@@ -26,7 +27,7 @@ import { createReportStore } from "./report-store.mjs";
 import { initializeSigningKeys } from "./signing-provider.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.17.0";
+const ENGINE_VERSION = "0.18.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -37,6 +38,7 @@ const assertionPublicKey = await importJWK(
 const database = createSettingsPool(bootstrap);
 const evidence = createEvidenceStore(database, settings);
 const artifacts = createArtifactStore(database, settings);
+const contexts = createContextStore(database, settings);
 const interactions = createInteractionStore(database, settings);
 const media = createMediaStore(database, settings);
 const lifecycle = createLifecycleStore(database, settings);
@@ -241,6 +243,7 @@ function dispatchEvidence(action, actor, payload) {
     case "participant.data_export.open": return lifecycle.openParticipantDataExport(actor, payload);
     case "participant.data_export.read": return lifecycle.readParticipantDataExportChunk(actor, payload);
     case "participant.respond": return evidence.respond(actor, payload);
+    case "participant.context.record": return contexts.recordParticipantContext(actor, payload);
     case "participant.interaction.events": return interactions.recordParticipantEvents(actor, payload);
     case "participant.media.open": return media.openParticipantMedia(actor, payload);
     case "participant.media.events": return media.recordParticipantEvents(actor, payload);
@@ -265,6 +268,7 @@ function errorCode(error) {
   if (error?.code === "INVALID_ARTIFACT") return "invalid_artifact";
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
   if (error?.code === "INVALID_ACTIVITY_INTERACTION") return "invalid_activity_interaction";
+  if (error?.code === "INVALID_PARTICIPANT_CONTEXT") return "invalid_participant_context";
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return "invalid_media_telemetry";
   if (error?.code === "INVALID_LIFECYCLE") return "invalid_lifecycle";
   if (error?.code === "INVALID_PRODUCT_CONFIGURATION") return "invalid_product_configuration";
@@ -295,6 +299,7 @@ function errorStatus(error) {
   if (error?.code === "INVALID_ARTIFACT") return 400;
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return 400;
   if (error?.code === "INVALID_ACTIVITY_INTERACTION") return 400;
+  if (error?.code === "INVALID_PARTICIPANT_CONTEXT") return 400;
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return 400;
   if (error?.code === "INVALID_LIFECYCLE") return 400;
   if (error?.code === "INVALID_PRODUCT_CONFIGURATION") return 400;
@@ -308,6 +313,7 @@ function publicErrorCode(error, status) {
   if (error?.code === "INVALID_ARTIFACT") return "invalid_artifact";
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
   if (error?.code === "INVALID_ACTIVITY_INTERACTION") return "invalid_activity_interaction";
+  if (error?.code === "INVALID_PARTICIPANT_CONTEXT") return "invalid_participant_context";
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return "invalid_media_telemetry";
   if (error?.code === "INVALID_LIFECYCLE") return "invalid_lifecycle";
   if (error?.code === "INVALID_PRODUCT_CONFIGURATION") return "invalid_product_configuration";

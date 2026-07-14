@@ -46,6 +46,7 @@ const engineRoutes = Object.freeze([
   { action: "participant.data_export.open", method: "POST", path: "/v1/participant/data-exports" },
   { action: "participant.data_export.read", method: "POST", path: "/v1/participant/data-export-chunks" },
   { action: "participant.respond", method: "POST", path: "/v1/participant/respond" },
+  { action: "participant.context.record", method: "POST", path: "/v1/participant/context-snapshots" },
   { action: "participant.interaction.events", method: "POST", path: "/v1/participant/interaction-events" },
   { action: "participant.media.open", method: "POST", path: "/v1/participant/media-open" },
   { action: "participant.media.events", method: "POST", path: "/v1/participant/media-events" },

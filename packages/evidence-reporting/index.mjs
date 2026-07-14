@@ -54,6 +54,7 @@ function buildReport(profile, context) {
         email: context.identity.email,
       },
       activityTiming: context.activityTiming,
+      contextEvidence: context.contextEvidence.participant,
       outcomes: context.outcomes,
       requester: context.requester,
     });
@@ -63,6 +64,7 @@ function buildReport(profile, context) {
       ...common,
       explanation: "This report explains who requested the activity, who completed it, what occurred, when it occurred, and how the integrity record can be checked.",
       activityTiming: context.activityTiming,
+      contextEvidence: context.contextEvidence.narrative,
       identity: context.identity,
       limitations: context.limitations,
       outcomes: context.outcomes,
@@ -73,7 +75,7 @@ function buildReport(profile, context) {
   if (profile === "technical") {
     return Object.freeze({
       ...common,
-      explanation: "This forensic report preserves complete event, manifest, authentication, client-context, generalized activity-interaction, media, artifact, response-revision, and seal data available in the sealed record.",
+      explanation: "This forensic report preserves complete event, manifest, authentication, server-observed request context, privacy-bounded browser-reported participant context, generalized activity-interaction, media, artifact, response-revision, and seal data available in the sealed record.",
       events: context.record.events,
       limitations: context.limitations,
       manifest: context.manifest,
@@ -108,6 +110,7 @@ function reportContext(record) {
     sequence: event.sequence,
   })));
   const limitations = evidenceLimitations(manifest);
+  const contextEvidence = participantContextSummary(manifest);
   const activityTiming = latestActivityInteractionSummaries(manifest).map((entry) => Object.freeze({
     activityId: entry.activityId,
     confidence: entry.summary?.confidence?.level,
@@ -129,6 +132,7 @@ function reportContext(record) {
   return {
     activityTiming: Object.freeze(activityTiming),
     completedAt,
+    contextEvidence,
     eventReferences,
     identity: {
       authentication: participantActor.authentication || { method: "unspecified" },
@@ -208,9 +212,16 @@ function evidenceLimitations(manifest) {
   for (const summary of manifest.activityInteraction?.summaries || []) {
     for (const limitation of summary.summary?.confidence?.limitations || []) limitations.push(limitation);
   }
-  if (manifest.schema === "vasi-evidence-manifest/v5" &&
+  for (const limitation of manifest.participantContext?.policy?.limitations || []) {
+    limitations.push(limitation);
+  }
+  if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6"].includes(manifest.schema) &&
       !(manifest.activityInteraction?.events || []).length) {
     limitations.push("No browser-reported generalized activity-presence events were available when the record was sealed.");
+  }
+  if (manifest.schema === "vasi-evidence-manifest/v6" &&
+      !(manifest.participantContext?.snapshots || []).length) {
+    limitations.push("No privacy-bounded browser/device context snapshot was available when the record was sealed.");
   }
   return Object.freeze([...new Set(limitations)]);
 }
@@ -223,6 +234,7 @@ function eventDescription(eventType, payload) {
     case "activity.completed": return `The participant completed activity ${payload?.activityId || "(unspecified)"}.`;
     case "media.telemetry.recorded": return `VASI accepted a bounded media telemetry batch${payload?.activityId ? ` for ${payload.activityId}` : ""}.`;
     case "activity.interaction.recorded": return `VASI accepted a privacy-bounded activity-presence batch${payload?.activityId ? ` for ${payload.activityId}` : ""}.`;
+    case "participant.context.recorded": return `VASI recorded a privacy-bounded browser context snapshot${payload?.activityId ? ` for ${payload.activityId}` : ""}.`;
     case "request.completed": return "All required activities completed and VASI sealed the transaction.";
     case "request.revoked": return "The company revoked the request.";
     case "request.reissued": return "The company reissued the request as a new transaction.";
@@ -281,6 +293,18 @@ function reportText(report) {
       );
     }
   }
+  if (report.contextEvidence) {
+    lines.push(
+      "",
+      "BROWSER/DEVICE CONTEXT (BROWSER-REPORTED SUPPORTING EVIDENCE)",
+      `Snapshots: ${report.contextEvidence.snapshotCount}`,
+      `Purposes: ${(report.contextEvidence.purposes || []).join(", ") || "none"}`,
+      `Reliability: ${report.contextEvidence.reliabilityClass || "browser_reported"}`,
+      report.contextEvidence.explanation,
+    );
+    if (report.contextEvidence.firstReceivedAt) lines.push(`First received: ${report.contextEvidence.firstReceivedAt}`);
+    if (report.contextEvidence.lastReceivedAt) lines.push(`Last received: ${report.contextEvidence.lastReceivedAt}`);
+  }
   if (report.timeline) {
     lines.push("", "CHRONOLOGY");
     for (const entry of report.timeline) lines.push(`${entry.sequence}. ${entry.at || "time unavailable"} — ${entry.description} [${entry.eventId}]`);
@@ -326,6 +350,29 @@ function latestActivityInteractionSummaries(manifest) {
     }
   }
   return [...latest.values()];
+}
+
+function participantContextSummary(manifest) {
+  const snapshots = manifest.participantContext?.snapshots || [];
+  const received = snapshots.map((entry) => entry.receivedAt).filter(Boolean).sort();
+  const purposes = [...new Set(snapshots.map((entry) => entry.purpose).filter(Boolean))].sort();
+  const explanation = snapshots.length
+    ? "VASI retained fixed, privacy-bounded browser-reported context observations. Ordinary reports summarize their presence; the sealed technical record contains the eligible values and provenance. These observations do not prove identity, attention, comprehension, or physical location."
+    : "No browser-reported context snapshot was available. Missing context is not inferred.";
+  const common = Object.freeze({
+    explanation,
+    purposes: Object.freeze(purposes),
+    reliabilityClass: manifest.participantContext?.policy?.reliabilityClass || "browser_reported",
+    snapshotCount: snapshots.length,
+  });
+  return Object.freeze({
+    narrative: Object.freeze({
+      ...common,
+      firstReceivedAt: received[0],
+      lastReceivedAt: received.at(-1),
+    }),
+    participant: common,
+  });
 }
 
 function durationText(value) {

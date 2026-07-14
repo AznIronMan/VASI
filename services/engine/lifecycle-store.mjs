@@ -19,16 +19,18 @@ import {
   validateParticipantDataRequestReview,
   validateRetentionPolicyMutation,
 } from "../../packages/engine-domain/lifecycle.mjs";
+import { participantContextPolicy } from "../../packages/engine-domain/context.mjs";
 import { hasTenantPermission } from "../../packages/engine-domain/workflow.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { createSigningProvider } from "./signing-provider.mjs";
 
-const ENGINE_VERSION = "0.17.0";
+const ENGINE_VERSION = "0.18.0";
 const GENESIS_HASH = "0".repeat(64);
 const DATA_EXPORT_SCHEMA = "vasi-participant-data-export/v1";
 
 export function createLifecycleStore(database, settings) {
   const signingProvider = createSigningProvider(settings);
+  const contextEvidencePolicy = participantContextPolicy(settings);
   const chunkBytes = boundedSetting(
     settings.ENGINE_EXPORT_CHUNK_BYTES,
     262_144,
@@ -467,7 +469,13 @@ export function createLifecycleStore(database, settings) {
         assertDataRequestExportable(request, now);
         let artifact = await participantDataExport(client, request.id);
         if (!artifact) {
-          const generated = await buildParticipantDataExport(client, request, actor, now);
+          const generated = await buildParticipantDataExport(
+            client,
+            request,
+            actor,
+            now,
+            contextEvidencePolicy,
+          );
           if (!generated.bytes.length || generated.bytes.length > maxBytes) {
             throw new EngineStoreError("participant_data_export_too_large", 413);
           }
@@ -773,7 +781,13 @@ async function resolveRetentionPolicy(client, tenantId, profileName) {
   return { id: row.id, policy, policyHash: row.policyHash, revision: Number(row.revision) };
 }
 
-async function buildParticipantDataExport(client, request, actor, generatedAt) {
+async function buildParticipantDataExport(
+  client,
+  request,
+  actor,
+  generatedAt,
+  contextEvidencePolicy,
+) {
   const scopesResult = await client.query(
     `select s."tenantId", s."matchedAssignmentIds", s."reviewPolicy", s."reviewedAt",
             t."name" as "tenantName"
@@ -790,6 +804,7 @@ async function buildParticipantDataExport(client, request, actor, generatedAt) {
       records.push(await loadParticipantDataRecord(client, {
         actor,
         assignmentId,
+        contextEvidencePolicy,
         includeTechnicalTelemetry: scope.reviewPolicy?.includeTechnicalTelemetry !== false,
         tenantId: scope.tenantId,
       }));
@@ -825,6 +840,7 @@ async function buildParticipantDataExport(client, request, actor, generatedAt) {
 async function loadParticipantDataRecord(client, {
   actor,
   assignmentId,
+  contextEvidencePolicy,
   includeTechnicalTelemetry,
   tenantId,
 }) {
@@ -898,6 +914,7 @@ async function loadParticipantDataRecord(client, {
   );
   let activityInteractionBatches = [];
   let activityInteractionEvents = [];
+  let participantContextSnapshots = [];
   let media = [];
   if (includeTechnicalTelemetry) {
     const interactionBatchResult = await client.query(
@@ -926,6 +943,32 @@ async function loadParticipantDataRecord(client, {
       ...entry,
       monotonicMs: Number(entry.monotonicMs),
       receivedAt: new Date(entry.receivedAt).toISOString(),
+      sequence: Number(entry.sequence),
+    }));
+    const contextResult = await client.query(
+      `select i."activityId", s."id", s."interactionId", s."contextSessionId",
+              s."sequence", s."purpose", s."schema", s."actorPrincipalId",
+              s."gatewaySessionId", s."snapshot", s."requestContext", s."payloadHash",
+              s."receivedAt"
+       from "vasi_engine"."participant_context_snapshot" s
+       join "vasi_engine"."activity_instance" i on i."id" = s."activityInstanceId"
+       where s."assignmentId" = $1
+       order by i."ordinal", s."contextSessionId", s."sequence"`,
+      [assignmentId],
+    );
+    participantContextSnapshots = contextResult.rows.map((entry) => ({
+      activityId: entry.activityId,
+      actorPrincipalId: entry.actorPrincipalId,
+      context: entry.snapshot,
+      contextSessionId: entry.contextSessionId,
+      gatewaySessionId: entry.gatewaySessionId,
+      id: entry.id,
+      interactionId: entry.interactionId,
+      payloadHash: entry.payloadHash,
+      purpose: entry.purpose,
+      receivedAt: new Date(entry.receivedAt).toISOString(),
+      requestContext: entry.requestContext,
+      schema: entry.schema,
       sequence: Number(entry.sequence),
     }));
     const mediaResult = await client.query(
@@ -1000,6 +1043,11 @@ async function loadParticipantDataRecord(client, {
       policyHash: row.policyHash,
     },
     mediaTelemetry: media,
+    participantContextEvidence: {
+      policy: includeTechnicalTelemetry ? contextEvidencePolicy : undefined,
+      snapshots: participantContextSnapshots,
+      telemetryIncluded: includeTechnicalTelemetry,
+    },
     request: {
       completedAt: iso(row.completedAt),
       dueAt: iso(row.dueAt),

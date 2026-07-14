@@ -2,6 +2,10 @@
 
 Status: implemented in VASI 0.10.0.
 
+VASI 0.18.0 includes eligible participant-context snapshots and provenance in
+approved technical participant exports and removes their PostgreSQL rows only
+through the same hold/data-request-guarded purge.
+
 ## Purpose and boundaries
 
 VASI treats original-content access, participant history, evidence archival,

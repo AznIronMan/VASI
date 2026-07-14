@@ -2,6 +2,11 @@
 
 Status: implemented in VASI 0.11.0 and extended through VASI 0.16.0.
 
+VASI 0.18.0 extends encrypted tenant archives to include every generalized
+activity-interaction table plus privacy-bounded participant-context snapshots.
+The transfer-coverage test now derives tenant-owned tables from all engine
+migrations so later evidence tables cannot be silently omitted.
+
 ## Boundary
 
 VASI is one product codebase. Organization names, product labels, tenant

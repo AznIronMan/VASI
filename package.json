@@ -1,6 +1,6 @@
 {
   "name": "vasi",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "private": true,
   "description": "Verified Authorized Signing Infrastructure",
   "engines": {
@@ -25,6 +25,7 @@
     "engine:probe:documents": "node scripts/probe-document-activities.mjs",
     "engine:probe:media": "node scripts/probe-media-evidence.mjs",
     "engine:probe:interaction": "node scripts/probe-activity-interaction.mjs",
+    "engine:probe:context": "node scripts/probe-participant-context.mjs",
     "engine:probe:reports": "node scripts/probe-evidence-reports.mjs",
     "engine:probe:lifecycle": "node scripts/probe-lifecycle-governance.mjs",
     "engine:probe:productization": "node scripts/probe-productization.mjs",

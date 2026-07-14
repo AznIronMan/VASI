@@ -16,6 +16,7 @@ describe("deterministic evidence reports", () => {
         "event-2",
         "event-3",
         "event-4",
+        "event-5",
       ]);
     }
     expect(JSON.stringify(reports.participant)).not.toContain("192.0.2.20");
@@ -23,10 +24,16 @@ describe("deterministic evidence reports", () => {
       activityId: "terms",
       confidence: "medium",
     });
+    expect(reports.participant.contextEvidence).toMatchObject({
+      reliabilityClass: "browser_reported",
+      snapshotCount: 1,
+    });
+    expect(JSON.stringify(reports.participant)).not.toContain("viewportWidth");
     expect(JSON.stringify(reports.technical)).toContain("192.0.2.20");
     const plainText = renderEvidenceReport(reports.nontechnical, "text").toString();
     expect(plainText).toContain("CHRONOLOGY");
     expect(plainText).toContain("ACTIVITY PRESENCE (BROWSER-REPORTED SUPPORTING EVIDENCE)");
+    expect(plainText).toContain("BROWSER/DEVICE CONTEXT (BROWSER-REPORTED SUPPORTING EVIDENCE)");
     expect(renderEvidenceReport(reports.nontechnical, "html").toString()).toContain("<!doctype html>");
     expect(evidenceReportHash(buildEvidenceReports(record).technical)).toBe(evidenceReportHash(reports.technical));
   });

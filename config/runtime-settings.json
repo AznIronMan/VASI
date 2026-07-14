@@ -85,6 +85,7 @@
   { "scope": "engine", "name": "ENGINE_ACTIVITY_IDLE_SECONDS", "required": false, "secret": false, "default": "60" },
   { "scope": "engine", "name": "ENGINE_ACTIVITY_MAX_CREDITED_GAP_SECONDS", "required": false, "secret": false, "default": "20" },
   { "scope": "engine", "name": "ENGINE_ACTIVITY_MAX_EVENTS_PER_ACTIVITY", "required": false, "secret": false, "default": "20000" },
+  { "scope": "engine", "name": "ENGINE_PARTICIPANT_CONTEXT_MAX_SNAPSHOTS_PER_ACTIVITY", "required": false, "secret": false, "default": "16" },
   { "scope": "engine", "name": "ENGINE_INGRESS_SERVICE_ID", "required": false, "secret": false, "default": "vasi-private-ingress" },
   { "scope": "engine", "name": "ENGINE_WORKER_POLL_MS", "required": false, "secret": false, "default": "5000" }
 ]

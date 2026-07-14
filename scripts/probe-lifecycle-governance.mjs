@@ -62,6 +62,11 @@ async function proveHoldSafeRetentionPurge() {
   expectStatus(conflict, 409, "retention policy optimistic concurrency");
 
   const completed = await issueAndCompleteWorkflow(tenant.id, participant, "Retention purge proof");
+  await expectImmutableFailure(
+    `update "vasi_engine"."participant_context_snapshot"
+     set "purpose" = 'save' where "id" = $1`,
+    [completed.contextSnapshotIds[0]],
+  );
   const policyReplacement = await call(owner, "POST", "/v1/owner/retention-policies", {
     expectedRevision: 1,
     name: "tenant_default",
@@ -178,6 +183,7 @@ async function proveHoldSafeRetentionPurge() {
        (select count(*) from "vasi_engine"."activity_response_revision" where "assignmentId" = $1) as "responses",
        (select count(*) from "vasi_engine"."activity_interaction_event" where "assignmentId" = $1) as "interactionEvents",
        (select count(*) from "vasi_engine"."activity_interaction_summary_revision" where "assignmentId" = $1) as "interactionSummaries",
+       (select count(*) from "vasi_engine"."participant_context_snapshot" where "assignmentId" = $1) as "contextSnapshots",
        (select count(*) from "vasi_engine"."record_lifecycle_event" where "assignmentId" = $1) as "lifecycleEvents"`,
     [completed.assignmentId],
   );
@@ -185,6 +191,7 @@ async function proveHoldSafeRetentionPurge() {
     Number(sourceRows.rows[0].assignments) || Number(sourceRows.rows[0].events) ||
     Number(sourceRows.rows[0].activities) || Number(sourceRows.rows[0].responses) ||
     Number(sourceRows.rows[0].interactionEvents) || Number(sourceRows.rows[0].interactionSummaries) ||
+    Number(sourceRows.rows[0].contextSnapshots) ||
     Number(sourceRows.rows[0].lifecycleEvents) < 5
   ) {
     throw new Error("Retention purge did not remove source rows while preserving its lifecycle audit.");
@@ -265,11 +272,19 @@ async function proveReviewedParticipantDataExport() {
         entry.activityInteractionEvidence.telemetryIncluded &&
         entry.activityInteractionEvidence.batches.length > 0 &&
         entry.activityInteractionEvidence.events.length > 0 &&
-        entry.activityInteractionEvidence.summaries.length > 0,
+        entry.activityInteractionEvidence.summaries.length > 0 &&
+        entry.participantContextEvidence.telemetryIncluded &&
+        entry.participantContextEvidence.policy.version === "vasi-participant-context-policy/v1" &&
+        entry.participantContextEvidence.snapshots.length > 0 &&
+        entry.participantContextEvidence.snapshots.every((context) =>
+          context.context.provenance.reliabilityClass === "browser_reported"
+        ),
     ))
   ) throw new Error("The reviewed participant data export omitted expected participant data.");
   const serialized = bytes.toString("utf8");
-  if (serialized.includes('"answerKey"') || serialized.includes('"snapshot"')) {
+  if (serialized.includes('"answerKey"') ||
+      serialized.includes("Exact retention proof terms.") ||
+      serialized.includes('"notificationPolicy"')) {
     throw new Error("The participant data export exposed internal workflow content.");
   }
   if (!opened.body.seal.every((seal) => verifyLifecycleSeal(payload, seal, DATA_EXPORT_PROFILE))) {
@@ -398,6 +413,13 @@ async function issueAndCompleteWorkflow(tenantId, participantActor, title) {
   let opened = await call(participantActor, "POST", "/v1/participant/open", { handle });
   expectStatus(opened, 200, `${title} first activity open`);
   await recordActivityInteraction(participantActor, handle, opened.body, `${title} first activity`);
+  const contextSnapshotIds = [];
+  contextSnapshotIds.push(...await recordParticipantContext(
+    participantActor,
+    handle,
+    opened.body,
+    `${title} first activity`,
+  ));
   const first = await call(participantActor, "POST", "/v1/participant/respond", {
     commandId: randomUUID(),
     handle,
@@ -408,6 +430,12 @@ async function issueAndCompleteWorkflow(tenantId, participantActor, title) {
   opened = await call(participantActor, "POST", "/v1/participant/open", { handle });
   expectStatus(opened, 200, `${title} second activity open`);
   await recordActivityInteraction(participantActor, handle, opened.body, `${title} second activity`);
+  contextSnapshotIds.push(...await recordParticipantContext(
+    participantActor,
+    handle,
+    opened.body,
+    `${title} second activity`,
+  ));
   const completed = await call(participantActor, "POST", "/v1/participant/respond", {
     commandId: randomUUID(),
     handle,
@@ -417,7 +445,78 @@ async function issueAndCompleteWorkflow(tenantId, participantActor, title) {
   expectStatus(completed, 200, `${title} workflow completion`);
   return {
     assignmentId: issued.body.assignmentId,
+    contextSnapshotIds,
     manifestHash: completed.body.integrity.manifestHash,
+  };
+}
+
+async function recordParticipantContext(participantActor, handle, assignment, label) {
+  const contextSessionId = randomUUID();
+  const snapshots = [
+    participantContextSnapshot(1, "presentation", 0),
+    participantContextSnapshot(2, "submission", 12_000),
+  ];
+  const first = {
+    activityId: assignment.activityId,
+    contextSessionId,
+    handle,
+    interactionId: assignment.interaction.id,
+    snapshot: snapshots[0],
+  };
+  expectStatus(
+    await call(outsider, "POST", "/v1/participant/context-snapshots", first),
+    404,
+    `${label} cross-participant context denial`,
+  );
+  for (const snapshot of snapshots) {
+    const result = await call(participantActor, "POST", "/v1/participant/context-snapshots", {
+      ...first,
+      snapshot,
+    });
+    expectStatus(result, 200, `${label} participant context ${snapshot.purpose}`);
+    if (!result.body.accepted || result.body.duplicate || result.body.snapshotId !== snapshot.id) {
+      throw new Error(`${label} participant context acceptance failed.`);
+    }
+  }
+  return snapshots.map((snapshot) => snapshot.id);
+}
+
+function participantContextSnapshot(sequence, purpose, monotonicMs) {
+  return {
+    browser: {
+      language: "en-US",
+      languages: ["en-US", "en"],
+      online: true,
+      timeZone: "America/Los_Angeles",
+    },
+    capabilities: {
+      cookiesEnabled: true,
+      localStorage: "available",
+      pdfViewerEnabled: true,
+      sessionStorage: "available",
+    },
+    clientOccurredAt: new Date(Date.now() + sequence).toISOString(),
+    connection: { effectiveType: "4g", rttMs: 45, saveData: false },
+    display: {
+      colorDepth: 24,
+      devicePixelRatio: 2,
+      screenHeight: 1080,
+      screenWidth: 1920,
+      viewportHeight: 900,
+      viewportWidth: 1440,
+    },
+    id: randomUUID(),
+    input: { maxTouchPoints: 0 },
+    monotonicMs,
+    preferences: {
+      colorScheme: "dark",
+      contrast: "no-preference",
+      forcedColors: false,
+      reducedMotion: true,
+    },
+    purpose,
+    schema: "vasi-participant-context/v1",
+    sequence,
   };
 }
 

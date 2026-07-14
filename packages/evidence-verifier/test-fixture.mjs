@@ -5,11 +5,16 @@ import {
   hashCanonicalJSON,
 } from "../engine-crypto/index.mjs";
 import { calculateActivityInteractionSummary } from "../engine-domain/interaction.mjs";
+import {
+  participantContextPolicy,
+  withParticipantContextProvenance,
+} from "../engine-domain/context.mjs";
 
 export function sealedTestRecord() {
   const { privateKey } = generateKeyPairSync("ed25519");
   const privateJWK = privateKey.export({ format: "jwk" });
   const activityInteraction = interactionEvidence();
+  const participantContext = contextEvidence();
   const firstData = eventData(1, "0".repeat(64), "request.issued", "owner", "owner@example.test", {}, "2026-01-01T00:00:00.000Z");
   const first = eventRecord(firstData);
   const secondData = eventData(2, first.eventHash, "participant.opened", "participant", "person@example.test", {}, "2026-01-01T00:00:10.000Z");
@@ -39,9 +44,32 @@ export function sealedTestRecord() {
     "2026-01-01T00:00:15.000Z",
   );
   const third = eventRecord(thirdData);
-  const fourthData = eventData(4, third.eventHash, "request.completed", "participant", "person@example.test", {}, "2026-01-01T00:02:00.000Z");
+  const contextSnapshot = participantContext.snapshots[0];
+  const fourthData = eventData(
+    4,
+    third.eventHash,
+    "participant.context.recorded",
+    "participant",
+    "person@example.test",
+    {
+      activityId: "terms",
+      contextSessionId: contextSnapshot.contextSessionId,
+      interactionId: contextSnapshot.interactionId,
+      limitation: "Browser-reported context is supporting evidence and does not prove identity, attention, comprehension, or physical location.",
+      snapshot: {
+        id: contextSnapshot.id,
+        payloadHash: contextSnapshot.payloadHash,
+        purpose: contextSnapshot.purpose,
+        schema: contextSnapshot.schema,
+        sequence: contextSnapshot.sequence,
+      },
+    },
+    contextSnapshot.receivedAt,
+  );
   const fourth = eventRecord(fourthData);
-  const events = [first, second, third, fourth];
+  const fifthData = eventData(5, fourth.eventHash, "request.completed", "participant", "person@example.test", {}, "2026-01-01T00:02:00.000Z");
+  const fifth = eventRecord(fifthData);
+  const events = [first, second, third, fourth, fifth];
   const manifest = {
     activityInteraction,
     assignment: { id: "assignment-1", participantEmail: "person@example.test", principalId: "participant" },
@@ -49,7 +77,7 @@ export function sealedTestRecord() {
       eventCount: events.length,
       eventHashes: events.map((event) => event.eventHash),
       firstSequence: 1,
-      headHash: fourth.eventHash,
+      headHash: fifth.eventHash,
       lastSequence: events.length,
     },
     outcome: {
@@ -65,8 +93,9 @@ export function sealedTestRecord() {
       }],
       status: "completed",
     },
+    participantContext,
     request: { expiresAt: "2026-01-08T00:00:00.000Z", id: "request-1", purpose: "Test evidence reporting" },
-    schema: "vasi-evidence-manifest/v5",
+    schema: "vasi-evidence-manifest/v6",
     tenant: { id: "tenant-1", name: "Example Company" },
     timestamps: {
       completedAt: "2026-01-01T00:02:00.000Z",
@@ -89,6 +118,66 @@ export function sealedTestRecord() {
   return {
     privateJWK,
     record: { events, manifest, seal, seals: [seal] },
+  };
+}
+
+function contextEvidence() {
+  const snapshot = withParticipantContextProvenance({
+    browser: {
+      language: "en-US",
+      languages: ["en-US", "en"],
+      online: true,
+      timeZone: "America/Los_Angeles",
+    },
+    capabilities: {
+      cookiesEnabled: true,
+      localStorage: "available",
+      pdfViewerEnabled: true,
+      sessionStorage: "available",
+    },
+    clientOccurredAt: "2026-01-01T00:00:20.000Z",
+    connection: { effectiveType: "4g", rttMs: 50, saveData: false },
+    display: {
+      colorDepth: 24,
+      devicePixelRatio: 2,
+      screenHeight: 1080,
+      screenWidth: 1920,
+      viewportHeight: 900,
+      viewportWidth: 1440,
+    },
+    id: "context-snapshot-1",
+    input: { maxTouchPoints: 0 },
+    monotonicMs: 20_000,
+    preferences: {
+      colorScheme: "dark",
+      contrast: "no-preference",
+      forcedColors: false,
+      reducedMotion: true,
+    },
+    purpose: "presentation",
+    schema: "vasi-participant-context/v1",
+    sequence: 1,
+  });
+  const activityId = "terms";
+  const contextSessionId = "context-session-1";
+  const interactionId = "interaction-1";
+  return {
+    policy: participantContextPolicy(),
+    snapshots: [{
+      activityId,
+      actorPrincipalId: "participant",
+      contextSessionId,
+      gatewaySessionId: "session-participant",
+      id: snapshot.id,
+      interactionId,
+      payloadHash: hashCanonicalJSON({ activityId, contextSessionId, interactionId, snapshot }),
+      purpose: snapshot.purpose,
+      receivedAt: "2026-01-01T00:00:20.100Z",
+      requestContext: { ipAddress: "192.0.2.20", userAgent: "VASI test browser" },
+      schema: snapshot.schema,
+      sequence: snapshot.sequence,
+      snapshot,
+    }],
   };
 }
 
