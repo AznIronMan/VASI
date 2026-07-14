@@ -80,10 +80,12 @@ certificate identities, or customer fields to alert labels.
 
 ## Limits
 
-This contract verifies the selected filesystem, not every host filesystem or
-database tablespace. It does not measure CPU, memory, inode pressure, network
-saturation, PostgreSQL replication/backup custody, application capacity, DNS
-expiry, certificate revocation, HSM/KMS/TSA state, or external alert delivery.
-The operational-readiness and backup-continuity probes remain independent.
+This contract verifies the selected filesystem's byte capacity, not every host
+filesystem or database tablespace. The separate capacity-readiness contract
+measures aggregate CPU, memory, pressure stalls, filesystem inodes, and
+PostgreSQL saturation/replication posture. Neither contract measures network
+saturation, backup custody, sustained application capacity, DNS expiry,
+certificate revocation, HSM/KMS/TSA state, or external alert delivery. The
+operational-readiness and backup-continuity probes remain independent.
 Customer-specific thresholds, alert destinations, escalation, RPO/RTO, and
 incident ownership remain pilot-admission decisions.

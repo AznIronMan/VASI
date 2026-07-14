@@ -207,10 +207,10 @@ npm run engine:probe:context # disposable conformance database only
 
 Before any migration or cutover, run image assurance against every exact
 release image. In addition to SBOM/vulnerability evidence, it requires the
-declared configured user and runs `node --check` on the declared entrypoint as
+declared configured user and runs `node --check` on every declared runtime command as
 the intended UID/GID with no network, a read-only root filesystem, all
 capabilities dropped, and no privilege escalation. An unrecognized image role
-or unreadable entrypoint stops the release. This specifically protects builds
+or unreadable runtime command stops the release. This specifically protects builds
 from source archives extracted with overly restrictive permissions.
 
 Run the privacy-safe operational probe on the engine host after migration and
@@ -246,6 +246,27 @@ than 85 percent filesystem use. The result exposes only aggregate versions,
 latency, expiry windows, filesystem capacity, thresholds, scope, and bounded
 reason codes. Schedule it independently from the operational and backup probes
 so one stopped job cannot conceal another failure.
+
+Run capacity readiness separately on both Linux hosts. First create an empty,
+root-owned, search-only sentinel on each filesystem to measure; do not expose a
+filesystem root or data directory only for capacity inspection:
+
+```bash
+sudo install -d -o root -g root -m 0111 /var/lib/vasi-capacity
+
+docker compose -f compose.engine.yaml --profile tools run --rm \
+  -v /var/lib/vasi-capacity:/host/storage/system:ro \
+  capacity --scope engine --storage system=/host/storage/system
+```
+
+The service mounts only aggregate `/proc/stat`, `/proc/loadavg`,
+`/proc/meminfo`, and `/proc/pressure`; it cannot enumerate host processes. It
+also reads the protected bootstrap to query bounded PostgreSQL size, query,
+connection, transaction-age, and replication metrics. Fixed reason codes and
+the result omit paths, endpoints, processes, credentials, and customer data.
+Schedule this independently from operational, deployment-perimeter, and backup
+checks. Use `--require-primary-replica true` only where the approved topology
+promises a streaming replica.
 
 The proof verifies server trust, the V·Sign client certificate, engine health,
 a signed actor identity, the operational-snapshot privacy contract, and

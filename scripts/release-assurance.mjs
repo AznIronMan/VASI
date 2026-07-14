@@ -125,6 +125,8 @@ export async function validateComposeContracts(repositoryRoot = root) {
   const maintenance = [
     ["gateway.maintenance", production?.services?.maintenance],
     ["engine.maintenance", engine?.services?.maintenance],
+    ["gateway.capacity", production?.services?.capacity],
+    ["engine.capacity", engine?.services?.capacity],
   ];
   for (const [name, service] of hardened) {
     if (!service) {
@@ -153,6 +155,9 @@ export async function validateComposeContracts(repositoryRoot = root) {
     if (!hasReadOnlyDataMount(service.volumes)) failures.push(`${name} must mount data read-only`);
     if (!arrayContains(service.profiles, "tools")) failures.push(`${name} must remain in the tools profile`);
     if (service.ports?.length) failures.push(`${name} must not publish a port`);
+    if (name.endsWith(".capacity") && !hasBoundedCapacityProcMounts(service.volumes)) {
+      failures.push(`${name} must mount only the bounded aggregate proc inputs`);
+    }
   }
   for (const name of ["engine", "integration-gateway", "worker"]) {
     if (engine?.services?.[name]?.ports?.length) failures.push(`engine.${name} must not publish a port`);
@@ -254,11 +259,13 @@ async function imageAssurance(output, images, { dockerSudo }) {
       if (configuredUser !== runtimeContract.imageUser) {
         throw new Error(`Release image ${image} has an unexpected configured runtime user.`);
       }
-      await dockerCapture(docker, [
-        "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
-        "--security-opt", "no-new-privileges:true", "--user", runtimeContract.runUser,
-        "--entrypoint", "node", image, "--check", runtimeContract.entrypoint,
-      ]);
+      for (const entrypoint of runtimeContract.entrypoints) {
+        await dockerCapture(docker, [
+          "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+          "--security-opt", "no-new-privileges:true", "--user", runtimeContract.runUser,
+          "--entrypoint", "node", image, "--check", entrypoint,
+        ]);
+      }
       const temporary = path.join(session, `image-${index}`);
       await mkdir(temporary, { mode: 0o700 });
       const tarPath = path.join(temporary, "image.tar");
@@ -282,7 +289,7 @@ async function imageAssurance(output, images, { dockerSudo }) {
           digest: (await dockerCapture(docker, ["image", "inspect", image, "--format", "{{.Id}}"])) .trim(),
           image,
           runtimeContract: {
-            entrypoint: runtimeContract.entrypoint,
+            entrypoints: runtimeContract.entrypoints,
             imageUser: runtimeContract.imageUser,
             runUser: runtimeContract.runUser,
             verified: true,
@@ -314,15 +321,19 @@ export function runtimeContractForImage(image, contracts = policy.images.runtime
   const name = untagged.slice(untagged.lastIndexOf("/") + 1);
   const contract = contracts.find((entry) => entry?.image === name);
   if (
-    !contract || typeof contract.entrypoint !== "string" ||
-    !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/.test(contract.entrypoint) ||
-    contract.entrypoint.includes("..") || !/^(?:0|1000):(?:0|1000)$/.test(contract.runUser) ||
+    !contract || !Array.isArray(contract.entrypoints) || !contract.entrypoints.length ||
+    contract.entrypoints.length > 16 || contract.entrypoints.some((entrypoint) =>
+      typeof entrypoint !== "string" ||
+      !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/.test(entrypoint) ||
+      entrypoint.includes("..")
+    ) || new Set(contract.entrypoints).size !== contract.entrypoints.length ||
+    !/^(?:0|1000):(?:0|1000)$/.test(contract.runUser) ||
     !["", "node"].includes(contract.imageUser)
   ) {
     throw new Error(`Release image ${image} has no supported runtime contract.`);
   }
   return Object.freeze({
-    entrypoint: contract.entrypoint,
+    entrypoints: Object.freeze([...contract.entrypoints]),
     image: contract.image,
     imageUser: contract.imageUser,
     runUser: contract.runUser,
@@ -392,6 +403,20 @@ function hasReadOnlyDataMount(volumes) {
     if (typeof volume === "string") return /(?:^|\/)data:\/app\/data:ro$/.test(volume);
     return volume?.target === "/app/data" && volume?.read_only === true;
   });
+}
+
+function hasBoundedCapacityProcMounts(volumes) {
+  if (!Array.isArray(volumes)) return false;
+  const procMounts = volumes
+    .filter((volume) => typeof volume === "object" && String(volume?.target || "").startsWith("/host/proc"))
+    .map((volume) => ({ readOnly: volume.read_only, source: volume.source, target: volume.target }))
+    .sort((left, right) => left.target.localeCompare(right.target));
+  return JSON.stringify(procMounts) === JSON.stringify([
+    { readOnly: true, source: "/proc/loadavg", target: "/host/proc/loadavg" },
+    { readOnly: true, source: "/proc/meminfo", target: "/host/proc/meminfo" },
+    { readOnly: true, source: "/proc/pressure", target: "/host/proc/pressure" },
+    { readOnly: true, source: "/proc/stat", target: "/host/proc/stat" },
+  ]);
 }
 
 function portsAreLoopback(ports) {

@@ -29,6 +29,8 @@ describe("release assurance policy", () => {
   it("keeps public and private runtime services hardened", async () => {
     const result = await validateComposeContracts(root);
     expect(result.failures).toEqual([]);
+    expect(result.servicesChecked).toContain("gateway.capacity");
+    expect(result.servicesChecked).toContain("engine.capacity");
   });
 
   it("keeps release automation least-privileged and commit-pinned", async () => {
@@ -38,24 +40,30 @@ describe("release assurance policy", () => {
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.19.1")).toMatchObject({
-      entrypoint: "server.js",
+    expect(runtimeContractForImage("vasi:0.20.0")).toMatchObject({
+      entrypoints: ["server.js"],
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.19.1")).toMatchObject({
-      entrypoint: "services/engine/server.mjs",
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.20.0")).toMatchObject({
+      entrypoints: [
+        "scripts/engine-migrate.mjs",
+        "services/engine/server.mjs",
+        "services/integration-gateway/server.mjs",
+        "services/private-ingress/server.mjs",
+        "services/worker/worker.mjs",
+      ],
       imageUser: "node",
       runUser: "1000:1000",
     });
     expect(runtimeContractForImage(`vasi-engine-tools@sha256:${"a".repeat(64)}`)).toMatchObject({
-      entrypoint: "scripts/settings.mjs",
+      entrypoints: ["scripts/probe-operational-readiness.mjs", "scripts/settings.mjs"],
       imageUser: "",
       runUser: "0:0",
     });
     expect(() => runtimeContractForImage("unreviewed-image:latest")).toThrow(/no supported runtime contract/i);
     expect(() => runtimeContractForImage("vasi:latest", [{
-      entrypoint: "../server.js",
+      entrypoints: ["../server.js"],
       image: "vasi",
       imageUser: "node",
       runUser: "1000:1000",

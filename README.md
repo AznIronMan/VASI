@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.19.1`
+Version: `0.20.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -105,7 +105,7 @@ vulnerabilities, and dirty release source; it emits hashed source/image
 inventories, npm audit evidence, and CycloneDX SBOMs outside the repository. A
 digest-pinned scanner examines exact image tar exports without receiving the
 Docker socket. Each known release image must also pass its explicit runtime
-contract: the intended UID reads and parses the entrypoint inside a no-network,
+contract: the intended UID reads and parses every declared runtime command inside a no-network,
 read-only, capability-dropped container, and an unknown image role fails closed.
 Browser-rendered WCAG automation and a bounded read-only load probe cover the
 public readiness surface. Runtime images no longer contain the unused npm
@@ -198,10 +198,20 @@ and aggregate operational state.
 
 Version 0.19.1 makes release-image executability a blocking assurance check.
 Every supported image declares its expected configured user, intended runtime
-UID/GID, and entrypoint. The gate parses that entrypoint with no network, a
+UID/GID, and bounded runtime commands. The gate parses every command with no network, a
 read-only root filesystem, all capabilities dropped, and privilege escalation
 disabled, catching unreadable source archives or image-user drift before a
 migration or service cutover.
+
+Version 0.20.0 adds privacy-safe host and PostgreSQL capacity readiness. A
+hardened maintenance profile samples only aggregate Linux CPU, load, memory,
+swap, and pressure-stall files; measures byte and inode capacity through
+explicit empty sentinel mounts; and queries aggregate PostgreSQL size,
+latency, connection, transaction-age, and replication posture. Fixed reason
+codes and bounded JSON omit host paths, database endpoints, processes,
+credentials, and customer data. The portable default reports replication
+posture without requiring a replica; an installation can make primary-replica
+presence a blocking approved threshold.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
@@ -294,7 +304,7 @@ assessment remain installation or pilot gates.
   export with audited access and automatic content expiry.
 - A release assurance gate with tracked-source policy, complete and production
   dependency audits, CycloneDX source/image SBOMs, digest-pinned image scanning,
-  fail-closed non-root entrypoint smoke checks, runtime version alignment,
+  fail-closed non-root runtime-command smoke checks, runtime version alignment,
   sanitized Compose hardening checks, browser WCAG automation, and bounded
   read-only readiness load testing.
 - An administrator-only operational snapshot and host probe with explicit
@@ -306,6 +316,9 @@ assessment remain installation or pilot gates.
 - A privacy-safe deployment-perimeter probe for public health/version, public
   and service-certificate expiry, and filesystem pressure, with bounded
   policy thresholds and vendor-neutral scheduler/alerting handoff.
+- A privacy-safe capacity probe for bounded aggregate Linux CPU, load, memory,
+  swap, pressure stalls, fixed-code filesystem byte/inode state, and
+  PostgreSQL size, latency, connection, transaction, and replication posture.
 
 ## Configuration model
 
@@ -479,7 +492,7 @@ credential redaction/kill-switch behavior, and evidence-bound tenant policy.
 Run `npm run assurance:source -- /new/protected/directory` from a clean release
 commit to create the source assurance manifest. Run
 `npm run assurance:images -- /new/protected/directory IMAGE...` on a Docker host
-to verify the configured/runtime user contract, parse each known entrypoint in
+to verify the configured/runtime user contract, parse every declared command in
 a no-network hardened container, and export/scan exact images without mounting
 the Docker socket into the scanner. Unknown image roles are rejected. The
 output directories must not already exist and must remain outside the
@@ -525,6 +538,9 @@ freshness monitoring, scheduler handoff, and off-host custody limits.
 The [deployment-perimeter readiness decision](docs/architecture/deployment-perimeter-readiness.md)
 defines the public health/version, public and internal certificate, filesystem,
 privacy, threshold, and scheduler handoff contract.
+The [capacity-readiness decision](docs/architecture/capacity-readiness.md)
+defines aggregate host, filesystem-inode, PostgreSQL-saturation, privacy,
+threshold, sentinel-mount, and scheduler handoff contracts.
 The [assurance and pilot-readiness contract](docs/assurance-and-pilot-readiness.md)
 defines the threat register, repeatable release evidence, recovery/key drills,
 observability limits, and the first-party, independent, legal, and customer

@@ -85,11 +85,12 @@ an alerting SDK.
 VASI 0.15.0 adds a separate scheduler-neutral matched-backup freshness and
 verification probe. VASI 0.16.0 adds a separate deployment-perimeter probe for
 public HTTPS/version, public and service-certificate windows, and one
-operator-selected filesystem. The operational snapshot does not duplicate
-either probe, because the engine must not receive host paths, storage
-credentials, or public-topology configuration. These contracts still do not
-replace encrypted off-host backup custody checks, whole-host disk/inode/CPU/
-memory monitoring, PostgreSQL-native replication/saturation monitoring,
-customer-approved capacity tests, external alert delivery, or an
+operator-selected filesystem. VASI 0.20.0 adds a separate capacity probe for
+aggregate Linux CPU/load/memory/pressure, fixed-code filesystem byte/inode
+state, and PostgreSQL saturation/replication posture. The operational snapshot
+does not duplicate those probes, because the engine must not receive host
+paths, storage credentials, or public-topology configuration. These contracts
+still do not replace encrypted off-host backup custody, sustained customer
+capacity tests, network/replica-lag monitoring, external alert delivery, or an
 incident-response owner. Those remain deployment responsibilities and pilot
 admission evidence.

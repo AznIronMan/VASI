@@ -5,7 +5,7 @@ services:
     build:
       context: .
       target: migrator
-    image: vasi-settings:0.19.1
+    image: vasi-settings:0.20.0
     volumes:
       - ./data:/app/data
     entrypoint: ["node", "scripts/settings.mjs"]
@@ -29,7 +29,7 @@ services:
     build:
       context: .
       target: migrator
-    image: vasi-settings:0.19.1
+    image: vasi-settings:0.20.0
     volumes:
       - ./data:/app/data:ro
     user: "1000:1000"
@@ -48,7 +48,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-maintenance
-    image: vasi-engine-maintenance:0.19.1
+    image: vasi-engine-maintenance:0.20.0
     command: ["scripts/backup.mjs"]
     user: "1000:1000"
     volumes:
@@ -63,11 +63,55 @@ services:
     profiles:
       - tools
 
+  capacity:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+      target: engine-maintenance
+    image: vasi-engine-maintenance:0.20.0
+    entrypoint: ["node", "scripts/probe-capacity-readiness.mjs"]
+    user: "1000:1000"
+    volumes:
+      - ./data:/app/data:ro
+      - type: bind
+        source: /proc/stat
+        target: /host/proc/stat
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /proc/loadavg
+        target: /host/proc/loadavg
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /proc/meminfo
+        target: /host/proc/meminfo
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /proc/pressure
+        target: /host/proc/pressure
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    profiles:
+      - tools
+
   app:
     build:
       context: .
       target: runner
-    image: vasi:0.19.1
+    image: vasi:0.20.0
     restart: unless-stopped
     init: true
     ports:

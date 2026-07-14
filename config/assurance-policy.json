@@ -18,6 +18,26 @@
     "maximumAgeHours": 26,
     "retain": 14
   },
+  "capacity": {
+    "maximumCpuPressureSome10": 80,
+    "maximumCpuUsedPercent": 90,
+    "maximumDatabaseBytes": 536870912000,
+    "maximumDatabaseConnectionsUsedPercent": 80,
+    "maximumDatabaseQueryMilliseconds": 2000,
+    "maximumDatabaseTransactionSeconds": 300,
+    "maximumIOPressureFull10": 10,
+    "maximumLoad1PerCpu": 1.5,
+    "maximumMemoryPressureFull10": 10,
+    "maximumMemoryUsedPercent": 90,
+    "maximumStorageUsedInodesPercent": 85,
+    "maximumStorageUsedPercent": 85,
+    "maximumSwapUsedPercent": 80,
+    "minimumStorageFreeBytes": 5368709120,
+    "minimumStorageFreeInodes": 100000,
+    "requirePrimaryReplica": false,
+    "sampleMilliseconds": 1000,
+    "timeoutMilliseconds": 10000
+  },
   "deployment": {
     "maximumStorageUsedPercent": 85,
     "minimumCertificateDays": 30,
@@ -31,31 +51,51 @@
     ],
     "runtimeContracts": [
       {
-        "entrypoint": "server.js",
+        "entrypoints": [
+          "server.js"
+        ],
         "image": "vasi",
         "imageUser": "node",
         "runUser": "1000:1000"
       },
       {
-        "entrypoint": "scripts/migrate.mjs",
+        "entrypoints": [
+          "scripts/migrate.mjs",
+          "scripts/settings.mjs"
+        ],
         "image": "vasi-settings",
         "imageUser": "",
         "runUser": "1000:1000"
       },
       {
-        "entrypoint": "services/engine/server.mjs",
+        "entrypoints": [
+          "scripts/engine-migrate.mjs",
+          "services/engine/server.mjs",
+          "services/integration-gateway/server.mjs",
+          "services/private-ingress/server.mjs",
+          "services/worker/worker.mjs"
+        ],
         "image": "vasi-engine",
         "imageUser": "node",
         "runUser": "1000:1000"
       },
       {
-        "entrypoint": "scripts/settings.mjs",
+        "entrypoints": [
+          "scripts/probe-operational-readiness.mjs",
+          "scripts/settings.mjs"
+        ],
         "image": "vasi-engine-tools",
         "imageUser": "",
         "runUser": "0:0"
       },
       {
-        "entrypoint": "scripts/backup.mjs",
+        "entrypoints": [
+          "scripts/backup-continuity.mjs",
+          "scripts/backup.mjs",
+          "scripts/probe-capacity-readiness.mjs",
+          "scripts/probe-deployment-readiness.mjs",
+          "scripts/tenant-transfer.mjs"
+        ],
         "image": "vasi-engine-maintenance",
         "imageUser": "node",
         "runUser": "1000:1000"
