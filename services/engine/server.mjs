@@ -14,10 +14,12 @@ import {
   readRuntimeSettings,
 } from "../../scripts/settings-core.mjs";
 import { readRequestBody, sendJSON } from "../shared/http.mjs";
+import { createArtifactStore } from "./artifact-store.mjs";
 import { createEvidenceStore, EvidenceStoreError } from "./evidence-store.mjs";
+import { EngineStoreError } from "./errors.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.6.0";
+const ENGINE_VERSION = "0.7.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -27,15 +29,19 @@ const assertionPublicKey = await importJWK(
 );
 const database = createSettingsPool(bootstrap);
 const evidence = createEvidenceStore(database, settings);
+const artifacts = createArtifactStore(database, settings);
 const workflows = createWorkflowStore(database);
 const seenServiceRequests = new Map();
 
 const server = createServer(async (request, response) => {
   try {
-    const body = await readRequestBody(request);
     const path = new URL(request.url || "/", "http://engine.internal").pathname;
     const route = resolveEngineRoute(request.method || "GET", path);
     if (!route) return sendJSON(response, 404, { error: "not_found" });
+    const body = await readRequestBody(
+      request,
+      route.action === "artifact.chunk.append" ? 524_288 : 65_536,
+    );
     const service = authenticateServiceRequest(request, body, path, route.action);
 
     if (request.method === "GET" && path === "/healthz") {
@@ -86,14 +92,14 @@ function authenticateServiceRequest(request, body, path, action) {
     requestId.length > 128 ||
     !Number.isSafeInteger(timestamp)
   ) {
-    throw new Error("Invalid service request metadata.");
+    throw authorizationFailure("Invalid service request metadata.");
   }
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - timestamp) > SERVICE_REQUEST_WINDOW_SECONDS) {
-    throw new Error("Expired service request.");
+    throw authorizationFailure("Expired service request.");
   }
   pruneServiceReplayCache(now);
-  if (seenServiceRequests.has(requestId)) throw new Error("Replayed service request.");
+  if (seenServiceRequests.has(requestId)) throw authorizationFailure("Replayed service request.");
   const valid = verifyServiceRequest(
     {
       body,
@@ -106,9 +112,13 @@ function authenticateServiceRequest(request, body, path, action) {
     settings.ENGINE_INTERNAL_HMAC_SECRET,
     signature,
   );
-  if (!valid) throw new Error("Invalid service request signature.");
+  if (!valid) throw authorizationFailure("Invalid service request signature.");
   seenServiceRequests.set(requestId, now + SERVICE_REQUEST_WINDOW_SECONDS);
-  return authorizeServiceAction(serviceId, action);
+  try {
+    return authorizeServiceAction(serviceId, action);
+  } catch {
+    throw authorizationFailure("The service action is unauthorized.");
+  }
 }
 
 function pruneServiceReplayCache(now) {
@@ -119,21 +129,27 @@ function pruneServiceReplayCache(now) {
 
 function bearerToken(header) {
   if (typeof header !== "string" || !header.startsWith("Bearer ")) {
-    throw new Error("An actor assertion is required.");
+    throw authorizationFailure("An actor assertion is required.");
   }
   return header.slice("Bearer ".length);
 }
 
 async function verifyActor(request) {
   const token = bearerToken(request.headers.authorization);
-  const verified = await jwtVerify(token, assertionPublicKey, {
-    algorithms: ["EdDSA"],
-    audience: settings.ENGINE_ASSERTION_AUDIENCE,
-    clockTolerance: 5,
-    issuer: settings.ENGINE_ASSERTION_ISSUER,
-    maxTokenAge: "2 minutes",
-  });
-  const actor = validateActorAssertionClaims(verified.payload);
+  let actor;
+  try {
+    const verified = await jwtVerify(token, assertionPublicKey, {
+      algorithms: ["EdDSA"],
+      audience: settings.ENGINE_ASSERTION_AUDIENCE,
+      clockTolerance: 5,
+      issuer: settings.ENGINE_ASSERTION_ISSUER,
+      maxTokenAge: "2 minutes",
+    });
+    actor = validateActorAssertionClaims(verified.payload);
+  } catch (error) {
+    if (typeof error?.code === "string" && error.code.startsWith("ERR_JWT")) throw error;
+    throw authorizationFailure("The actor assertion is invalid.");
+  }
   const replay = await database.query(
     `insert into "vasi_engine"."actor_assertion_replay"
       ("jti", "issuer", "subject", "expiresAt")
@@ -170,6 +186,15 @@ function dispatchEvidence(action, actor, payload) {
     case "tenant.create": return evidence.createTenant(actor, payload);
     case "membership.list": return workflows.listMembers(actor, payload);
     case "membership.update": return workflows.setMember(actor, payload);
+    case "artifact.list": return artifacts.listArtifacts(actor, payload);
+    case "artifact.create": return artifacts.createArtifact(actor, payload);
+    case "artifact.chunk.append": return artifacts.appendChunk(actor, payload);
+    case "artifact.finalize": return artifacts.finalizeArtifact(actor, payload);
+    case "artifact.abort": return artifacts.abortArtifact(actor, payload);
+    case "artifact.owner.open": return artifacts.openOwnerArtifact(actor, payload);
+    case "artifact.owner.read": return artifacts.readOwnerChunk(actor, payload);
+    case "artifact.participant.open": return evidence.openParticipantArtifact(actor, payload);
+    case "artifact.participant.read": return evidence.readParticipantArtifactChunk(actor, payload);
     case "workflow.list": return workflows.listWorkflows(actor, payload);
     case "workflow.create": return workflows.createWorkflow(actor, payload);
     case "workflow.draft.update": return workflows.updateDraft(actor, payload);
@@ -192,25 +217,43 @@ function singleHeader(value) {
 function errorCode(error) {
   if (error?.code === "ERR_JWT_EXPIRED") return "actor_expired";
   if (error?.code === "BODY_LIMIT") return "body_limit";
-  if (error instanceof EvidenceStoreError) return error.code;
+  if (error instanceof EngineStoreError) return error.code;
   if (error?.code === "INVALID_JSON") return "invalid_json";
   if (error?.code === "INVALID_WORKFLOW") return "invalid_workflow";
-  return "authorization_failed";
+  if (error?.code === "INVALID_ARTIFACT") return "invalid_artifact";
+  if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
+  if (error?.code === "AUTHORIZATION_FAILED" || String(error?.code || "").startsWith("ERR_JWT")) {
+    return "authorization_failed";
+  }
+  return "internal_failure";
 }
 
 function errorStatus(error) {
   if (error?.code === "BODY_LIMIT") return 413;
   if (error?.code === "INVALID_JSON") return 400;
   if (error?.code === "INVALID_WORKFLOW") return 400;
-  if (error instanceof EvidenceStoreError) return error.status;
-  return 401;
+  if (error?.code === "INVALID_ARTIFACT") return 400;
+  if (error?.code === "INVALID_ACTIVITY_RESPONSE") return 400;
+  if (error instanceof EngineStoreError) return error.status;
+  if (error?.code === "AUTHORIZATION_FAILED" || String(error?.code || "").startsWith("ERR_JWT")) return 401;
+  return 500;
 }
 
 function publicErrorCode(error, status) {
-  if (error instanceof EvidenceStoreError) return error.code;
+  if (error instanceof EngineStoreError) return error.code;
+  if (error?.code === "INVALID_ARTIFACT") return "invalid_artifact";
+  if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
+  if (error?.code === "INVALID_WORKFLOW") return "invalid_workflow";
   if (status === 413) return "request_too_large";
   if (status === 400) return "invalid_request";
-  return "unauthorized";
+  if (status === 401) return "unauthorized";
+  return "internal_error";
+}
+
+function authorizationFailure(message) {
+  const error = new Error(message);
+  error.code = "AUTHORIZATION_FAILED";
+  return error;
 }
 
 async function shutDown() {

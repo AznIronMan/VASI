@@ -1,6 +1,6 @@
 # Workflow and company-owner control plane
 
-Status: implemented in VASI 0.6.0.
+Status: implemented in VASI 0.6.0 and extended in VASI 0.7.0.
 
 ## Ownership boundary
 
@@ -23,9 +23,11 @@ optimistic expected-version command. Publishing creates a new immutable
 `workflow_revision` snapshot and never changes an earlier revision. Issued
 requests retain their exact revision even when a newer draft is published.
 
-The `vasi-workflow/v1` schema accepts ordered built-in activity contracts. This
-release supports version 1 `terms_response` activities with acknowledgement or
-yes/no responses. Branches can compare the current validated response for
+The `vasi-workflow/v1` schema accepts ordered built-in activity contracts. VASI
+0.6.0 introduced version 1 `terms_response` activities; VASI 0.7.0 adds the
+separately documented approval, choice, free-form, electronic-signature,
+PostgreSQL document-review, and deterministic questionnaire/test reducers.
+Branches can compare the current validated response or reducer outcome for
 equality and can move only to a later declared activity or a terminal outcome.
 Unknown fields, activity types, contract versions, response values, backward
 edges, cycles, and tenant-provided code are rejected before publication.
@@ -33,9 +35,10 @@ edges, cycles, and tenant-provided code are rejected before publication.
 Each assignment receives immutable activity definitions and hashes. The engine,
 not the browser, selects the current activity, validates its response, evaluates
 the next transition, marks bypassed activities as skipped, and decides when the
-request is complete. The final version 2 evidence manifest covers the full
-workflow snapshot, ordered activity outcomes, policies, timestamps, event
-chain, and standard VASI integrity seal.
+request is complete. The final version 3 evidence manifest covers the full
+workflow snapshot, ordered activity outcomes and response revisions, exact
+artifact bindings, policies, timestamps, event chain, and standard VASI
+integrity seal.
 
 ## Request lifecycle and access
 
@@ -75,8 +78,8 @@ never forwarded to the engine.
 
 ## Current limits
 
-This control plane deliberately exposes only the terms/response activity
-contract. Documents, questions, tests, typed/drawn signatures, richer response
-revision semantics, and media contracts are subsequent activity milestones.
+PostgreSQL documents, questions/tests, typed/drawn signatures, and append-only
+response revisions are implemented in VASI 0.7.0. Media telemetry, reports,
+retention/legal hold, and participant data requests remain separate milestones.
 The standard integrity seal still does not claim an external CA identity,
 trusted timestamp, or legal conclusion.

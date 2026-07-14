@@ -19,17 +19,15 @@ import {
   validatePublishedIssueInput,
   validateRequestAction,
 } from "../../packages/engine-domain/workflow.mjs";
+import { validateActivityResponse } from "../../packages/engine-domain/activities.mjs";
+import { validateParticipantArtifactInput } from "../../packages/engine-domain/artifacts.mjs";
+import { readArtifactChunk } from "./artifact-store.mjs";
+import { EngineStoreError } from "./errors.mjs";
 
-const ENGINE_VERSION = "0.6.0";
+const ENGINE_VERSION = "0.7.0";
 const GENESIS_HASH = "0".repeat(64);
 
-export class EvidenceStoreError extends Error {
-  constructor(code, status, message = code) {
-    super(message);
-    this.code = code;
-    this.status = status;
-  }
-}
+export class EvidenceStoreError extends EngineStoreError {}
 
 export function createEvidenceStore(database, settings) {
   const sealPrivateJWK = parseJWK(settings.EVIDENCE_SEAL_PRIVATE_JWK, "private");
@@ -456,6 +454,75 @@ export function createEvidenceStore(database, settings) {
       }
     },
 
+    async openParticipantArtifact(actor, payload) {
+      requireParticipant(actor);
+      const input = validateParticipantArtifactInput(payload);
+      const handleDigest = digestHandle(input.handle);
+      return transaction(database, async (client) => {
+        const record = await participantArtifactRecord(client, handleDigest, input, true);
+        authorizeParticipant(record, actor);
+        assertParticipantContentAccess(record, new Date());
+        const accessType = input.disposition === "attachment"
+          ? "participant_download"
+          : "participant_presentation";
+        const accessedAt = new Date();
+        const accessId = randomUUID();
+        await client.query(
+          `insert into "vasi_engine"."document_artifact_access_event"
+            ("id", "tenantId", "artifactId", "requestId", "assignmentId", "activityInstanceId",
+             "actorPrincipalId", "accessType", "disposition", "metadata", "createdAt")
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [
+            accessId,
+            record.tenantId,
+            record.artifactId,
+            record.requestId,
+            record.assignmentId,
+            record.activityInstanceId,
+            actor.principalId,
+            accessType,
+            input.disposition,
+            { gatewayObserved: true, limitation: "Route access does not by itself prove that every page was read." },
+            accessedAt,
+          ],
+        );
+        if (record.status !== "completed") {
+          await appendEvent(client, {
+            actor,
+            assignmentId: record.assignmentId,
+            eventType: accessType === "participant_download" ? "document.downloaded" : "document.presented",
+            payload: {
+              accessId,
+              activityId: record.activityId,
+              artifact: participantArtifactProjection(record),
+              disposition: input.disposition,
+              limitation: "Authorized route access does not prove that every page was read.",
+            },
+            receivedAt: accessedAt,
+            requestId: record.requestId,
+            tenantId: record.tenantId,
+          });
+        }
+        return participantArtifactProjection(record);
+      });
+    },
+
+    async readParticipantArtifactChunk(actor, payload) {
+      requireParticipant(actor);
+      const input = validateParticipantArtifactInput(payload);
+      if (input.sequence === undefined) throw new EvidenceStoreError("invalid_artifact_sequence", 400);
+      const handleDigest = digestHandle(input.handle);
+      const client = await database.connect();
+      try {
+        const record = await participantArtifactRecord(client, handleDigest, input, false);
+        authorizeParticipant(record, actor);
+        assertParticipantContentAccess(record, new Date());
+        return readArtifactChunk(client, input.artifactId, input.sequence);
+      } finally {
+        client.release();
+      }
+    },
+
     async listRequests(actor, payload) {
       requireActor(actor);
       const tenantId = boundedToken(payload?.tenantId, "tenantId", 128);
@@ -684,10 +751,17 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
 
 async function currentActivity(client, assignmentId, now) {
   const result = await client.query(
-    `select "id", "activityId", "ordinal", "definition", "definitionHash", "openedAt"
-     from "vasi_engine"."activity_instance"
-     where "assignmentId" = $1 and "status" = 'available'
-     order by "ordinal" limit 1 for update`,
+    `select i."id", i."activityId", i."ordinal", i."definition", i."definitionHash", i."openedAt",
+            saved."responseValue" as "savedResponse", saved."responseLabel" as "savedResponseLabel"
+     from "vasi_engine"."activity_instance" i
+     left join lateral (
+       select "responseValue", "responseLabel"
+       from "vasi_engine"."activity_response_revision"
+       where "activityInstanceId" = i."id" and "state" = 'saved'
+       order by "revision" desc limit 1
+     ) saved on true
+     where i."assignmentId" = $1 and i."status" = 'available'
+     order by i."ordinal" limit 1 for update of i`,
     [assignmentId],
   );
   if (!result.rowCount) throw new EvidenceStoreError("activity_unavailable", 409);
@@ -722,8 +796,11 @@ function workflowParticipantProjection(record, interaction, activity) {
     },
     purpose: record.purpose,
     responseMode: projection.responseMode,
+    savedResponse: activity.savedResponse,
+    savedResponseLabel: activity.savedResponseLabel,
     tenant: { id: record.tenantId, name: record.tenantName },
     title: projection.title,
+    type: projection.type,
     workflowTitle: record.title,
   };
 }
@@ -752,15 +829,99 @@ async function respondToWorkflowActivity({
   if (payload?.activityId && payload.activityId !== activity.activityId) {
     throw new EvidenceStoreError("activity_state_conflict", 409);
   }
-  const response = validateParticipantResponse(activity.definition.responseMode, payload?.response);
+  const intent = payload?.intent ?? "submit";
+  if (!['save', 'submit'].includes(intent)) throw new EvidenceStoreError("invalid_response_intent", 400);
+  const response = validateActivityResponse(activity.definition, payload?.response);
+  if (intent === "submit" && activity.definition.type === "document_review") {
+    const presented = await client.query(
+      `select 1 from "vasi_engine"."document_artifact_access_event"
+       where "assignmentId" = $1 and "activityInstanceId" = $2
+         and "actorPrincipalId" = $3
+         and "accessType" in ('participant_presentation', 'participant_download') limit 1`,
+      [record.assignmentId, activity.id, actor.principalId],
+    );
+    if (!presented.rowCount) throw new EvidenceStoreError("document_not_presented", 409);
+  }
   const completedAt = new Date();
+  const revisionResult = await client.query(
+    `select coalesce(max("revision"), 0) + 1 as "revision"
+     from "vasi_engine"."activity_response_revision" where "activityInstanceId" = $1`,
+    [activity.id],
+  );
+  const responseRevision = Number(revisionResult.rows[0].revision);
+  const responseRevisionId = randomUUID();
+  try {
+    await client.query(
+      `insert into "vasi_engine"."activity_response_revision"
+        ("id", "tenantId", "requestId", "assignmentId", "activityInstanceId", "interactionId",
+         "revision", "commandId", "state", "responseValue", "responseLabel", "outcome", "result",
+         "clientContext", "recordedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+      [
+        responseRevisionId,
+        record.tenantId,
+        record.requestId,
+        record.assignmentId,
+        activity.id,
+        interactionId,
+        responseRevision,
+        commandId,
+        intent === "save" ? "saved" : "submitted",
+        JSON.stringify(response.value),
+        response.display,
+        response.outcome,
+        response.result || null,
+        clientContext,
+        completedAt,
+      ],
+    );
+  } catch (error) {
+    if (error?.code === "23505") throw new EvidenceStoreError("response_replayed", 409);
+    throw error;
+  }
+  await appendEvent(client, {
+    actor,
+    assignmentId: record.assignmentId,
+    eventType: intent === "save" ? "activity.response.saved" : "activity.response.submitted",
+    payload: {
+      activity: {
+        definitionHash: activity.definitionHash,
+        id: activity.activityId,
+        ordinal: Number(activity.ordinal),
+        type: activity.definition.type,
+      },
+      clientContext,
+      interactionId,
+      response: {
+        display: response.display,
+        outcome: response.outcome,
+        result: response.result,
+        value: response.value,
+      },
+      responseRevision,
+      responseRevisionId,
+    },
+    receivedAt: completedAt,
+    requestId: record.requestId,
+    tenantId: record.tenantId,
+  });
+  if (intent === "save") {
+    activity.savedResponse = response.value;
+    activity.savedResponseLabel = response.display;
+    return {
+      assignment: workflowParticipantProjection(record, interaction.rows[0], activity),
+      completed: false,
+      saved: true,
+    };
+  }
   const responseId = randomUUID();
   try {
     await client.query(
       `insert into "vasi_engine"."activity_response"
         ("id", "tenantId", "requestId", "assignmentId", "activityInstanceId", "interactionId",
-         "commandId", "responseValue", "clientContext", "respondedAt")
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         "commandId", "responseValue", "responseRevisionId", "responseLabel", "outcome", "result",
+         "clientContext", "respondedAt")
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
         responseId,
         record.tenantId,
@@ -769,7 +930,11 @@ async function respondToWorkflowActivity({
         activity.id,
         interactionId,
         commandId,
-        JSON.stringify(response),
+        JSON.stringify(response.value),
+        responseRevisionId,
+        response.display,
+        response.outcome,
+        response.result || null,
         clientContext,
         completedAt,
       ],
@@ -813,7 +978,7 @@ async function respondToWorkflowActivity({
   await appendEvent(client, {
     actor,
     assignmentId: record.assignmentId,
-    eventType: "activity.responded",
+    eventType: "activity.completed",
     payload: {
       activity: {
         definitionHash: activity.definitionHash,
@@ -824,8 +989,15 @@ async function respondToWorkflowActivity({
       clientContext,
       interactionId,
       nextActivityId,
-      response,
+      response: {
+        display: response.display,
+        outcome: response.outcome,
+        result: response.result,
+        value: response.value,
+      },
       responseId,
+      responseRevision,
+      responseRevisionId,
       serverDurationMilliseconds: Math.max(
         0,
         completedAt.getTime() - new Date(activity.openedAt).getTime(),
@@ -858,9 +1030,20 @@ async function respondToWorkflowActivity({
     [record.requestId, completedAt],
   );
   const responses = await client.query(
-    `select i."activityId", i."ordinal", i."definitionHash", r."responseValue", r."respondedAt"
+    `select i."activityId", i."ordinal", i."definitionHash", r."responseValue", r."responseLabel",
+            r."outcome", r."result", r."respondedAt",
+            coalesce(revisions."items", '[]'::jsonb) as "revisions"
      from "vasi_engine"."activity_response" r
      join "vasi_engine"."activity_instance" i on i."id" = r."activityInstanceId"
+     left join lateral (
+       select jsonb_agg(jsonb_build_object(
+         'id', rr."id", 'revision', rr."revision", 'state', rr."state",
+         'response', rr."responseValue", 'responseLabel', rr."responseLabel",
+         'outcome', rr."outcome", 'result', rr."result", 'recordedAt', rr."recordedAt"
+       ) order by rr."revision") as "items"
+       from "vasi_engine"."activity_response_revision" rr
+       where rr."activityInstanceId" = i."id"
+     ) revisions on true
      where r."assignmentId" = $1 order by i."ordinal"`,
     [record.assignmentId],
   );
@@ -926,6 +1109,10 @@ function buildWorkflowManifest({ actor, completedAt, events, interaction, manife
         ordinal: Number(row.ordinal),
         respondedAt: new Date(row.respondedAt).toISOString(),
         response: row.responseValue,
+        responseLabel: row.responseLabel,
+        outcome: row.outcome,
+        result: row.result,
+        revisions: row.revisions,
       })),
       status: "completed",
     },
@@ -937,7 +1124,7 @@ function buildWorkflowManifest({ actor, completedAt, events, interaction, manife
       purpose: record.purpose,
       scheduledFor: record.scheduledFor ? new Date(record.scheduledFor).toISOString() : undefined,
     },
-    schema: "vasi-evidence-manifest/v2",
+    schema: "vasi-evidence-manifest/v3",
     tenant: { id: record.tenantId, name: record.tenantName },
     timestamps: {
       completedAt: completedAt.toISOString(),
@@ -1198,7 +1385,7 @@ function participantReceipt(record) {
   const manifest = record.manifest;
   const activityOutcomes = manifest.outcome.activities;
   const response = activityOutcomes
-    ? activityOutcomes.map((activity) => `${activity.activityId}: ${activity.response}`).join("; ")
+    ? activityOutcomes.map((activity) => `${activity.activityId}: ${activity.responseLabel || formatResponse(activity.response)}`).join("; ")
     : manifest.outcome.response;
   const postCompletion = manifest.request.accessPolicy?.postCompletion || "receipt_only";
   const contentAvailable = postCompletion === "content_always" || (
@@ -1217,7 +1404,9 @@ function participantReceipt(record) {
     },
     issuedAt: manifest.timestamps.issuedAt,
     request: {
-      activities: contentAvailable ? manifest.workflow.snapshot?.activities : undefined,
+      activities: contentAvailable
+        ? manifest.workflow.snapshot?.activities.map(participantActivityProjection)
+        : undefined,
       contentAccess: { available: Boolean(contentAvailable), policy: postCompletion },
       purpose: manifest.request.purpose,
       response,
@@ -1226,6 +1415,12 @@ function participantReceipt(record) {
     },
     tenant: manifest.tenant,
   };
+}
+
+function formatResponse(value) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.join(", ");
+  return JSON.stringify(value);
 }
 
 async function assignmentForHandle(client, handleDigest, lock) {
@@ -1246,6 +1441,60 @@ async function assignmentForHandle(client, handleDigest, lock) {
   );
   if (!result.rowCount) notFound();
   return result.rows[0];
+}
+
+async function participantArtifactRecord(client, handleDigest, input, lock) {
+  const result = await client.query(
+    `select a."id" as "assignmentId", a."tenantId", a."requestId", a."intendedEmail",
+            a."principalId", a."participantEmail", a."status", r."status" as "requestStatus",
+            r."expiresAt", r."scheduledFor", r."accessPolicy",
+            i."id" as "activityInstanceId", i."activityId", i."status" as "activityStatus",
+            d."id" as "artifactId", d."familyId", d."revision" as "artifactRevision",
+            d."role" as "artifactRole", d."originalFilename", d."mediaType", d."byteLength",
+            d."chunkCount", d."sha256", d."inspectionProfile"
+     from "vasi_engine"."participant_assignment" a
+     join "vasi_engine"."request_instance" r on r."id" = a."requestId"
+     join "vasi_engine"."activity_instance" i
+       on i."assignmentId" = a."id" and i."activityId" = $2
+     join "vasi_engine"."workflow_artifact_binding" b
+       on b."workflowRevisionId" = r."workflowRevisionId"
+      and b."activityId" = i."activityId" and b."artifactId" = $3
+     join "vasi_engine"."document_artifact" d
+       on d."id" = b."artifactId" and d."tenantId" = a."tenantId" and d."status" = 'published'
+     where a."handleDigest" = $1${lock ? " for update of a, r, i" : ""}`,
+    [handleDigest, input.activityId, input.artifactId],
+  );
+  if (!result.rowCount) notFound();
+  return result.rows[0];
+}
+
+function assertParticipantContentAccess(record, now) {
+  const completed = record.status === "completed" || record.requestStatus === "completed";
+  if (completed) {
+    const policy = record.accessPolicy?.postCompletion || "receipt_only";
+    const available = policy === "content_always" ||
+      (policy === "content_until_expiration" && new Date(record.expiresAt) > now);
+    if (!available) throw new EvidenceStoreError("content_unavailable", 410);
+    return;
+  }
+  assertAssignmentAvailable(record, now);
+  if (!["available", "completed"].includes(record.activityStatus)) notFound();
+}
+
+function participantArtifactProjection(record) {
+  return {
+    activityId: record.activityId,
+    byteLength: Number(record.byteLength),
+    chunkCount: Number(record.chunkCount),
+    familyId: record.familyId,
+    id: record.artifactId,
+    inspectionProfile: record.inspectionProfile,
+    mediaType: record.mediaType,
+    originalFilename: record.originalFilename,
+    revision: Number(record.artifactRevision),
+    role: record.artifactRole,
+    sha256: record.sha256,
+  };
 }
 
 function participantProjection(record, interaction) {

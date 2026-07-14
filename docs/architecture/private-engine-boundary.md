@@ -87,6 +87,7 @@ value remains encrypted and bound to its installation, scope, and name.
 This boundary proves authenticated service identity, actor context, replay
 defense, process isolation, database ownership, and deployment posture. VASI
 0.5.0 adds the separately documented first sealed terms/response slice, and
-VASI 0.6.0 adds the general workflow and company control plane. Document and
+VASI 0.6.0 adds the general workflow and company control plane, and VASI 0.7.0
+adds PostgreSQL document artifacts and rich electronic activities. External
 media activities, reports/bundles, retention, legal hold, participant data
 requests, and productized integrations remain later milestones.

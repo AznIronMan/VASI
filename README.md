@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.6.0`
+Version: `0.7.0`
 
 A CNB project maintained by Street Kings Productions.
 
@@ -41,12 +41,21 @@ for generic SMTP or signed-webhook delivery. New V·Sign sessions also preserve
 session-specific authentication provenance rather than guessing from linked
 accounts.
 
+Version 0.7.0 adds the VASI-owned PostgreSQL document store and rich electronic
+activity contracts. Non-media uploads are quarantined, bounded into ordered
+`bytea` chunks, individually and completely hashed, transparently inspected,
+and atomically published or rejected without an authoritative loose file.
+Workflow revisions bind exact artifact revisions and now support approvals,
+single/multiple choice, free-form responses, typed/drawn electronic signatures,
+document review, and deterministic questionnaires/tests. Saved responses are
+append-only revisions included in the version 3 sealed evidence manifest.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. It is not yet an independent
 CA identity, trusted timestamp, legal conclusion, or long-term validation
-profile. Documents and richer electronic activities, media, reports/bundles,
-retention, participant data requests, productized owner/integration gateways,
-and optional CA/TSA adapters remain subsequent milestones.
+profile. External media evidence, reports/bundles, retention, participant data
+requests, productized owner/integration gateways, comprehensive replaceable
+malware scanning, and optional CA/TSA adapters remain subsequent milestones.
 
 ## Included
 
@@ -85,6 +94,13 @@ and optional CA/TSA adapters remain subsequent milestones.
 - AES-256-GCM encrypted outbox envelopes, immutable delivery-attempt records,
   bounded retry and stale-lock recovery, generic SMTP and HMAC-signed HTTPS
   webhook adapters, and session-level authentication provenance.
+- PostgreSQL-only authoritative non-media artifacts with bounded chunk upload
+  and delivery, immutable source/derived/replacement revisions, SHA-256
+  verification, quarantine/inspection, exact workflow binding, and access
+  auditing.
+- Declarative approvals, questions, free-form answers, typed/drawn electronic
+  signatures, document review, and server-scored questionnaires/tests with
+  append-only response revisions and participant answer-key redaction.
 
 ## Configuration model
 
@@ -199,7 +215,9 @@ identity, and replay rejection. The disposable conformance environment also
 runs `npm run engine:probe:evidence` for issuance, isolation, response, receipt,
 seal, replay, and tamper checks, plus `npm run engine:probe:workflow` for roles,
 drafts, immutable revisions, branching, lifecycle, encrypted outbox, and
-multi-step sealing.
+multi-step sealing. `npm run engine:probe:documents` adds artifact ingestion,
+inspection, streaming, rich activities, response revisions, scoring, and
+version 3 manifest verification in that disposable environment.
 
 See [Authentication setup](docs/authentication.md) for callbacks, provider and
 mailer settings, administration behavior, and the release checklist. See
@@ -210,3 +228,6 @@ the service trust and deployment contract. The
 first transaction, record, and assurance limits. The
 [workflow control plane](docs/architecture/workflow-control-plane.md) defines
 the company roles, state machine, publication, lifecycle, and outbox contracts.
+The [document and electronic activity decision](docs/architecture/document-artifacts-and-activities.md)
+defines the PostgreSQL artifact lifecycle, supported contracts, streaming
+boundary, assurance language, and inspection limitations.

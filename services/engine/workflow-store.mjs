@@ -7,6 +7,10 @@ import {
   validateMembershipInput,
   validateWorkflowMutation,
 } from "../../packages/engine-domain/workflow.mjs";
+import {
+  persistWorkflowArtifactBindings,
+  resolveWorkflowArtifactBindings,
+} from "./artifact-store.mjs";
 import { EvidenceStoreError } from "./evidence-store.mjs";
 
 export function createWorkflowStore(database) {
@@ -146,7 +150,8 @@ export function createWorkflowStore(database) {
         const revision = Number(revisionResult.rows[0].revision);
         const revisionId = randomUUID();
         const document = draft.rows[0].document;
-        const firstActivity = document.activities[0];
+        const resolved = await resolveWorkflowArtifactBindings(client, input.tenantId, document);
+        const firstActivity = resolved.snapshot.activities[0];
         const publishedAt = new Date();
         await client.query(
           `insert into "vasi_engine"."workflow_revision"
@@ -158,8 +163,8 @@ export function createWorkflowStore(database) {
             revisionId,
             input.tenantId,
             revision,
-            document.title,
-            document.purpose,
+            resolved.snapshot.title,
+            resolved.snapshot.purpose,
             firstActivity.type,
             firstActivity.responseMode,
             firstActivity.content,
@@ -168,9 +173,16 @@ export function createWorkflowStore(database) {
             publishedAt,
             input.definitionId,
             draft.rows[0].schemaVersion,
-            document,
-            draft.rows[0].documentHash,
+            resolved.snapshot,
+            resolved.snapshotHash,
           ],
+        );
+        await persistWorkflowArtifactBindings(
+          client,
+          input.tenantId,
+          revisionId,
+          resolved.bindings,
+          publishedAt,
         );
         await client.query(
           `update "vasi_engine"."workflow_definition"
@@ -182,7 +194,7 @@ export function createWorkflowStore(database) {
           publishedAt: publishedAt.toISOString(),
           revision,
           revisionId,
-          snapshotHash: draft.rows[0].documentHash,
+          snapshotHash: resolved.snapshotHash,
           tenantId: input.tenantId,
         };
       });

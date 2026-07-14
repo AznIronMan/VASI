@@ -2144,6 +2144,88 @@ input:disabled {
   white-space: pre-wrap;
 }
 
+.owner-artifact {
+  display: flex;
+  padding: 14px 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.owner-artifact > div {
+  display: grid;
+  gap: 4px;
+}
+
+.owner-artifact > div:last-child,
+.participant-document-actions,
+.participant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.owner-artifact span,
+.owner-artifact small,
+.participant-limit {
+  color: var(--ink-soft);
+}
+
+.participant-document {
+  margin: 20px 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.participant-document dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.participant-document dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.participant-document iframe {
+  width: 100%;
+  height: min(70vh, 760px);
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  background: var(--white);
+}
+
+.participant-questionnaire {
+  display: grid;
+  gap: 14px;
+}
+
+.participant-questionnaire fieldset {
+  display: grid;
+  padding: 14px;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.signature-pad {
+  display: grid;
+  gap: 8px;
+}
+
+.signature-pad canvas {
+  width: 100%;
+  max-width: 100%;
+  height: 176px;
+  border: 1px solid var(--ink-soft);
+  border-radius: 8px;
+  background: var(--white);
+  touch-action: none;
+}
+
 @media (max-width: 760px) {
   .evidence-admin-grid {
     grid-template-columns: 1fr;

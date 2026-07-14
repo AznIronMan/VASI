@@ -17,7 +17,7 @@ export type ParticipantAssignment = {
   activityId?: string;
   assignmentId?: string;
   completed: boolean;
-  content?: { prompt: string; terms: string };
+  content?: import("@/lib/owner-types").WorkflowActivityContent;
   contentHash?: string;
   expiresAt?: string;
   interaction?: { id: string; startedAt: string };
@@ -25,9 +25,12 @@ export type ParticipantAssignment = {
   progress?: { current: number; total: number };
   purpose?: string;
   receiptAvailable?: boolean;
-  responseMode?: "acknowledgement" | "yes_no";
+  responseMode?: import("@/lib/owner-types").WorkflowActivity["responseMode"];
+  savedResponse?: unknown;
+  savedResponseLabel?: string;
   tenant?: { id: string; name: string };
   title?: string;
+  type?: import("@/lib/owner-types").WorkflowActivity["type"];
   workflowTitle?: string;
 };
 
@@ -49,11 +52,11 @@ export type ParticipantReceipt = {
   };
   issuedAt: string;
   request: {
-    activities?: Array<{ content: { prompt: string; terms: string }; id: string; title: string }>;
+    activities?: Array<import("@/lib/owner-types").WorkflowActivity>;
     contentAccess?: { available: boolean; policy: string };
     purpose: string;
     response: string;
-    responses?: Array<{ activityId: string; response: string }>;
+    responses?: Array<{ activityId: string; outcome?: string; response: unknown; responseLabel?: string; result?: unknown }>;
     title: string;
   };
   tenant: { id: string; name: string };

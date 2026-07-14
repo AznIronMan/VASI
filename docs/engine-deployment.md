@@ -25,6 +25,13 @@ Approved routes are:
 | `GET/POST` | `/v1/owner/tenants` | List or create an authorized company space |
 | `POST` | `/v1/owner/member-list` | List engine-authorized company members and grants |
 | `POST` | `/v1/owner/members` | Grant or change company roles by verified email |
+| `POST` | `/v1/owner/artifact-list` | List tenant-authorized artifact metadata and state |
+| `POST` | `/v1/owner/artifacts` | Create a quarantined artifact revision |
+| `POST` | `/v1/owner/artifact-chunks` | Append one bounded ordered artifact chunk |
+| `POST` | `/v1/owner/artifact-finalizations` | Verify, inspect, hash, and publish/reject an artifact |
+| `POST` | `/v1/owner/artifact-aborts` | Finalize an interrupted quarantine as rejected |
+| `POST` | `/v1/owner/artifact-open` | Authorize and audit owner document streaming |
+| `POST` | `/v1/owner/artifact-read` | Return one authorized owner artifact chunk |
 | `POST` | `/v1/owner/workflow-list` | List authorized workflow drafts and publications |
 | `POST` | `/v1/owner/workflows` | Create a validated workflow draft |
 | `POST` | `/v1/owner/workflow-drafts` | Update a draft with optimistic version control |
@@ -36,6 +43,8 @@ Approved routes are:
 | `POST` | `/v1/participant/open` | Bind/open an opaque participant assignment |
 | `POST` | `/v1/participant/respond` | Record one authoritative response and seal its manifest |
 | `POST` | `/v1/participant/receipt` | Return a participant-safe verified receipt |
+| `POST` | `/v1/participant/artifact-open` | Authorize/audit exact participant document access |
+| `POST` | `/v1/participant/artifact-read` | Return one assignment-authorized artifact chunk |
 
 Everything else returns 404 after service authentication.
 
@@ -75,6 +84,15 @@ when SMTP issue/reminder messages should contain the VASI request link. These
 values are engine-scoped PostgreSQL settings; do not put them in environment
 files or Compose arguments.
 
+Document storage defaults to `ENGINE_DOCUMENT_MAX_BYTES=26214400` (25 MiB) and
+`ENGINE_DOCUMENT_CHUNK_BYTES=262144` (256 KiB). The engine accepts only the
+document media allowlist, and the authenticated chunk action alone receives a
+512 KiB JSON envelope allowance; every other private action retains the 64 KiB
+body limit. Increasing either setting requires target-deployment database/WAL,
+replication, concurrency, backup/restore, and vacuum evidence. See the
+[document artifact decision](architecture/document-artifacts-and-activities.md)
+for inspection limitations and supported formats.
+
 The gateway scope needs the corresponding `ENGINE_ORIGIN`, server CA, client
 certificate/key, assertion private JWK/key ID, issuer, and audience. PEM values
 may be entered on one line with newlines encoded as `\n`. For automated
@@ -106,6 +124,7 @@ Run the gateway proof after every trust, key, network, or engine release:
 npm run engine:probe
 npm run engine:probe:evidence # disposable conformance database only
 npm run engine:probe:workflow # disposable conformance database only
+npm run engine:probe:documents # disposable conformance database only
 ```
 
 The proof verifies server trust, the V·Sign client certificate, engine health,

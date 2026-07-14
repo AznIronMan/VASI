@@ -5,6 +5,11 @@ public production origin is `https://vsign.cnb.llc`. A separately configured
 private HTTPS origin serves the internal administration console. Sessions are
 host-only and are not shared between the public and internal hosts.
 
+Authenticated company roles use the private owner control plane to configure
+workflows and requests. VASI 0.7.0 also lets roles with `artifact.read` inspect
+authorized document revisions, while only `artifact.manage` roles can upload or
+publish them; the engine enforces both permissions independently of the UI.
+
 ## Runtime settings
 
 VASI does not read application configuration from environment files. The local,

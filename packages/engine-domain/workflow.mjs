@@ -1,7 +1,13 @@
 import { hashCanonicalJSON } from "../engine-crypto/index.mjs";
+import {
+  ACTIVITY_TYPES,
+  branchValuesForActivity,
+  normalizeActivityDefinition,
+  participantActivityProjection,
+} from "./activities.mjs";
 
 export const TENANT_ROLES = Object.freeze(["owner", "manager", "author", "auditor"]);
-export const ACTIVITY_TYPES = Object.freeze(["terms_response"]);
+export { ACTIVITY_TYPES, participantActivityProjection };
 export const POST_COMPLETION_ACCESS = Object.freeze([
   "receipt_only",
   "content_until_expiration",
@@ -9,10 +15,10 @@ export const POST_COMPLETION_ACCESS = Object.freeze([
 ]);
 
 const ROLE_PERMISSIONS = Object.freeze({
-  owner: Object.freeze(["member.manage", "record.read", "request.manage", "workflow.manage"]),
-  manager: Object.freeze(["record.read", "request.manage", "workflow.manage"]),
-  author: Object.freeze(["workflow.manage"]),
-  auditor: Object.freeze(["record.read"]),
+  owner: Object.freeze(["artifact.manage", "artifact.read", "member.manage", "record.read", "request.manage", "workflow.manage"]),
+  manager: Object.freeze(["artifact.manage", "artifact.read", "record.read", "request.manage", "workflow.manage"]),
+  author: Object.freeze(["artifact.manage", "artifact.read", "workflow.manage"]),
+  auditor: Object.freeze(["artifact.read", "record.read"]),
 });
 
 export function permissionsForRoles(roles = []) {
@@ -35,7 +41,7 @@ export function validateWorkflowDraft(value) {
     invalid("A workflow requires 1 to 50 activities.");
   }
 
-  const activities = input.activities.map((activity, index) => normalizeActivity(activity, index));
+  const activities = input.activities.map((activity, index) => normalizeActivityDefinition(activity, index));
   const activityIds = new Set(activities.map((activity) => activity.id));
   if (activityIds.size !== activities.length) invalid("Workflow activity IDs must be unique.");
   for (const [index, activity] of activities.entries()) {
@@ -62,22 +68,13 @@ export function evaluateNextActivity(workflow, currentActivityId, response) {
   const index = workflow.activities.findIndex((activity) => activity.id === currentActivityId);
   if (index < 0) invalid("The current workflow activity is unknown.");
   const activity = workflow.activities[index];
-  const matched = activity.transition.cases.find((entry) => entry.when.equals === response);
+  const branchValue = response && typeof response === "object" && !Array.isArray(response)
+    ? response.outcome
+    : response;
+  const matched = activity.transition.cases.find((entry) => entry.when.equals === branchValue);
   if (matched) return matched.to;
   if (activity.transition.defaultTo !== undefined) return activity.transition.defaultTo;
   return workflow.activities[index + 1]?.id ?? null;
-}
-
-export function participantActivityProjection(activity) {
-  return Object.freeze({
-    content: activity.content,
-    contractVersion: activity.contractVersion,
-    id: activity.id,
-    instructions: activity.instructions,
-    responseMode: activity.responseMode,
-    title: activity.title,
-    type: activity.type,
-  });
 }
 
 export function validateMembershipInput(value) {
@@ -145,53 +142,8 @@ export function validateRequestAction(value) {
   });
 }
 
-function normalizeActivity(value, index) {
-  const input = strictObject(value, `activity ${index + 1}`, [
-    "content", "contractVersion", "id", "instructions", "responseMode", "title", "transition", "type",
-  ]);
-  const type = boundedString(input.type, "activity.type", 1, 64);
-  if (!ACTIVITY_TYPES.includes(type)) invalid(`Unsupported activity type: ${type}.`);
-  const contractVersion = input.contractVersion ?? 1;
-  if (contractVersion !== 1) invalid("The activity contract version is unsupported.");
-  const responseMode = boundedString(input.responseMode, "activity.responseMode", 1, 32);
-  if (!['acknowledgement', 'yes_no'].includes(responseMode)) invalid("The response mode is unsupported.");
-  const contentInput = strictObject(input.content, "activity.content", ["prompt", "terms"]);
-  const transitionInput = input.transition === undefined
-    ? { cases: [] }
-    : strictObject(input.transition, "activity.transition", ["cases", "defaultTo"]);
-  const cases = transitionInput.cases ?? [];
-  if (!Array.isArray(cases) || cases.length > 8) invalid("An activity may define at most eight branches.");
-  return Object.freeze({
-    content: Object.freeze({
-      prompt: boundedString(contentInput.prompt, "activity.content.prompt", 2, 1_000),
-      terms: boundedString(contentInput.terms, "activity.content.terms", 2, 50_000),
-    }),
-    contractVersion,
-    id: identifier(input.id, "activity.id"),
-    instructions: optionalString(input.instructions, "activity.instructions", 2_000),
-    responseMode,
-    title: boundedString(input.title, "activity.title", 2, 160),
-    transition: Object.freeze({
-      cases: Object.freeze(cases.map((entry, branchIndex) => normalizeBranch(entry, branchIndex))),
-      defaultTo: normalizeDestination(transitionInput.defaultTo),
-    }),
-    type,
-  });
-}
-
-function normalizeBranch(value, index) {
-  const input = strictObject(value, `branch ${index + 1}`, ["to", "when"]);
-  const when = strictObject(input.when, "branch.when", ["equals"]);
-  return Object.freeze({
-    to: normalizeDestination(input.to, true),
-    when: Object.freeze({ equals: boundedString(when.equals, "branch.when.equals", 1, 64) }),
-  });
-}
-
 function validateTransition(transition, activity, index, activities, activityIds) {
-  const allowedResponses = activity.responseMode === "acknowledgement"
-    ? ["acknowledged"]
-    : ["yes", "no"];
+  const allowedResponses = branchValuesForActivity(activity);
   const seen = new Set();
   for (const branch of transition.cases) {
     if (!allowedResponses.includes(branch.when.equals) || seen.has(branch.when.equals)) {
@@ -276,22 +228,10 @@ function strictObject(value, name, allowedKeys) {
   return value;
 }
 
-function identifier(value, field) {
-  const result = boundedString(value, field, 1, 64);
-  if (!/^[a-z][a-z0-9_-]{0,63}$/.test(result)) invalid(`${field} has an invalid format.`);
-  return result;
-}
-
 function email(value) {
   const result = boundedString(value, "email", 3, 320).toLowerCase();
   if (!/^[^@\s]+@[^@\s]+$/.test(result)) invalid("The email address is invalid.");
   return result;
-}
-
-function normalizeDestination(value, required = false) {
-  if (value === null) return null;
-  if (value === undefined && !required) return undefined;
-  return identifier(value, "transition destination");
 }
 
 function boundedString(value, field, minimum, maximum) {

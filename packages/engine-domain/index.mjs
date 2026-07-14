@@ -1,6 +1,15 @@
 const serviceActions = Object.freeze({
   "vasi-private-ingress": new Set([
     "actor.identity",
+    "artifact.abort",
+    "artifact.chunk.append",
+    "artifact.create",
+    "artifact.finalize",
+    "artifact.list",
+    "artifact.owner.open",
+    "artifact.owner.read",
+    "artifact.participant.open",
+    "artifact.participant.read",
     "engine.health",
     "membership.list",
     "membership.update",

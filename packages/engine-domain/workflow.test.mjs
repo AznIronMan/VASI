@@ -61,4 +61,40 @@ describe("workflow contracts", () => {
     expect(hasTenantPermission(["auditor"], "request.manage")).toBe(false);
     expect(hasTenantPermission(["admin"], "workflow.manage")).toBe(false);
   });
+
+  it("allows only declared rich-activity outcomes in forward branches", () => {
+    const rich = workflow({
+      activities: [
+        {
+          content: {
+            passingPercent: 80,
+            questions: [{
+              choices: [{ id: "a", label: "A" }, { id: "b", label: "B" }],
+              correctChoiceIds: ["b"],
+              id: "question_one",
+              prompt: "Choose B.",
+              type: "single_choice",
+            }],
+          },
+          id: "test",
+          responseMode: "questionnaire",
+          title: "Knowledge check",
+          transition: { cases: [{ to: null, when: { equals: "failed" } }] },
+          type: "questionnaire",
+        },
+        {
+          content: { prompt: "Please acknowledge.", terms: "Completion terms." },
+          id: "done",
+          responseMode: "acknowledgement",
+          title: "Done",
+          type: "terms_response",
+        },
+      ],
+    });
+    const { document } = validateWorkflowDraft(rich);
+    expect(evaluateNextActivity(document, "test", { outcome: "passed" })).toBe("done");
+    expect(evaluateNextActivity(document, "test", { outcome: "failed" })).toBeNull();
+    rich.activities[0].transition.cases[0].when.equals = "arbitrary";
+    expect(() => validateWorkflowDraft(rich)).toThrow(/invalid or duplicate branch/);
+  });
 });

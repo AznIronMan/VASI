@@ -26,6 +26,16 @@ export function friendlyEngineError(code?: string) {
     case "request_state_conflict": return "That request action is not allowed in its current state.";
     case "action_replayed": return "That request action was already processed.";
     case "workflow_archived": return "That workflow is archived and cannot be published.";
+    case "invalid_workflow": return "The workflow or activity definition is invalid.";
+    case "invalid_activity_response": return "The response does not satisfy this activity’s requirements.";
+    case "invalid_artifact": return "The document type, filename, size, or artifact command is invalid.";
+    case "artifact_rejected": return "The document failed integrity, content-type, or bounded safety inspection.";
+    case "artifact_chunk_too_large": return "A document chunk exceeded the configured limit.";
+    case "artifact_length_exceeded": return "The document exceeded its declared size.";
+    case "artifact_chunk_sequence_conflict": return "The document upload sequence was interrupted; upload it again.";
+    case "artifact_finalized": return "That document artifact has already been finalized.";
+    case "document_not_presented": return "Open or download the document before acknowledging its review.";
+    case "content_unavailable": return "The company’s access policy no longer makes this document available.";
     case "not_found": return "The requested record was not found or is not available to this account.";
     case "forbidden": return "This account is not authorized for that company or record.";
     case "integrity_check_failed": return "The evidence record did not pass integrity verification.";

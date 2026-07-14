@@ -23,6 +23,10 @@ const migrations = [
     name: "0004_engine_workflow_control_plane",
     path: path.join(repositoryRoot, "database", "engine-workflow-control-plane.sql"),
   },
+  {
+    name: "0005_engine_document_activities",
+    path: path.join(repositoryRoot, "database", "engine-document-activities.sql"),
+  },
 ];
 
 export async function runEngineMigrations(bootstrap = loadBootstrapSettings()) {

@@ -62,6 +62,8 @@
   { "scope": "engine", "name": "ENGINE_NOTIFICATION_SMTP_USER", "required": false, "secret": false },
   { "scope": "engine", "name": "ENGINE_NOTIFICATION_SMTP_PASSWORD", "required": false, "secret": true },
   { "scope": "engine", "name": "ENGINE_NOTIFICATION_SMTP_FROM", "required": false, "secret": false },
+  { "scope": "engine", "name": "ENGINE_DOCUMENT_MAX_BYTES", "required": false, "secret": false, "default": "26214400" },
+  { "scope": "engine", "name": "ENGINE_DOCUMENT_CHUNK_BYTES", "required": false, "secret": false, "default": "262144" },
   { "scope": "engine", "name": "ENGINE_INGRESS_SERVICE_ID", "required": false, "secret": false, "default": "vasi-private-ingress" },
   { "scope": "engine", "name": "ENGINE_WORKER_POLL_MS", "required": false, "secret": false, "default": "5000" }
 ]

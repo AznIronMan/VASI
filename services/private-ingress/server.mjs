@@ -7,7 +7,7 @@ import { resolveEngineRoute } from "../../packages/engine-contracts/index.mjs";
 import { loadBootstrapSettings, readRuntimeSettings } from "../../scripts/settings-core.mjs";
 import { readRequestBody, sendJSON } from "../shared/http.mjs";
 
-const ENGINE_VERSION = "0.6.0";
+const ENGINE_VERSION = "0.7.0";
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
 
@@ -26,10 +26,14 @@ const server = createServer(
         return sendJSON(response, 401, { error: "unauthorized" });
       }
       const path = new URL(request.url || "/", "https://engine.internal").pathname;
-      if (!resolveEngineRoute(request.method || "GET", path)) {
+      const route = resolveEngineRoute(request.method || "GET", path);
+      if (!route) {
         return sendJSON(response, 404, { error: "not_found" });
       }
-      const body = await readRequestBody(request);
+      const body = await readRequestBody(
+        request,
+        route.action === "artifact.chunk.append" ? 524_288 : 65_536,
+      );
       const requestId = randomUUID();
       const timestamp = Math.floor(Date.now() / 1000);
       const serviceId = settings.ENGINE_INGRESS_SERVICE_ID;

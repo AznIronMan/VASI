@@ -49,15 +49,12 @@ export default async function ReceiptPage({ params }: { params: Promise<{ handle
           <div><dt>Seal</dt><dd>{receipt.integrity.profile} · {receipt.integrity.algorithm}</dd></div>
           <div><dt>Manifest fingerprint</dt><dd className="receipt-hash">{receipt.integrity.manifestHash}</dd></div>
         </dl>
+        {receipt.request.responses && <section className="receipt-content"><h2>Recorded activity outcomes</h2>{receipt.request.responses.map((response) => <article key={response.activityId}><h3>{response.activityId}</h3><p>{response.responseLabel || formatReceiptValue(response.response)}</p>{response.outcome && <small>Outcome: {response.outcome}</small>}</article>)}</section>}
         {receipt.request.contentAccess?.available && receipt.request.activities && (
           <section className="receipt-content">
             <h2>Completed content</h2>
             {receipt.request.activities.map((activity) => (
-              <article key={activity.id}>
-                <h3>{activity.title}</h3>
-                <div>{activity.content.terms}</div>
-                <p><strong>Prompt:</strong> {activity.content.prompt}</p>
-              </article>
+              <ReceiptActivity activity={activity} handle={handle} key={activity.id} />
             ))}
           </section>
         )}
@@ -68,6 +65,27 @@ export default async function ReceiptPage({ params }: { params: Promise<{ handle
       </article>
     </main>
   );
+}
+
+function ReceiptActivity({ activity, handle }: {
+  activity: NonNullable<ParticipantReceipt["request"]["activities"]>[number];
+  handle: string;
+}) {
+  const content = activity.content;
+  if (activity.type === "document_review" && content.artifact) {
+    const url = `/r/${handle}/artifacts/${content.artifact.id}?activityId=${encodeURIComponent(activity.id)}`;
+    return <article><h3>{activity.title}</h3><p>{content.displayName}</p><a href={url} target="_blank" rel="noreferrer">Open retained document revision {content.artifact.revision}</a><small className="receipt-hash">{content.artifact.sha256}</small></article>;
+  }
+  if (activity.type === "terms_response") return <article><h3>{activity.title}</h3><div>{content.terms}</div><p><strong>Prompt:</strong> {content.prompt}</p></article>;
+  if (activity.type === "approval" || activity.type === "electronic_signature") return <article><h3>{activity.title}</h3><div>{content.statement}</div><p><strong>Prompt:</strong> {content.prompt}</p></article>;
+  if (activity.type === "questionnaire") return <article><h3>{activity.title}</h3><p>{content.instructions}</p><p>{content.questions?.length} question(s) in the immutable revision.</p></article>;
+  return <article><h3>{activity.title}</h3><p>{content.prompt}</p></article>;
+}
+
+function formatReceiptValue(value: unknown) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.join(", ");
+  return JSON.stringify(value);
 }
 
 function ReceiptError({ message }: { message: string }) {

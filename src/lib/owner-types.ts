@@ -2,15 +2,80 @@ import type { EvidenceTenant, IssuedEvidenceRequest } from "@/lib/evidence-types
 
 export type OwnerTenant = EvidenceTenant & { permissions: string[] };
 
+export type OwnerArtifact = {
+  byteLength?: number;
+  chunkCount?: number;
+  createdAt: string;
+  expectedByteLength: number;
+  familyId: string;
+  id: string;
+  inspectionProfile?: string;
+  inspectionResult?: { limitation?: string; rejectionCode?: string };
+  inspectionStatus: "pending" | "passed" | "rejected";
+  mediaType: string;
+  originalFilename: string;
+  publishedAt?: string;
+  rejectedAt?: string;
+  replacesArtifactId?: string;
+  retentionPolicy: { profile: string };
+  revision: number;
+  role: string;
+  sha256?: string;
+  sourceArtifactId?: string;
+  status: "quarantined" | "published" | "rejected";
+  tenantId: string;
+};
+
+export type WorkflowChoice = { description?: string; id: string; label: string };
+export type WorkflowQuestion = {
+  choices: WorkflowChoice[];
+  correctChoiceIds?: string[];
+  id: string;
+  points?: number;
+  prompt: string;
+  required?: boolean;
+  type: "single_choice" | "multiple_choice";
+};
+
+export type WorkflowActivityContent = {
+  acknowledgementLabel?: string;
+  artifact?: OwnerArtifact;
+  artifactId?: string;
+  choices?: WorkflowChoice[];
+  consentText?: string;
+  displayName?: string;
+  drawnSignatureLabel?: string;
+  instructions?: string;
+  labels?: { approved?: string; declined?: string; disapproved?: string };
+  maxLength?: number;
+  maxSelections?: number;
+  methods?: Array<"typed" | "drawn">;
+  minLength?: number;
+  minSelections?: number;
+  multiline?: boolean;
+  noLabel?: string;
+  passingPercent?: number;
+  prompt?: string;
+  questions?: WorkflowQuestion[];
+  responseLabel?: string;
+  resultDisclosure?: "pass_fail" | "pass_fail_and_score";
+  statement?: string;
+  terms?: string;
+  typedNameLabel?: string;
+  yesLabel?: string;
+};
+
 export type WorkflowActivity = {
-  content: { prompt: string; terms: string };
+  content: WorkflowActivityContent;
   contractVersion?: 1;
   id: string;
   instructions?: string;
-  responseMode: "acknowledgement" | "yes_no";
+  responseMode: "acknowledgement" | "yes_no" | "approval" | "single_choice" |
+    "multiple_choice" | "free_form" | "electronic_signature" | "document_review" | "questionnaire";
   title: string;
   transition?: { cases?: { to: string | null; when: { equals: string } }[]; defaultTo?: string | null };
-  type: "terms_response";
+  type: "terms_response" | "approval" | "single_choice" | "multiple_choice" |
+    "free_form" | "electronic_signature" | "document_review" | "questionnaire";
 };
 
 export type WorkflowDocument = {

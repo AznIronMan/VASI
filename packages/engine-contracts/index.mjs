@@ -8,6 +8,13 @@ const engineRoutes = Object.freeze([
   { action: "tenant.create", method: "POST", path: "/v1/owner/tenants" },
   { action: "membership.list", method: "POST", path: "/v1/owner/member-list" },
   { action: "membership.update", method: "POST", path: "/v1/owner/members" },
+  { action: "artifact.list", method: "POST", path: "/v1/owner/artifact-list" },
+  { action: "artifact.create", method: "POST", path: "/v1/owner/artifacts" },
+  { action: "artifact.chunk.append", method: "POST", path: "/v1/owner/artifact-chunks" },
+  { action: "artifact.finalize", method: "POST", path: "/v1/owner/artifact-finalizations" },
+  { action: "artifact.abort", method: "POST", path: "/v1/owner/artifact-aborts" },
+  { action: "artifact.owner.open", method: "POST", path: "/v1/owner/artifact-open" },
+  { action: "artifact.owner.read", method: "POST", path: "/v1/owner/artifact-read" },
   { action: "workflow.list", method: "POST", path: "/v1/owner/workflow-list" },
   { action: "workflow.create", method: "POST", path: "/v1/owner/workflows" },
   { action: "workflow.draft.update", method: "POST", path: "/v1/owner/workflow-drafts" },
@@ -19,6 +26,8 @@ const engineRoutes = Object.freeze([
   { action: "participant.open", method: "POST", path: "/v1/participant/open" },
   { action: "participant.respond", method: "POST", path: "/v1/participant/respond" },
   { action: "participant.receipt", method: "POST", path: "/v1/participant/receipt" },
+  { action: "artifact.participant.open", method: "POST", path: "/v1/participant/artifact-open" },
+  { action: "artifact.participant.read", method: "POST", path: "/v1/participant/artifact-read" },
 ]);
 
 export function resolveEngineRoute(method, path) {
