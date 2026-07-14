@@ -2,12 +2,12 @@
 
 ## Decision
 
-VASI supplies a scheduler-neutral, product-owned continuity command for the
-matched PostgreSQL and `VASI.settings` backup pair. The command does not choose
-a proprietary backup service, host path, timer, encryption provider, remote
-destination, or alert transport. Those are installation controls, while safe
-creation, verification, freshness assessment, and local retention semantics are
-part of the VASI product.
+VASI supplies a product-owned continuity command and portable scheduler
+defaults for the matched PostgreSQL and `VASI.settings` backup pair. It does not
+choose a proprietary backup service, customer path, encryption provider,
+remote destination, or alert transport. Those are installation controls, while
+safe creation, independent verification, freshness assessment, local retention,
+and a fail-closed recurring baseline are part of the VASI product.
 
 The gateway and private engine remain separate installations and require
 separate matched backup roots. A backup from one boundary never substitutes for
@@ -59,12 +59,14 @@ that runs as UID/GID `1000`, mounts application data read-only, has a read-only
 root filesystem, drops all capabilities, prohibits privilege escalation, and
 publishes no port. No backup destination is attached by default.
 
-An installation scheduler should run `create` daily and monitor its exit code,
-then run `check` independently. Mount the destination read/write only for
-creation and read-only for checking. The protected directory and scheduler
-configuration are deployment state, not source or environment files. Alert
+The tracked systemd units run `create` daily and `check` independently every 12
+hours. Mount the destination read/write only for creation and read-only for
+checking. A nonstandard protected directory is deployment state expressed in a
+reviewed root-owned systemd drop-in, not source or an environment file. Alert
 labels may include service, operation, status, age, and reason code, but never a
-backup path or customer field.
+backup path or customer field. See the
+[recurring scheduler contract](recurring-operational-schedulers.md) for the
+portable defaults and installation proof.
 
 Gateway example:
 

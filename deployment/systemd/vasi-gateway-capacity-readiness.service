@@ -1,0 +1,31 @@
+[Unit]
+Description=Verify VASI gateway host and PostgreSQL capacity readiness
+Documentation=file:/opt/vasi/current/docs/architecture/capacity-readiness.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/opt/vasi/current
+ExecStart=/usr/bin/docker compose -f compose.production.yaml --profile tools run --rm -T --no-deps -v /var/lib/vasi-capacity:/host/storage/system:ro capacity --scope gateway --storage system=/host/storage/system
+TimeoutStartSec=5min
+Nice=10
+IOSchedulingClass=idle
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native

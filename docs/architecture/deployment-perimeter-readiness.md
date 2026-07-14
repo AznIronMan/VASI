@@ -4,14 +4,15 @@
 
 VASI provides a vendor-neutral, privacy-safe probe for deployment state that
 cannot be derived inside the private evidence engine. The same packaged command
-runs in the hardened gateway or engine maintenance image and emits bounded JSON
-plus a deterministic exit status for an installation-selected scheduler and
-alert transport.
+runs in the hardened gateway maintenance image or from the trusted engine host
+and emits bounded JSON plus a deterministic exit status for an
+installation-selected alert transport.
 
 The probe does not introduce a public monitoring endpoint, contact an alerting
 vendor, or add host topology and credentials to PostgreSQL. The operator passes
-one credential-free HTTPS origin, a `gateway` or `engine` settings scope, and an
-absolute filesystem path that is already visible to the maintenance container.
+a `gateway` or `engine` settings scope and an absolute filesystem path already
+visible to the process. The public origin comes from that scope's encrypted
+runtime settings unless an interactive diagnostic supplies one explicitly.
 
 ## Checks and thresholds
 
@@ -63,10 +64,10 @@ filesystem read-only when it is outside the application tree:
 ```bash
 docker compose -f compose.production.yaml --profile tools run --rm \
   -v /secure/vasi-storage:/monitored:ro maintenance \
-  scripts/probe-deployment-readiness.mjs https://vasi.example \
+  scripts/probe-deployment-readiness.mjs \
   --scope gateway --storage /monitored
 
-sudo node scripts/probe-deployment-readiness.mjs https://vasi.example \
+sudo node scripts/probe-deployment-readiness.mjs \
   --scope engine --storage /secure/vasi-engine-storage
 ```
 
@@ -76,11 +77,15 @@ the public health and TLS origin. Do not broaden a private engine container for
 this operational check. The host process reads the same protected bootstrap,
 emits the same bounded schema, and receives no credential in its arguments.
 
-Schedule each deployment scope independently and alert on every nonzero exit.
+The tracked systemd suite schedules each deployment scope independently every
+six hours. When its explicit origin argument is omitted, the probe resolves the
+gateway or engine public origin through the encrypted PostgreSQL runtime
+settings boundary. Alert on every nonzero exit.
 Retain only the bounded result under the installation's monitoring policy. A
 failure should identify the deployment scope and reason code; operators should
 inspect protected host/service logs separately rather than adding paths,
-certificate identities, or customer fields to alert labels.
+certificate identities, or customer fields to alert labels. See the
+[recurring scheduler contract](recurring-operational-schedulers.md).
 
 ## Limits
 

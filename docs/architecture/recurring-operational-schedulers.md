@@ -1,0 +1,121 @@
+# Recurring operational scheduler contract
+
+Status: implemented in VASI 0.24.0.
+
+VASI ships the recurring host controls needed to keep a healthy release from
+silently degrading after deployment. The portable contract uses hardened
+systemd one-shot services and independent persistent timers. It does not choose
+an alert transport, external backup custodian, customer thresholds, or a
+customer-specific path.
+
+## Packaged controls
+
+| Role | Control | Default recurrence | Failure meaning |
+|---|---|---:|---|
+| Gateway and engine | Matched backup creation | 24 hours | A new verified PostgreSQL/bootstrap pair was not created |
+| Gateway and engine | Backup freshness check | 12 hours | The newest managed pair is missing, stale, malformed, future-dated, or corrupt |
+| Gateway and engine | Capacity readiness | 1 hour | A bounded host, filesystem, PostgreSQL, or configured replication threshold failed |
+| Gateway and engine | Deployment perimeter | 6 hours | Public health/version, public TLS, service certificates, or selected storage failed |
+| Engine | Operational readiness | 5 minutes | Migration, signing, queue, delivery, scanning, lifecycle, or database thresholds failed |
+| Engine | Exact egress policy refresh | 2 minutes | The fixed database/private-ingress host policy could not be applied |
+| Engine | Egress boundary verification | 5 minutes | Private denial, integration egress, listener replies, health, or database transport failed |
+
+Every timer has boot-relative and activation-relative first runs plus an
+`OnUnitInactiveSec` recurrence. `Persistent=yes` makes missed wall-clock work
+run after the timer becomes active again. Backup creation and backup checking
+are deliberately separate; a stopped creation schedule cannot make its own
+freshness claim.
+
+## Configuration boundary
+
+The units contain no environment files, credentials, customer hostnames,
+private addresses, or installation task data. They assume these sanitized
+filesystem roots:
+
+- gateway release: `/opt/vasi/current` with releases under `/opt/vasi/releases`;
+- engine release: `/opt/vasi-engine/current` with releases under
+  `/opt/vasi-engine/releases`;
+- gateway backups: `/var/lib/vasi/backups/maintenance/scheduled`;
+- engine backups: `/var/lib/vasi-engine/backups/maintenance/scheduled`; and
+- an empty capacity sentinel at `/var/lib/vasi-capacity`.
+
+Deployment readiness accepts an explicit credential-free HTTPS origin for
+interactive use. When the origin is omitted, it reads `BETTER_AUTH_URL` for the
+gateway scope or `ENGINE_PARTICIPANT_ORIGIN` for the engine scope through the
+existing SQLite-bootstrap/PostgreSQL settings boundary. Origin selection is
+therefore versioned and encrypted with the rest of runtime configuration rather
+than duplicated in a unit or environment file.
+
+An installation using different roots or an ignored Compose override must use
+a root-owned systemd drop-in that replaces `WorkingDirectory` and the complete
+`ExecStart` line. Do not edit the tracked unit, add an environment file, embed a
+secret, or weaken the service sandbox. The override is deployment state and
+must be covered by the installation's configuration review and recovery plan.
+
+## Installation
+
+On each applicable Linux host, prepare only the role-specific roots. The backup
+directory must be writable by the maintenance container UID; the capacity
+sentinel must be empty and search-only.
+
+```bash
+sudo install -d -o 1000 -g 1000 -m 0700 /var/lib/vasi/backups/maintenance/scheduled
+sudo install -d -o root -g root -m 0111 /var/lib/vasi-capacity
+sudo install -m 0644 deployment/systemd/vasi-gateway-* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemd-analyze verify /etc/systemd/system/vasi-gateway-*.service \
+  /etc/systemd/system/vasi-gateway-*.timer
+```
+
+Use `/var/lib/vasi-engine/backups/maintenance/scheduled` and install
+`vasi-engine-*` on the engine role. Review any required drop-ins before the
+first run. Start every one-shot service manually and treat any nonzero result as
+a deployment failure before enabling its timer. Enable only after the service
+has passed:
+
+```bash
+sudo systemctl start vasi-gateway-backup-create.service
+sudo systemctl start vasi-gateway-backup-check.service
+sudo systemctl start vasi-gateway-capacity-readiness.service
+sudo systemctl start vasi-gateway-deployment-readiness.service
+sudo systemctl enable --now vasi-gateway-backup-create.timer \
+  vasi-gateway-backup-check.timer \
+  vasi-gateway-capacity-readiness.timer \
+  vasi-gateway-deployment-readiness.timer
+```
+
+Repeat with the applicable engine services and timers, including operational
+readiness and both egress controls. Confirm every timer is both `enabled` and
+`active`, has a future trigger, and still points at the current release after a
+cutover or rollback.
+
+## Hardening and assurance
+
+Docker-driven one-shots are restricted to the local Unix socket address family;
+the Docker socket is never mounted into a container. The trusted-host engine
+deployment probe alone receives Internet address families because it must
+inspect public TLS while keeping private containers deny-by-default. Services
+use a read-only host view, private temporary and device namespaces, bounded
+capabilities, no privilege escalation, native syscall architecture, restrictive
+umask, and idle scheduling where applicable. Containers retain their separate
+non-root, read-only, capability-dropped Compose contracts.
+
+Source assurance enumerates the complete reviewed unit set and fails on a
+missing or extra unit, absent persistence/recurrence/hardening lines,
+installation-specific origin or home path, environment file, ignored live
+override, Docker-socket reference, privileged mode, or host networking. The
+release gate complements—rather than replaces—`systemd-analyze verify` and a
+manual run on the target distribution.
+
+## Output, alerts, and limits
+
+The probes emit only their existing bounded aggregate JSON. Backup results do
+not disclose paths or database identity; readiness results do not disclose
+participants, tenants, requests, content, credentials, endpoints, or private
+topology. Forward service failure and bounded output to an installation-chosen
+monitor without adding sensitive labels.
+
+Same-host backups do not satisfy encrypted off-host custody. First-party
+scheduling does not select an incident owner, support window, RPO/RTO,
+customer-specific threshold, or independent assessor. Those remain explicit
+pilot-admission decisions.

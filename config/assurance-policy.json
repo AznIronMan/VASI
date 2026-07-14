@@ -82,7 +82,6 @@
       {
         "entrypoints": [
           "scripts/probe-engine-egress-boundary.mjs",
-          "scripts/probe-operational-readiness.mjs",
           "scripts/render-database-egress-policy.mjs",
           "scripts/render-private-ingress-egress-policy.mjs",
           "scripts/settings.mjs"
@@ -97,6 +96,7 @@
           "scripts/backup.mjs",
           "scripts/probe-capacity-readiness.mjs",
           "scripts/probe-deployment-readiness.mjs",
+          "scripts/probe-operational-readiness.mjs",
           "scripts/tenant-transfer.mjs"
         ],
         "image": "vasi-engine-maintenance",

@@ -1,0 +1,14 @@
+[Unit]
+Description=Schedule VASI private-engine deployment-perimeter verification
+
+[Timer]
+OnBootSec=10min
+OnActiveSec=10min
+OnUnitInactiveSec=6h
+AccuracySec=15min
+RandomizedDelaySec=15min
+Persistent=yes
+Unit=vasi-engine-deployment-readiness.service
+
+[Install]
+WantedBy=timers.target

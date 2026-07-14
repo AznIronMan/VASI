@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import packageJSON from "../package.json" with { type: "json" };
 import {
   certificateWindowsFromPEM,
+  parseDeploymentReadinessArguments,
+  readinessOriginFromSettings,
   runDeploymentReadinessProbe,
 } from "./probe-deployment-readiness.mjs";
 
@@ -132,6 +134,34 @@ describe("deployment perimeter readiness", () => {
       .rejects.toThrow("absolute path");
     await expect(runDeploymentReadinessProbe({ ...readyOptions(), minimumCertificateDays: 0 }))
       .rejects.toThrow("minimum certificate days");
+  });
+
+  it("derives a credential-free public origin from scoped PostgreSQL settings", () => {
+    expect(readinessOriginFromSettings({ BETTER_AUTH_URL: "https://gateway.example.test" }, "gateway"))
+      .toBe("https://gateway.example.test");
+    expect(readinessOriginFromSettings({ ENGINE_PARTICIPANT_ORIGIN: "https://engine.example.test/" }, "engine"))
+      .toBe("https://engine.example.test");
+    expect(() => readinessOriginFromSettings({}, "gateway")).toThrow("not configured");
+    expect(() => readinessOriginFromSettings({ BETTER_AUTH_URL: "https://user:pass@example.test" }, "gateway"))
+      .toThrow("credential-free HTTPS origin");
+  });
+
+  it("keeps the explicit-origin CLI compatible while allowing settings-derived operation", () => {
+    expect(parseDeploymentReadinessArguments([
+      "https://example.test",
+      "--scope", "gateway",
+      "--storage", "/host-storage",
+    ])).toEqual({
+      origin: "https://example.test",
+      scope: "gateway",
+      storagePath: "/host-storage",
+    });
+    expect(parseDeploymentReadinessArguments([
+      "--scope", "engine",
+      "--storage", "/host-storage",
+    ])).toEqual({ scope: "engine", storagePath: "/host-storage" });
+    expect(() => parseDeploymentReadinessArguments(["--scope", "gateway"]))
+      .toThrow("Usage");
   });
 });
 

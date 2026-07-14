@@ -1,0 +1,14 @@
+[Unit]
+Description=Continuously verify VASI private-engine operational readiness
+
+[Timer]
+OnBootSec=3min
+OnActiveSec=3min
+OnUnitInactiveSec=5min
+AccuracySec=30s
+RandomizedDelaySec=30s
+Persistent=yes
+Unit=vasi-engine-operational-readiness.service
+
+[Install]
+WantedBy=timers.target

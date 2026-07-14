@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.23.0`
+Version: `0.24.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -272,6 +272,17 @@ access before an action is submitted. Receipts, reports, participant history,
 and approved data exports use the snapshot rather than mutable company
 membership, so disabling or removing a requester cannot rewrite history.
 
+Version 0.24.0 packages the complete recurring operations contract instead of
+leaving scheduler parity to each installation. Hardened, independent systemd
+service/timer pairs now cover matched backup creation and freshness, aggregate
+capacity, public/service-certificate deployment readiness, private-engine
+operational readiness, and the existing outbound policy/boundary controls.
+Release assurance rejects missing, weakened, installation-specific, or
+non-persistent units. Deployment readiness can derive its public origin from
+the encrypted PostgreSQL settings for its gateway or engine scope, so the
+portable units contain no environment file, customer hostname, credential, or
+private deployment path.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -380,6 +391,9 @@ assessment remain installation or pilot gates.
 - A privacy-safe capacity probe for bounded aggregate Linux CPU, load, memory,
   swap, pressure stalls, fixed-code filesystem byte/inode state, and
   PostgreSQL size, latency, connection, transaction, and replication posture.
+- A tracked hardened scheduler suite with independent persistent timers for
+  gateway/engine backup creation and checks, capacity, deployment perimeter,
+  private-engine operational readiness, and private outbound enforcement.
 
 ## Configuration model
 
@@ -445,7 +459,7 @@ npm run deployment:profile -- self-hosted
 npm run backup -- create /secure/backups/vasi-YYYYMMDD
 npm run backup:continuity -- create /secure/backups
 npm run backup:continuity -- check /secure/backups
-npm run assurance:deployment -- https://vasi.example --scope gateway --storage /secure
+npm run assurance:deployment -- --scope gateway --storage /secure
 npm run tenant:transfer -- export TENANT_ID /secure/transfers/tenant
 ```
 
@@ -487,9 +501,13 @@ docker compose -f compose.production.yaml --profile tools run --rm settings set 
 The app publishes only `127.0.0.1:3000` and expects a trusted HTTPS reverse
 proxy. The liveness endpoint is `GET /api/health`. Database migrations are an
 explicit, repeatable release step and never run automatically at app startup.
-Recurring backups are also explicit: create a protected mode-`0700` destination
-and invoke the tools-profile maintenance container from the installation's
-scheduler. The repository never attaches or chooses a backup destination.
+Recurring safeguards are explicit but packaged: create the protected backup
+and capacity sentinel directories, install the applicable tracked units under
+`deployment/systemd`, validate them with `systemd-analyze verify`, manually run
+every service once, and then enable its timer. The sanitized units select only
+portable `/opt` and `/var/lib` defaults; installations using other roots must
+apply reviewed systemd drop-ins. The repository never attaches a backup volume
+to a long-running container or chooses external custody.
 
 For a one-time migration from an older container, stream its configuration to
 `settings import-env -`; no temporary environment file is required. A protected
@@ -621,6 +639,9 @@ privacy, threshold, and scheduler handoff contract.
 The [capacity-readiness decision](docs/architecture/capacity-readiness.md)
 defines aggregate host, filesystem-inode, PostgreSQL-saturation, privacy,
 threshold, sentinel-mount, and scheduler handoff contracts.
+The [recurring operations decision](docs/architecture/recurring-operational-schedulers.md)
+defines the packaged unit set, independent schedules, hardening, path override,
+PostgreSQL-origin, installation, validation, and alerting contract.
 The [assurance and pilot-readiness contract](docs/assurance-and-pilot-readiness.md)
 defines the threat register, repeatable release evidence, recovery/key drills,
 observability limits, and the first-party, independent, legal, and customer

@@ -1,0 +1,31 @@
+[Unit]
+Description=Create a verified matched VASI gateway backup
+Documentation=file:/opt/vasi/current/docs/architecture/backup-continuity.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/opt/vasi/current
+ExecStart=/usr/bin/docker compose -f compose.production.yaml --profile tools run --rm -T --no-deps -v /var/lib/vasi/backups/maintenance/scheduled:/backup maintenance scripts/backup-continuity.mjs create /backup
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=idle
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native

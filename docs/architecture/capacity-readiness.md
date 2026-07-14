@@ -87,11 +87,12 @@ or missing targets fail before any measurement. Numeric thresholds have
 strictly bounded command-line overrides; installations should keep their
 approved values in the scheduler unit rather than an environment file.
 
-Schedule gateway and engine scopes independently, alert on every nonzero exit,
-and retain only the bounded result under the approved monitoring policy. Keep
-this gate independent from deployment-perimeter, engine-operational, backup
-continuity, and external availability checks so one failed scheduler cannot
-conceal another boundary.
+The tracked systemd suite schedules gateway and engine scopes independently
+every hour. Alert on every nonzero exit and retain only the bounded result under
+the approved monitoring policy. Keep this gate independent from
+deployment-perimeter, engine-operational, backup-continuity, and external
+availability checks so one failed scheduler cannot conceal another boundary.
+See the [recurring scheduler contract](recurring-operational-schedulers.md).
 
 ## Limits
 

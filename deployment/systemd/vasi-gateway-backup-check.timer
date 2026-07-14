@@ -1,0 +1,14 @@
+[Unit]
+Description=Independently verify VASI gateway backup freshness
+
+[Timer]
+OnBootSec=15min
+OnActiveSec=15min
+OnUnitInactiveSec=12h
+AccuracySec=10min
+RandomizedDelaySec=15min
+Persistent=yes
+Unit=vasi-gateway-backup-check.service
+
+[Install]
+WantedBy=timers.target

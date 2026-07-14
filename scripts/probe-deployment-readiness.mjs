@@ -29,6 +29,35 @@ export class DeploymentReadinessError extends Error {
   }
 }
 
+export async function runDeploymentReadinessCLI(
+  argumentsList,
+  { readSettings = defaultReadSettings } = {},
+) {
+  const parsed = parseDeploymentReadinessArguments(argumentsList);
+  const scope = validatedScope(parsed.scope);
+  const settings = await readSettings(scope);
+  const origin = parsed.origin || readinessOriginFromSettings(settings, scope);
+  return runDeploymentReadinessProbe({
+    ...parsed,
+    origin,
+    readSettings: async () => settings,
+  });
+}
+
+export function readinessOriginFromSettings(settings, scope) {
+  const checkedScope = validatedScope(scope);
+  if (!settings || Array.isArray(settings) || typeof settings !== "object") {
+    throw new Error("Deployment readiness settings are unavailable.");
+  }
+  const value = checkedScope === "gateway"
+    ? settings.BETTER_AUTH_URL
+    : settings.ENGINE_PARTICIPANT_ORIGIN;
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`The ${checkedScope} public readiness origin is not configured.`);
+  }
+  return validatedOrigin(value.trim()).origin;
+}
+
 export async function runDeploymentReadinessProbe({
   fetchHealth = defaultHealthProbe,
   inspectPublicTLS = defaultPublicTLSProbe,
@@ -314,10 +343,14 @@ function rounded(value) {
   return Number(value.toFixed(2));
 }
 
-function parseArguments(args) {
-  const [origin, ...options] = args;
-  if (!origin) usage();
-  const parsed = { origin };
+export function parseDeploymentReadinessArguments(args) {
+  const parsed = {};
+  let offset = 0;
+  if (args[0] && !args[0].startsWith("--")) {
+    parsed.origin = args[0];
+    offset = 1;
+  }
+  const options = args.slice(offset);
   for (let index = 0; index < options.length; index += 2) {
     const name = options[index];
     const value = options[index + 1];
@@ -330,22 +363,20 @@ function parseArguments(args) {
     else if (name === "--timeout-ms") parsed.timeoutMilliseconds = Number(value);
     else throw new Error(`Unknown deployment readiness option ${name}.`);
   }
+  if (!parsed.scope || !parsed.storagePath) usage();
   return parsed;
 }
 
 function usage() {
-  console.info("Usage: node scripts/probe-deployment-readiness.mjs HTTPS_ORIGIN --scope gateway|engine --storage ABSOLUTE_PATH [threshold options]");
-  process.exit(1);
+  throw new Error("Usage: node scripts/probe-deployment-readiness.mjs [HTTPS_ORIGIN] --scope gateway|engine --storage ABSOLUTE_PATH [threshold options]");
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  runDeploymentReadinessProbe(parseArguments(process.argv.slice(2)))
+  runDeploymentReadinessCLI(process.argv.slice(2))
     .then((result) => console.info(JSON.stringify(result, null, 2)))
     .catch((error) => {
       if (error?.result) console.error(JSON.stringify(error.result, null, 2));
-      console.error(error instanceof DeploymentReadinessError
-        ? error.message
-        : "VASI deployment readiness probe failed.");
+      else console.error(error instanceof Error ? error.message : "VASI deployment readiness failed.");
       process.exitCode = 1;
     });
 }

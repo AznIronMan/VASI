@@ -240,8 +240,11 @@ allows established replies and rejects new forwarded traffic. It prints no
 subnet, address, hostname, URL, or credential. Do not start the persistent
 services if it fails.
 
-For a systemd installation using `/opt/vasi-engine/current`, install the four
-shipped units and enable the independent refresh and verification timers:
+For a systemd installation using `/opt/vasi-engine/current`, install the two
+egress service/timer pairs before engine startup. VASI 0.24.0 also ships the
+engine backup, capacity, deployment, and operational service/timer pairs; the
+[recurring scheduler contract](architecture/recurring-operational-schedulers.md)
+defines their directories, validation, first-run, and enablement sequence.
 
 ```bash
 sudo install -m 0644 deployment/systemd/vasi-engine-database-egress-policy.* /etc/systemd/system/
@@ -342,7 +345,7 @@ cutover, and from the installation's scheduler/monitor thereafter:
 
 ```bash
 docker compose -f compose.engine.yaml --profile tools run --rm \
-  --entrypoint node settings scripts/probe-operational-readiness.mjs
+  maintenance scripts/probe-operational-readiness.mjs
 ```
 
 The command exits nonzero when the release migration ledger drifts, the
@@ -361,13 +364,16 @@ Run the engine scope from the trusted host with root access to the protected
 bootstrap and pass the operator-selected host storage path directly:
 
 ```bash
-sudo node scripts/probe-deployment-readiness.mjs https://vasi.example \
+sudo node scripts/probe-deployment-readiness.mjs \
   --scope engine --storage /secure/vasi-engine-storage
 ```
 
 Do not attach provider/public egress to `maintenance` to make this check work.
 The trusted host is already inside the deployment boundary and must protect
 the probe output and selected path under the installation's operations policy.
+With no explicit origin, the command reads `ENGINE_PARTICIPANT_ORIGIN` from the
+protected engine runtime settings; interactive diagnostics may still pass an
+explicit credential-free HTTPS origin as the first argument.
 
 The versioned defaults require 30 certificate days, 5 GiB free, and no more
 than 85 percent filesystem use. The result exposes only aggregate versions,
@@ -432,20 +438,24 @@ docker compose -f compose.engine.yaml --profile tools run --rm \
 ```
 
 The default policy retains 14 verified timestamped copies and fails freshness
-after 26 hours. Run `create` daily with a persistent scheduler and alert on any
-nonzero exit. Schedule `check` separately so a stopped create timer becomes a
-visible stale-backup failure. The check mount may be read-only. If a process is
-confirmed dead after leaving `.vasi-backup.lock`, remove only that lock before
-retrying; never bypass verification or delete a failed backup manually until
-its recovery value has been assessed. Local same-host copies do not satisfy
+after 26 hours. The shipped persistent timers run `create` daily and `check`
+independently every 12 hours so a stopped create timer becomes a visible stale
+backup failure. The check mount may be read-only. If a process is confirmed
+dead after leaving `.vasi-backup.lock`, remove only that lock before retrying;
+never bypass verification or delete a failed backup manually until its recovery
+value has been assessed. Local same-host copies do not satisfy
 encrypted off-host custody or establish an RPO/RTO.
 
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.
 
-For rollback, first stop the complete 0.23.0 engine stack. Disable its two
-timers, remove the policy with
-`sudo /bin/sh scripts/apply-database-egress-policy.sh remove`, switch the whole
-release—not selected files—to the prior verified version, and follow that
-version's migration/network procedure. Never remove or broaden the policy
-while the database gateway or a database tool remains running.
+For rollback from 0.24.0, first stop the complete engine stack and every
+role-local recurring timer, then switch the whole release—not selected
+files—to the verified 0.23.0 release. Version 0.24.0 adds no database migration;
+migration `0014_engine_requester_provenance` remains the current schema and is
+compatible with the immediate prior application release. Reinstall or override
+the target release's scheduler units as a complete reviewed set, manually run
+them, and only then re-enable their timers. Keep the exact egress policy in
+place unless the target version's documented network procedure explicitly
+requires removal; never remove or broaden it while the database gateway or a
+database tool remains running.

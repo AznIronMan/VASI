@@ -5,6 +5,7 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   stat,
@@ -272,37 +273,130 @@ export async function validateAutomationContract(repositoryRoot = root) {
   return { failures, jobs: jobs.length, releaseImagesChecked: releaseImages };
 }
 
-export async function validateEgressPersistenceContract(repositoryRoot = root) {
+export async function validateOperationalSchedulerContract(repositoryRoot = root) {
   const directory = path.join(repositoryRoot, "deployment", "systemd");
-  const requirements = {
-    "vasi-engine-database-egress-policy.service": [
+  const serviceCommon = [
+    "Type=oneshot",
+    "User=root",
+    "Group=root",
+    "UMask=0077",
+    "LockPersonality=yes",
+    "NoNewPrivileges=yes",
+    "PrivateDevices=yes",
+    "PrivateTmp=yes",
+    "ProtectControlGroups=yes",
+    "ProtectHome=yes",
+    "ProtectKernelModules=yes",
+    "ProtectKernelTunables=yes",
+    "ProtectSystem=strict",
+    "RestrictSUIDSGID=yes",
+    "SystemCallArchitectures=native",
+  ];
+  const requirements = {};
+  const addService = (filename, lines) => {
+    requirements[filename] = [...serviceCommon, ...lines];
+  };
+  const addTimer = (filename, service, { active, boot, inactive }) => {
+    requirements[filename] = [
+      `OnActiveSec=${active}`,
+      `OnBootSec=${boot}`,
+      `OnUnitInactiveSec=${inactive}`,
+      "Persistent=yes",
+      `Unit=${service}`,
+      "WantedBy=timers.target",
+    ];
+  };
+
+  addService("vasi-engine-database-egress-policy.service", [
       "After=docker.service network-online.target",
       "ExecStart=/bin/sh scripts/apply-database-egress-policy.sh apply",
-      "NoNewPrivileges=yes",
       "WorkingDirectory=/opt/vasi-engine/current",
-    ],
-    "vasi-engine-database-egress-policy.timer": [
-      "OnActiveSec=15s",
-      "OnBootSec=15s",
-      "OnUnitInactiveSec=2min",
-      "Persistent=yes",
-      "Unit=vasi-engine-database-egress-policy.service",
-    ],
-    "vasi-engine-egress-boundary.service": [
+      "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK",
+  ]);
+  addTimer("vasi-engine-database-egress-policy.timer", "vasi-engine-database-egress-policy.service", {
+    active: "15s", boot: "15s", inactive: "2min",
+  });
+  addService("vasi-engine-egress-boundary.service", [
       "After=docker.service network-online.target vasi-engine-database-egress-policy.service",
       "ExecStart=/usr/bin/env node scripts/probe-engine-egress-boundary.mjs",
-      "NoNewPrivileges=yes",
       "WorkingDirectory=/opt/vasi-engine/current",
-    ],
-    "vasi-engine-egress-boundary.timer": [
-      "OnActiveSec=2min",
-      "OnBootSec=2min",
-      "OnUnitInactiveSec=5min",
-      "Persistent=yes",
-      "Unit=vasi-engine-egress-boundary.service",
-    ],
-  };
+      "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK",
+  ]);
+  addTimer("vasi-engine-egress-boundary.timer", "vasi-engine-egress-boundary.service", {
+    active: "2min", boot: "2min", inactive: "5min",
+  });
+
+  for (const role of ["gateway", "engine"]) {
+    const working = role === "gateway" ? "/opt/vasi/current" : "/opt/vasi-engine/current";
+    const compose = role === "gateway" ? "compose.production.yaml" : "compose.engine.yaml";
+    const backup = role === "gateway"
+      ? "/var/lib/vasi/backups/maintenance/scheduled"
+      : "/var/lib/vasi-engine/backups/maintenance/scheduled";
+    for (const action of ["create", "check"]) {
+      const readOnly = action === "check" ? ":ro" : "";
+      const name = `vasi-${role}-backup-${action}`;
+      addService(`${name}.service`, [
+        `WorkingDirectory=${working}`,
+        `ExecStart=/usr/bin/docker compose -f ${compose} --profile tools run --rm -T --no-deps -v ${backup}:/backup${readOnly} maintenance scripts/backup-continuity.mjs ${action} /backup`,
+        "RestrictAddressFamilies=AF_UNIX",
+      ]);
+      addTimer(`${name}.timer`, `${name}.service`, action === "create"
+        ? { active: "30min", boot: "30min", inactive: "24h" }
+        : { active: "15min", boot: "15min", inactive: "12h" });
+    }
+
+    const capacity = `vasi-${role}-capacity-readiness`;
+    addService(`${capacity}.service`, [
+      `WorkingDirectory=${working}`,
+      `ExecStart=/usr/bin/docker compose -f ${compose} --profile tools run --rm -T --no-deps -v /var/lib/vasi-capacity:/host/storage/system:ro capacity --scope ${role} --storage system=/host/storage/system`,
+      "RestrictAddressFamilies=AF_UNIX",
+    ]);
+    addTimer(`${capacity}.timer`, `${capacity}.service`, {
+      active: "5min", boot: "5min", inactive: "1h",
+    });
+  }
+
+  addService("vasi-gateway-deployment-readiness.service", [
+    "WorkingDirectory=/opt/vasi/current",
+    "ExecStart=/usr/bin/docker compose -f compose.production.yaml --profile tools run --rm -T --no-deps -v /opt/vasi/releases:/host-storage:ro maintenance scripts/probe-deployment-readiness.mjs --scope gateway --storage /host-storage",
+    "RestrictAddressFamilies=AF_UNIX",
+  ]);
+  addTimer("vasi-gateway-deployment-readiness.timer", "vasi-gateway-deployment-readiness.service", {
+    active: "10min", boot: "10min", inactive: "6h",
+  });
+  addService("vasi-engine-deployment-readiness.service", [
+    "WorkingDirectory=/opt/vasi-engine/current",
+    "ExecStart=/usr/bin/env node scripts/probe-deployment-readiness.mjs --scope engine --storage /opt/vasi-engine/releases",
+    "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6",
+  ]);
+  addTimer("vasi-engine-deployment-readiness.timer", "vasi-engine-deployment-readiness.service", {
+    active: "10min", boot: "10min", inactive: "6h",
+  });
+  addService("vasi-engine-operational-readiness.service", [
+    "WorkingDirectory=/opt/vasi-engine/current",
+    "ExecStart=/usr/bin/docker compose -f compose.engine.yaml --profile tools run --rm -T --no-deps maintenance scripts/probe-operational-readiness.mjs",
+    "RestrictAddressFamilies=AF_UNIX",
+  ]);
+  addTimer("vasi-engine-operational-readiness.timer", "vasi-engine-operational-readiness.service", {
+    active: "3min", boot: "3min", inactive: "5min",
+  });
+
   const failures = [];
+  let actual = [];
+  try {
+    actual = (await readdir(directory))
+      .filter((filename) => filename.endsWith(".service") || filename.endsWith(".timer"))
+      .sort();
+  } catch {
+    failures.push("deployment/systemd is missing");
+  }
+  const expected = Object.keys(requirements).sort();
+  for (const filename of expected.filter((filename) => !actual.includes(filename))) {
+    failures.push(`${filename} is missing`);
+  }
+  for (const filename of actual.filter((filename) => !expected.includes(filename))) {
+    failures.push(`${filename} is not part of the reviewed scheduler contract`);
+  }
   for (const [filename, required] of Object.entries(requirements)) {
     let contents;
     try {
@@ -314,7 +408,9 @@ export async function validateEgressPersistenceContract(repositoryRoot = root) {
     for (const line of required) {
       if (!contents.split("\n").includes(line)) failures.push(`${filename} is missing ${line}`);
     }
-    if (/EnvironmentFile=|docker\.sock|--privileged|--network(?:=|\s+)host/.test(contents)) {
+    if (
+      /Environment(?:File)?=|compose\.live\.yaml|\.private|\.tasks|VASI-\d|https?:\/\/|\/home\/|docker\.sock|--privileged|--network(?:=|\s+)host/.test(contents)
+    ) {
       failures.push(`${filename} contains a prohibited privilege or configuration path`);
     }
   }
@@ -330,7 +426,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const versions = await validateVersionAlignment(root);
   const compose = await validateComposeContracts(root);
   const automation = await validateAutomationContract(root);
-  const egressPersistence = await validateEgressPersistenceContract(root);
+  const operationalSchedulers = await validateOperationalSchedulerContract(root);
   if (source.forbiddenPaths.length) throw new Error(`Forbidden tracked paths: ${source.forbiddenPaths.join(", ")}.`);
   if (source.secretFindings.length) {
     throw new Error(`Tracked secret policy failed: ${source.secretFindings.map((entry) => `${entry.path}:${entry.rule}`).join(", ")}.`);
@@ -338,8 +434,8 @@ async function sourceAssurance(output, { allowDirty }) {
   if (versions.mismatches.length) throw new Error("VASI version declarations are not aligned.");
   if (compose.failures.length) throw new Error(`Compose hardening failed: ${compose.failures.join("; ")}.`);
   if (automation.failures.length) throw new Error(`Release automation hardening failed: ${automation.failures.join("; ")}.`);
-  if (egressPersistence.failures.length) {
-    throw new Error(`Egress persistence hardening failed: ${egressPersistence.failures.join("; ")}.`);
+  if (operationalSchedulers.failures.length) {
+    throw new Error(`Operational scheduler hardening failed: ${operationalSchedulers.failures.join("; ")}.`);
   }
 
   await writeJSON(path.join(output, "tracked-source-files.json"), {
@@ -361,7 +457,7 @@ async function sourceAssurance(output, { allowDirty }) {
     automation,
     compose,
     dirty,
-    egressPersistence,
+    operationalSchedulers,
     sourceFileCount: source.files.length,
     versions: versions.actual,
     vulnerabilityCounts: {

@@ -1,0 +1,14 @@
+[Unit]
+Description=Schedule VASI private-engine capacity readiness verification
+
+[Timer]
+OnBootSec=5min
+OnActiveSec=5min
+OnUnitInactiveSec=1h
+AccuracySec=5min
+RandomizedDelaySec=5min
+Persistent=yes
+Unit=vasi-engine-capacity-readiness.service
+
+[Install]
+WantedBy=timers.target

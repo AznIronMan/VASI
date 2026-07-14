@@ -1,0 +1,14 @@
+[Unit]
+Description=Independently verify VASI private-engine backup freshness
+
+[Timer]
+OnBootSec=15min
+OnActiveSec=15min
+OnUnitInactiveSec=12h
+AccuracySec=10min
+RandomizedDelaySec=15min
+Persistent=yes
+Unit=vasi-engine-backup-check.service
+
+[Install]
+WantedBy=timers.target

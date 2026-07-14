@@ -55,10 +55,11 @@ events through the separately authorized audit/evidence surfaces.
 
 ## Host probe and thresholds
 
-The engine-tools image packages `scripts/probe-operational-readiness.mjs`. It
-reads the protected engine bootstrap, calls the same store locally, prints only
-the bounded snapshot and assessment, then closes its PostgreSQL pool. It can run
-before the first browser administrator signs in.
+The non-root engine-maintenance image packages
+`scripts/probe-operational-readiness.mjs`. It reads the protected engine
+bootstrap, calls the same store locally, prints only the bounded snapshot and
+assessment, then closes its PostgreSQL pool. It can run before the first browser
+administrator signs in.
 
 The default versioned policy fails on:
 
@@ -77,11 +78,13 @@ fail.
 
 ## Alerting and limits
 
-VASI emits vendor-neutral JSON and a deterministic exit status. The deployment
-chooses its scheduler, transport, on-call destination, retention, and escalation
-policy. This keeps the deployable product independent from a proprietary
-monitoring service and prevents application credentials from being copied into
-an alerting SDK.
+VASI emits vendor-neutral JSON and a deterministic exit status. VASI 0.24.0
+ships an independent hardened systemd service/timer pair that executes the
+engine probe every five minutes by default. The deployment still chooses its
+alert transport, on-call destination, result retention, and escalation policy.
+This keeps the deployable product independent from a proprietary monitoring
+service and prevents application credentials from being copied into an
+alerting SDK.
 
 VASI 0.15.0 adds a separate scheduler-neutral matched-backup freshness and
 verification probe. VASI 0.16.0 adds a separate deployment-perimeter probe for

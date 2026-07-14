@@ -81,7 +81,7 @@ legal enforceability by itself.
 | CFG-1 | Secret leakage through source, environment, logs, exports, or settings tools | No environment files; mode-0600 SQLite bootstrap; AES-256-GCM PostgreSQL runtime settings; value-redacting CLI; no application secrets in container environments; tracked-source secret gate; export redaction | Host memory, database administrator, and backup custody remain trusted boundaries |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
 | SUP-1 | Vulnerable, unaccounted, or non-executable image content | Lockfile builds; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; explicit configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial; minimal non-root runtime images without npm | Vulnerability data changes over time, so every release and periodic rescan are required |
-| AVAIL-1 | Resource exhaustion or dependency outage | Bounded payloads/chunks/batches; PostgreSQL pool limits; request timeouts; retry ceilings; health checks; read-only readiness load gate; external provider isolation | Customer-specific capacity, RTO/RPO, and denial-of-service protection require measured pilot targets |
+| AVAIL-1 | Resource exhaustion, dependency outage, or silently stopped recurring control | Bounded payloads/chunks/batches; PostgreSQL pool limits; request timeouts; retry ceilings; health checks; read-only readiness load gate; external provider isolation; independent persistent hardened backup, capacity, deployment, operational, and egress timers; release-time scheduler contract validation | Customer-specific capacity, RTO/RPO, external alert delivery, and denial-of-service protection require measured pilot targets |
 | PRIV-1 | Excess collection, fingerprinting, or misleading evidence interpretation | Purpose-limited fixed fields; unavailable values remain absent; generalized telemetry excludes interaction detail; participant context rejects plugin/font enumeration, invasive fingerprints, precise location, hardware IDs, hidden media, keys/content/coordinates, and secrets; every browser value is labeled supporting; participant history and reviewed data request; redacted public verification and participant reports | Legal/privacy owners must approve notices, lawful basis, retention, and subject-right handling |
 
 ## Repeatable release evidence
@@ -239,6 +239,17 @@ contract. A second exact chain allows only established replies before terminal
 new-flow denial, and the bounded probe also requires the published listener to
 accept a host TCP connection. Both chains are installed and refreshed as one
 host operation.
+
+VASI 0.24.0 packages all first-party recurring controls as a single reviewed
+systemd contract. Gateway and engine backup creation/checking, capacity, and
+deployment-perimeter checks run on independent persistent timers; the engine
+also schedules operational readiness alongside its existing egress refresh and
+boundary proof. Source assurance enumerates all 22 units and rejects missing or
+extra files, weakened sandbox/persistence/recurrence, environment files,
+customer origins or home paths, ignored live overrides, Docker-socket mounts,
+privileged mode, and host networking. Target-host `systemd-analyze verify` and
+manual first runs remain mandatory. Alert delivery and named response ownership
+remain installation gates.
 
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
