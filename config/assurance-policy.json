@@ -14,6 +14,10 @@
       "wcag21aa"
     ]
   },
+  "backups": {
+    "maximumAgeHours": 26,
+    "retain": 14
+  },
   "images": {
     "failSeverities": [
       "HIGH",

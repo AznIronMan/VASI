@@ -122,6 +122,10 @@ export async function validateComposeContracts(repositoryRoot = root) {
     ["engine.worker", engine?.services?.worker],
     ["engine.private-ingress", engine?.services?.["private-ingress"]],
   ];
+  const maintenance = [
+    ["gateway.maintenance", production?.services?.maintenance],
+    ["engine.maintenance", engine?.services?.maintenance],
+  ];
   for (const [name, service] of hardened) {
     if (!service) {
       failures.push(`${name} is missing`);
@@ -135,6 +139,21 @@ export async function validateComposeContracts(repositoryRoot = root) {
     if (service.restart !== "unless-stopped") failures.push(`${name} must restart unless stopped`);
     if (!hasReadOnlyDataMount(service.volumes)) failures.push(`${name} must mount data read-only`);
   }
+  for (const [name, service] of maintenance) {
+    if (!service) {
+      failures.push(`${name} is missing`);
+      continue;
+    }
+    if (service.read_only !== true) failures.push(`${name} must be read-only`);
+    if (!arrayContains(service.cap_drop, "ALL")) failures.push(`${name} must drop all capabilities`);
+    if (!arrayContains(service.security_opt, "no-new-privileges:true")) {
+      failures.push(`${name} must prohibit privilege escalation`);
+    }
+    if (service.user !== "1000:1000") failures.push(`${name} must run as the maintenance user`);
+    if (!hasReadOnlyDataMount(service.volumes)) failures.push(`${name} must mount data read-only`);
+    if (!arrayContains(service.profiles, "tools")) failures.push(`${name} must remain in the tools profile`);
+    if (service.ports?.length) failures.push(`${name} must not publish a port`);
+  }
   for (const name of ["engine", "integration-gateway", "worker"]) {
     if (engine?.services?.[name]?.ports?.length) failures.push(`engine.${name} must not publish a port`);
   }
@@ -142,14 +161,14 @@ export async function validateComposeContracts(repositoryRoot = root) {
   if (!portsAreLoopback(engine?.services?.["private-ingress"]?.ports)) {
     failures.push("engine.private-ingress must bind only loopback in the sanitized contract");
   }
-  for (const [name, service] of [...hardened, ["gateway.settings", production?.services?.settings], ["engine.settings", engine?.services?.settings]]) {
+  for (const [name, service] of [...hardened, ...maintenance, ["gateway.settings", production?.services?.settings], ["engine.settings", engine?.services?.settings]]) {
     for (const key of environmentKeys(service?.environment)) {
       if (/(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY)$/i.test(key)) {
         failures.push(`${name} contains secret-like environment key ${key}`);
       }
     }
   }
-  return { failures, servicesChecked: hardened.map(([name]) => name) };
+  return { failures, servicesChecked: [...hardened, ...maintenance].map(([name]) => name) };
 }
 
 export async function validateAutomationContract(repositoryRoot = root) {

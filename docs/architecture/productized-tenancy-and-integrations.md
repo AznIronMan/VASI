@@ -118,6 +118,17 @@ values. `verify` checks files and the PostgreSQL custom archive. `restore` is de
 on the maintenance host, and the resulting directory must be stored in an
 encrypted backup system.
 
+VASI 0.15.0 also packages `scripts/backup-continuity.mjs` for recurring
+operation. `create` requires an existing real mode-`0700` backup root, takes an
+exclusive mode-`0600` lock, creates and verifies a timestamped matched backup,
+and only then considers retention. It deletes only timestamp directories that
+have a supported matched-backup manifest and pass checksum plus PostgreSQL
+archive verification; an unrecognized or corrupt old candidate stops pruning.
+The default policy retains 14 managed copies. `check` is read-only, fully
+verifies the newest managed copy, and exits nonzero when it is absent, corrupt,
+future-dated, or older than the default 26-hour threshold. Its JSON contains
+only status, age, creation time, thresholds, counts, and bounded reason codes.
+
 For recovery onto a replacement PostgreSQL endpoint, first restore with a
 temporary destination bootstrap. Then replace that temporary file with a copy
 of the matched backup's `VASI.settings` and stream the new `databaseURL`,
@@ -141,6 +152,11 @@ The `maintenance` Compose service packages the required PostgreSQL client. It
 has no destination volume by default; the operator must explicitly mount an
 encrypted backup or transfer location for each run and make it writable by the
 non-root maintenance user (UID `1000` by default).
+Both gateway and private-engine production contracts provide this same
+maintenance boundary. Neither attaches backup storage by default or selects a
+scheduler, encryption provider, remote destination, retention law, RPO, or RTO.
+See the backup-continuity decision for scheduler-safe commands and failure
+handling.
 
 Tenant transfer is a separate, passphrase-authenticated streaming archive:
 

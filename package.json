@@ -1,6 +1,6 @@
 {
   "name": "vasi",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "private": true,
   "description": "Verified Authorized Signing Infrastructure",
   "engines": {
@@ -36,6 +36,7 @@
     "deployment:profile": "node scripts/deployment-profile.mjs",
     "tenant:transfer": "node scripts/tenant-transfer.mjs",
     "backup": "node scripts/backup.mjs",
+    "backup:continuity": "node scripts/backup-continuity.mjs",
     "evidence:verify": "node scripts/vasi-verify.mjs",
     "settings": "node scripts/settings.mjs",
     "settings:init": "node scripts/settings.mjs init",

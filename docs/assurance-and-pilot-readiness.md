@@ -167,6 +167,16 @@ applies the versioned thresholds in `config/assurance-policy.json` and exits
 nonzero on failure so an installation-selected scheduler can alert without
 making VASI depend on a proprietary monitoring product.
 
+VASI 0.15.0 implements the host-backup portion without moving host topology or
+backup credentials into the engine. `backup-continuity.mjs create` atomically
+creates and verifies a matched PostgreSQL/bootstrap copy before bounded
+retention; `check` independently verifies the newest managed copy and applies
+the versioned 26-hour maximum-age threshold. Missing, corrupt, malformed,
+future-dated, stale, unsafe-root, and concurrent-cycle conditions fail nonzero.
+The resulting JSON contains no path, database endpoint, installation ID,
+credential, tenant, participant, or evidence field. The installation scheduler
+must monitor both the create job and the independent freshness check.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

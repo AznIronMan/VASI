@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.14.0`
+Version: `0.15.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -130,6 +130,18 @@ credentials. The internal console renders the same bounded view, while a
 host-side probe applies versioned failure thresholds before a browser
 administrator exists and can feed installation-selected alerting systems.
 
+Version 0.15.0 adds recurring matched-backup continuity. A scheduler-neutral
+maintenance command takes an exclusive backup-root lock, creates the
+PostgreSQL dump and exact `VASI.settings` atomically, verifies checksums and the
+custom archive, and only then prunes recognized older backups beyond the
+versioned retention count. A separate read-only check verifies the newest
+managed backup and fails on missing, stale, malformed, future-dated, or corrupt
+state. Both commands emit bounded operational JSON without paths, installation
+identities, database endpoints, credentials, or customer data. Gateway and
+engine Compose contracts now include the same non-root, read-only maintenance
+boundary; encrypted off-host custody and customer RPO/RTO remain deployment
+decisions.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -213,6 +225,9 @@ milestones.
 - An administrator-only operational snapshot and host probe with explicit
   migration, queue, delivery, signing, lifecycle, and database thresholds that
   exclude customer evidence and identity data.
+- Concurrency-safe recurring matched backups with post-create verification,
+  bounded retention, freshness assessment, and hardened gateway/engine
+  maintenance containers.
 
 ## Configuration model
 
@@ -276,14 +291,19 @@ npm run build
 npm run evidence:verify -- /path/to/vasi-evidence-bundle.zip
 npm run deployment:profile -- self-hosted
 npm run backup -- create /secure/backups/vasi-YYYYMMDD
+npm run backup:continuity -- create /secure/backups
+npm run backup:continuity -- check /secure/backups
 npm run tenant:transfer -- export TENANT_ID /secure/transfers/tenant
 ```
 
-The engine Compose file also provides a hardened maintenance image with the
+Both production Compose files provide a hardened maintenance image with the
 matching PostgreSQL client tools. Mount an operator-controlled encrypted
 destination when running backup or tenant-transfer commands; no backup or
 archive volume is attached by default. The mounted destination must be writable
 by the maintenance container user (UID `1000` by default).
+The continuity command defaults to 14 verified copies and a 26-hour freshness
+threshold. Schedule `create` daily and monitor the exit status; run `check`
+independently so a scheduler failure cannot look like backup success.
 Tenant-transfer automation can use a read-only mode-`0600`
 `--passphrase-file`; the passphrase itself is never accepted in an argument or
 environment value.
@@ -314,6 +334,9 @@ docker compose -f compose.production.yaml --profile tools run --rm settings set 
 The app publishes only `127.0.0.1:3000` and expects a trusted HTTPS reverse
 proxy. The liveness endpoint is `GET /api/health`. Database migrations are an
 explicit, repeatable release step and never run automatically at app startup.
+Recurring backups are also explicit: create a protected mode-`0700` destination
+and invoke the tools-profile maintenance container from the installation's
+scheduler. The repository never attaches or chooses a backup destination.
 
 For a one-time migration from an older container, stream its configuration to
 `settings import-env -`; no temporary environment file is required. A protected
@@ -397,6 +420,9 @@ backup/restore, and tenant transfer constraints.
 The [operational readiness decision](docs/architecture/operational-readiness.md)
 defines the aggregate-only snapshot, authorization boundary, host-probe
 thresholds, privacy exclusions, and external-alerting handoff.
+The [backup continuity decision](docs/architecture/backup-continuity.md)
+defines atomic matched creation, verification, concurrency, retention,
+freshness monitoring, scheduler handoff, and off-host custody limits.
 The [assurance and pilot-readiness contract](docs/assurance-and-pilot-readiness.md)
 defines the threat register, repeatable release evidence, recovery/key drills,
 observability limits, and the first-party, independent, legal, and customer

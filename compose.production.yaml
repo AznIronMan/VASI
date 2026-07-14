@@ -5,7 +5,7 @@ services:
     build:
       context: .
       target: migrator
-    image: vasi-settings:0.14.0
+    image: vasi-settings:0.15.0
     volumes:
       - ./data:/app/data
     entrypoint: ["node", "scripts/settings.mjs"]
@@ -29,7 +29,7 @@ services:
     build:
       context: .
       target: migrator
-    image: vasi-settings:0.14.0
+    image: vasi-settings:0.15.0
     volumes:
       - ./data:/app/data:ro
     user: "1000:1000"
@@ -43,11 +43,31 @@ services:
     profiles:
       - release
 
+  maintenance:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+      target: engine-maintenance
+    image: vasi-engine-maintenance:0.15.0
+    command: ["scripts/backup.mjs"]
+    user: "1000:1000"
+    volumes:
+      - ./data:/app/data:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    profiles:
+      - tools
+
   app:
     build:
       context: .
       target: runner
-    image: vasi:0.14.0
+    image: vasi:0.15.0
     restart: unless-stopped
     init: true
     ports:

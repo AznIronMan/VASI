@@ -77,8 +77,11 @@ policy. This keeps the deployable product independent from a proprietary
 monitoring service and prevents application credentials from being copied into
 an alerting SDK.
 
-The snapshot does not replace TLS-expiry monitoring, encrypted-backup age and
-off-host custody checks, host disk/CPU/memory monitoring, PostgreSQL-native
+VASI 0.15.0 adds a separate scheduler-neutral matched-backup freshness and
+verification probe. The operational snapshot does not duplicate it, because
+the engine must not receive a host backup path or storage credential. The
+snapshot also does not replace TLS-expiry monitoring, encrypted off-host backup
+custody checks, host disk/CPU/memory monitoring, PostgreSQL-native
 replication/saturation monitoring, customer-approved capacity tests, or an
 incident-response owner. Those remain deployment responsibilities and pilot
 admission evidence.

@@ -215,5 +215,27 @@ docker compose -f compose.engine.yaml --profile tools run --rm \
   scripts/backup.mjs create /backup/vasi-YYYYMMDD
 ```
 
+For recurring continuity, mount a dedicated existing mode-`0700` root and run
+the create and independent freshness checks from the installation scheduler:
+
+```bash
+docker compose -f compose.engine.yaml --profile tools run --rm \
+  -v /secure/vasi-backups:/backup maintenance \
+  scripts/backup-continuity.mjs create /backup
+
+docker compose -f compose.engine.yaml --profile tools run --rm \
+  -v /secure/vasi-backups:/backup:ro maintenance \
+  scripts/backup-continuity.mjs check /backup
+```
+
+The default policy retains 14 verified timestamped copies and fails freshness
+after 26 hours. Run `create` daily with a persistent scheduler and alert on any
+nonzero exit. Schedule `check` separately so a stopped create timer becomes a
+visible stale-backup failure. The check mount may be read-only. If a process is
+confirmed dead after leaving `.vasi-backup.lock`, remove only that lock before
+retrying; never bypass verification or delete a failed backup manually until
+its recovery value has been assessed. Local same-host copies do not satisfy
+encrypted off-host custody or establish an RPO/RTO.
+
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.
