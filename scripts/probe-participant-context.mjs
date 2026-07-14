@@ -101,7 +101,7 @@ const record = await call(owner, "POST", "/v1/owner/records", {
 expectStatus(record, 200, "context owner record");
 const evidence = record.body.manifest.participantContext;
 if (
-  record.body.manifest.schema !== "vasi-evidence-manifest/v7" ||
+  record.body.manifest.schema !== "vasi-evidence-manifest/v8" ||
   evidence.policy.version !== "vasi-participant-context-policy/v1" ||
   evidence.policy.reliabilityClass !== "browser_reported" ||
   evidence.snapshots.length !== 2 ||

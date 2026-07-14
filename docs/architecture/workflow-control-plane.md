@@ -1,6 +1,6 @@
 # Workflow and company-owner control plane
 
-Status: implemented in VASI 0.6.0 and extended through VASI 0.22.0.
+Status: implemented in VASI 0.6.0 and extended through VASI 0.23.0.
 
 ## Ownership boundary
 
@@ -34,10 +34,11 @@ edges, cycles, and tenant-provided code are rejected before publication.
 Each assignment receives immutable activity definitions and hashes. The engine,
 not the browser, selects the current activity, validates its response, evaluates
 the next transition, marks bypassed activities as skipped, and decides when the
-request is complete. The current version 7 evidence manifest covers the full
+request is complete. The current version 8 evidence manifest covers the full
 workflow snapshot, ordered activity outcomes and response revisions, exact
 artifact bindings, notification state and attempts available at completion,
-policies, timestamps, event chain, and standard VASI integrity seal.
+policies, immutable requester snapshot, timestamps, event chain, and standard
+VASI integrity seal.
 
 ## Request lifecycle and access
 
@@ -47,6 +48,13 @@ reissue commands; and idempotency keys. The private worker advances scheduled
 and expired requests under row locks and records both lifecycle and chained
 evidence events. Reissue creates a new assignment and one-time opaque link bound
 to the same immutable revision.
+
+VASI 0.23.0 snapshots the authenticated requesting user's stable principal and
+issuance-time email on every request. The participant sees that requester,
+material schedule, post-completion access, and audit/data-access meaning before
+acting. Current membership changes cannot alter receipts, reports, participant
+history, or approved data exports. See the
+[requester provenance decision](requester-provenance-and-participant-disclosure.md).
 
 Post-completion access policy is revision-bound: receipt only, original content
 until request expiration, or continuing content access. In VASI 0.10.0, the

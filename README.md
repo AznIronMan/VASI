@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.22.0`
+Version: `0.23.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -261,6 +261,16 @@ reminders without suppressing a valid completion notice. Manifest version 7
 seals the immutable adapter attempts available at completion, and reports use
 the accurate term “provider accepted” because Graph, SMTP, or webhook success
 does not prove inbox delivery, receipt, reading, attention, or identity.
+
+Version 0.23.0 makes the accountable requesting user an immutable part of each
+request. The engine snapshots the authenticated issuer's stable principal and
+issuance-time email, PostgreSQL prevents later mutation, and manifest version 8
+binds that snapshot to the scheduled-or-issued evidence actor. Participant
+request pages now disclose the company, requester, purpose, due and expiration
+times, post-completion access policy, audit-record meaning, and reviewed data
+access before an action is submitted. Receipts, reports, participant history,
+and approved data exports use the snapshot rather than mutable company
+membership, so disabling or removing a requester cannot rewrite history.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
@@ -572,6 +582,10 @@ The [notification delivery evidence decision](docs/architecture/notification-del
 defines explicit delivery purpose, lifecycle suppression, bounded owner status,
 manifest version 7 evidence, provider-acceptance wording, and at-least-once
 limits.
+The [requester provenance and participant disclosure decision](docs/architecture/requester-provenance-and-participant-disclosure.md)
+defines the immutable issuance-time requesting user, manifest binding,
+participant pre-action notice, history/data-export behavior, and assurance
+limits.
 The [document and electronic activity decision](docs/architecture/document-artifacts-and-activities.md)
 defines the PostgreSQL artifact lifecycle, supported contracts, streaming
 boundary, assurance language, and inspection limitations.
@@ -581,7 +595,7 @@ deterministic duration model, PostgreSQL evidence, report and verifier
 behavior, lifecycle integration, and assurance limits.
 The [participant context evidence decision](docs/architecture/participant-context-evidence.md)
 defines its fixed browser-reported schema, explicit exclusions, authenticated
-binding, PostgreSQL immutability, manifest version 6 introduction and version 7
+binding, PostgreSQL immutability, manifest version 6 introduction and version 8
 carriage, report/data-access behavior, lifecycle and transfer integration, and
 assurance limits.
 The [evidence report and verification decision](docs/architecture/evidence-reports-and-verification.md)

@@ -24,7 +24,7 @@ import { hasTenantPermission } from "../../packages/engine-domain/workflow.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { createSigningProvider } from "./signing-provider.mjs";
 
-const ENGINE_VERSION = "0.22.0";
+const ENGINE_VERSION = "0.23.0";
 const GENESIS_HASH = "0".repeat(64);
 const DATA_EXPORT_SCHEMA = "vasi-participant-data-export/v1";
 
@@ -251,9 +251,9 @@ export function createLifecycleStore(database, settings) {
       const result = await database.query(
         `select a."id" as "assignmentId", a."requestId", a."status", a."issuedAt",
                 a."firstOpenedAt", a."completedAt", a."intendedEmail", a."participantEmail",
-                r."purpose", r."scheduledFor", r."dueAt", r."expiresAt", r."createdByPrincipalId",
+                r."purpose", r."scheduledFor", r."dueAt", r."expiresAt", r."requesterSnapshot",
                 w."id" as "workflowRevisionId", w."revision", w."title", w."snapshotHash",
-                t."id" as "tenantId", t."name" as "tenantName", sender."email" as "senderEmail",
+                t."id" as "tenantId", t."name" as "tenantName",
                 m."manifestHash", l."contentStatus", l."historyStatus", l."evidenceStatus",
                 l."contentExpiresAt", l."historyExpiresAt", l."archiveAt", l."deleteAt"
          from "vasi_engine"."participant_assignment" a
@@ -261,8 +261,6 @@ export function createLifecycleStore(database, settings) {
          join "vasi_engine"."workflow_revision" w on w."id" = r."workflowRevisionId"
          join "vasi_engine"."tenant" t on t."id" = a."tenantId"
          join "vasi_engine"."record_lifecycle_state" l on l."assignmentId" = a."id"
-         left join "vasi_engine"."tenant_membership" sender
-           on sender."tenantId" = r."tenantId" and sender."principalId" = r."createdByPrincipalId"
          left join "vasi_engine"."evidence_manifest" m on m."assignmentId" = a."id"
          where (a."principalId" = $1 or lower(coalesce(a."participantEmail", a."intendedEmail")) = $2)
            and l."historyStatus" = 'active'
@@ -848,9 +846,9 @@ async function loadParticipantDataRecord(client, {
     `select a."id" as "assignmentId", a."requestId", a."principalId", a."intendedEmail",
             a."participantEmail", a."status" as "assignmentStatus", a."issuedAt", a."firstOpenedAt",
             a."completedAt", r."status" as "requestStatus", r."purpose", r."scheduledFor",
-            r."dueAt", r."expiresAt", r."createdByPrincipalId", w."id" as "workflowRevisionId",
+            r."dueAt", r."expiresAt", r."requesterSnapshot", w."id" as "workflowRevisionId",
             w."revision", w."title", w."contentHash", w."snapshotHash", t."id" as "tenantId",
-            t."name" as "tenantName", sender."email" as "senderEmail", m."manifestHash",
+            t."name" as "tenantName", m."manifestHash",
             l."policySnapshot", l."policyHash", l."contentStatus", l."historyStatus",
             l."evidenceStatus", l."contentExpiresAt", l."historyExpiresAt", l."archiveAt", l."deleteAt"
      from "vasi_engine"."participant_assignment" a
@@ -858,8 +856,6 @@ async function loadParticipantDataRecord(client, {
      join "vasi_engine"."workflow_revision" w on w."id" = r."workflowRevisionId"
      join "vasi_engine"."tenant" t on t."id" = a."tenantId"
      join "vasi_engine"."record_lifecycle_state" l on l."assignmentId" = a."id"
-     left join "vasi_engine"."tenant_membership" sender
-       on sender."tenantId" = r."tenantId" and sender."principalId" = r."createdByPrincipalId"
      left join "vasi_engine"."evidence_manifest" m on m."assignmentId" = a."id"
      where a."id" = $1 and a."tenantId" = $2
        and (a."principalId" = $3 or lower(coalesce(a."participantEmail", a."intendedEmail")) = $4)`,
@@ -1055,7 +1051,7 @@ async function loadParticipantDataRecord(client, {
       id: row.requestId,
       purpose: row.purpose,
       scheduledFor: iso(row.scheduledFor),
-      sender: { email: row.senderEmail || null, relationship: "requesting_organization" },
+      sender: { email: row.requesterSnapshot?.email || null, relationship: "requesting_organization" },
       status: row.requestStatus,
     },
     responses: [
@@ -1419,7 +1415,7 @@ function participantHistoryProjection(row) {
     },
     purpose: row.purpose,
     requestId: row.requestId,
-    sender: { email: row.senderEmail || null, relationship: "requesting_organization" },
+    sender: { email: row.requesterSnapshot?.email || null, relationship: "requesting_organization" },
     status: row.status,
     tenant: { id: row.tenantId, name: row.tenantName },
     title: row.title,

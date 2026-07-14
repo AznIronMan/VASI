@@ -79,7 +79,7 @@ and participant-data-request checks succeed.
 
 Every accepted snapshot appends `participant.context.recorded` to the
 assignment evidence chain. Participant context was introduced in manifest
-`vasi-evidence-manifest/v6` and remains complete in the current version 7
+`vasi-evidence-manifest/v6` and remains complete in the current version 8
 manifest. The offline verifier:
 
 1. validates the fixed schema and policy;

@@ -85,6 +85,17 @@ export function ParticipantRequest({ assignment, handle }: {
       <h1>{assignment.title}</h1>
       <p className="participant-purpose">{assignment.purpose}</p>
       {assignment.instructions && <p className="participant-purpose">{assignment.instructions}</p>}
+      <section className="participant-request-disclosure" aria-labelledby="request-details-heading">
+        <h2 id="request-details-heading">About this request</h2>
+        <dl>
+          <div><dt>Requesting company</dt><dd>{branding?.displayName || assignment.tenant.name}</dd></div>
+          <div><dt>Requested by</dt><dd>{assignment.requester.email || "Identity retained in the company record"}</dd></div>
+          {assignment.dueAt && <div><dt>Due</dt><dd>{new Date(assignment.dueAt).toLocaleString()}</dd></div>}
+          <div><dt>Access expires</dt><dd>{new Date(assignment.expiresAt).toLocaleString()}</dd></div>
+          <div><dt>After completion</dt><dd>{postCompletionText(assignment.requestAccess.postCompletion)}</dd></div>
+        </dl>
+        <p>Submitting records the authenticated action shown below in a tamper-evident audit trail. Your receipt and transaction history identify the company, requester, material times, and recorded outcome. You can request a reviewed export of your VASI data from your workspace.</p>
+      </section>
       <ActivityPresentation assignment={assignment} handle={handle} />
       <form className="participant-response" onSubmit={submit}>
         <fieldset disabled={Boolean(pending)}>
@@ -108,6 +119,12 @@ export function ParticipantRequest({ assignment, handle }: {
       <footer>Request expires {new Date(assignment.expiresAt).toLocaleString()}.</footer>
     </article>
   );
+}
+
+function postCompletionText(policy: OpenParticipantAssignment["requestAccess"]["postCompletion"]) {
+  if (policy === "content_always") return "The completed content remains available with your record.";
+  if (policy === "content_until_expiration") return "The completed content remains available until this request expires.";
+  return "Your receipt and history remain available; the original content is not retained for participant access.";
 }
 
 function ActivityPresentation({ assignment, handle }: {

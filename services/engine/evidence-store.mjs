@@ -23,6 +23,7 @@ import { validateActivityResponse } from "../../packages/engine-domain/activitie
 import { validateParticipantArtifactInput } from "../../packages/engine-domain/artifacts.mjs";
 import { participantContextPolicy } from "../../packages/engine-domain/context.mjs";
 import { activityInteractionPolicy } from "../../packages/engine-domain/interaction.mjs";
+import { requesterSnapshot } from "../../packages/engine-domain/requester.mjs";
 import {
   NOTIFICATION_DELIVERY_LIMITATIONS,
   NOTIFICATION_JOB_LIMIT,
@@ -122,6 +123,7 @@ export function createEvidenceStore(database, settings) {
       const input = validateIssueInput(payload);
       return transaction(database, async (client) => {
         await requireTenantRole(client, actor.principalId, input.tenantId, "owner");
+        const requester = requesterSnapshot(actor);
         const tenant = await tenantById(client, input.tenantId);
         const tenantProfile = await assertTenantCapacity(client, input.tenantId, "activeRequests", 1);
         const issuedAt = new Date();
@@ -152,11 +154,13 @@ export function createEvidenceStore(database, settings) {
           `insert into "vasi_engine"."request_instance"
             ("id", "tenantId", "workflowRevisionId", "createdByPrincipalId",
              "purpose", "status", "issuedAt", "expiresAt", "tenantProfileRevisionId",
-             "tenantProfileSnapshot", "tenantProfileHash", "tenantProfileBindingProvenance")
-           values ($1, $2, $3, $4, $5, 'issued', $6, $7, $8, $9, $10, 'issued')`,
+             "tenantProfileSnapshot", "tenantProfileHash", "tenantProfileBindingProvenance",
+             "requesterSnapshot")
+           values ($1, $2, $3, $4, $5, 'issued', $6, $7, $8, $9, $10, 'issued', $11)`,
           [
             requestId, input.tenantId, workflowId, actor.principalId, input.purpose, issuedAt,
             input.expiresAt, tenantProfile.id, tenantProfile.profile, tenantProfile.profileHash,
+            requester,
           ],
         );
         await client.query(
@@ -185,6 +189,7 @@ export function createEvidenceStore(database, settings) {
           payload: {
             expiresAt: input.expiresAt.toISOString(),
             intendedEmail: input.intendedEmail,
+            requester,
             tenant: tenantEvidenceProjection(tenant, tenantProfile),
             workflow: {
               content: input.content,
@@ -420,6 +425,7 @@ export function createEvidenceStore(database, settings) {
           events,
           issuedAt: new Date(record.issuedAt).toISOString(),
           request: { id: record.requestId, purpose: record.purpose },
+          requester: record.requesterSnapshot,
           response,
           startedAt: startedAt.toISOString(),
           tenant: tenantEvidenceProjection(record),
@@ -600,6 +606,7 @@ export function verifyEvidenceRecord(record, expectedPublicJWK) {
 
 async function issuePublishedRequest(client, actor, input, outboxEncryptionSecret) {
   await requireTenantPermission(client, actor.principalId, input.tenantId, "request.manage");
+  const requester = requesterSnapshot(actor);
   const tenantProfile = await assertTenantCapacity(client, input.tenantId, "activeRequests", 1);
   const revisionResult = await client.query(
     `select w."id", w."definitionId", w."revision", w."title", w."purpose", w."snapshot",
@@ -635,8 +642,8 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
       ("id", "tenantId", "workflowRevisionId", "createdByPrincipalId", "purpose", "status",
        "issuedAt", "scheduledFor", "dueAt", "expiresAt", "accessPolicy", "notificationPolicy",
        "tenantProfileRevisionId", "tenantProfileSnapshot", "tenantProfileHash",
-       "tenantProfileBindingProvenance")
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'issued')`,
+       "tenantProfileBindingProvenance", "requesterSnapshot")
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'issued', $16)`,
     [
       requestId,
       input.tenantId,
@@ -653,6 +660,7 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
       tenantProfile.id,
       tenantProfile.profile,
       tenantProfile.profileHash,
+      requester,
     ],
   );
   await client.query(
@@ -713,6 +721,7 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
       expiresAt: expiresAt.toISOString(),
       intendedEmail: input.intendedEmail,
       notificationPolicy: revision.snapshot.notifications,
+      requester,
       scheduledFor: scheduledFor.toISOString(),
       tenant: tenantEvidenceProjection({ id: input.tenantId, name: revision.tenantName }, tenantProfile),
       workflow: {
@@ -827,6 +836,7 @@ function workflowParticipantProjection(record, interaction, activity, interactio
     content: projection.content,
     contentHash: activity.definitionHash,
     contractVersion: projection.contractVersion,
+    dueAt: record.dueAt ? new Date(record.dueAt).toISOString() : undefined,
     expiresAt: new Date(record.expiresAt).toISOString(),
     instructions: projection.instructions,
     interaction: {
@@ -842,6 +852,10 @@ function workflowParticipantProjection(record, interaction, activity, interactio
       total: record.snapshot.activities.length,
     },
     purpose: record.purpose,
+    requestAccess: {
+      postCompletion: record.accessPolicy?.postCompletion || "receipt_only",
+    },
+    requester: participantRequesterProjection(record.requesterSnapshot),
     responseMode: projection.responseMode,
     mediaSummary: activity.mediaSummary,
     savedResponse: activity.savedResponse,
@@ -1231,7 +1245,8 @@ function buildWorkflowManifest({
       purpose: record.purpose,
       scheduledFor: record.scheduledFor ? new Date(record.scheduledFor).toISOString() : undefined,
     },
-    schema: "vasi-evidence-manifest/v7",
+    requester: record.requesterSnapshot,
+    schema: "vasi-evidence-manifest/v8",
     tenant: tenantEvidenceProjection(record),
     timestamps: {
       completedAt: completedAt.toISOString(),
@@ -1630,6 +1645,7 @@ function participantReceipt(record) {
       verified: true,
     },
     issuedAt: manifest.timestamps.issuedAt,
+    requester: participantRequesterProjection(manifest.requester),
     request: {
       activities: contentAvailable
         ? manifest.workflow.snapshot?.activities.map(participantActivityProjection)
@@ -1675,7 +1691,8 @@ async function assignmentForHandle(client, handleDigest, lock) {
             a."principalId", a."participantEmail", a."status", a."issuedAt", a."firstOpenedAt",
             r."purpose", r."scheduledFor", r."dueAt", r."expiresAt", r."accessPolicy",
             r."notificationPolicy", r."tenantProfileRevisionId", r."tenantProfileSnapshot",
-            r."tenantProfileHash", r."tenantProfileBindingProvenance", r."status" as "requestStatus",
+            r."tenantProfileHash", r."tenantProfileBindingProvenance", r."requesterSnapshot",
+            r."status" as "requestStatus",
             w."id" as "workflowId", w."revision", w."title", w."responseMode",
             w."content", w."contentHash", w."definitionId", w."schemaVersion", w."snapshot",
             w."snapshotHash", t."name" as "tenantName"
@@ -1778,15 +1795,27 @@ function participantProjection(record, interaction) {
     completed: false,
     content: record.content,
     contentHash: record.contentHash,
+    dueAt: record.dueAt ? new Date(record.dueAt).toISOString() : undefined,
     expiresAt: new Date(record.expiresAt).toISOString(),
     interaction: {
       id: interaction.id,
       startedAt: new Date(interaction.startedAt).toISOString(),
     },
     purpose: record.purpose,
+    requestAccess: {
+      postCompletion: record.accessPolicy?.postCompletion || "receipt_only",
+    },
+    requester: participantRequesterProjection(record.requesterSnapshot),
     responseMode: record.responseMode,
     tenant: participantTenantProjection(record),
     title: record.title,
+  };
+}
+
+function participantRequesterProjection(snapshot) {
+  return {
+    email: snapshot?.email || null,
+    relationship: "requesting_organization",
   };
 }
 

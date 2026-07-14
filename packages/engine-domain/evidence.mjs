@@ -56,6 +56,7 @@ export function buildEvidenceManifest({
   events,
   issuedAt,
   request,
+  requester,
   response,
   startedAt,
   tenant,
@@ -78,6 +79,7 @@ export function buildEvidenceManifest({
     manifestId: assignment.manifestId,
     outcome: { response },
     request: { id: request.id, purpose: request.purpose },
+    requester,
     schema: "vasi-evidence-manifest/v1",
     tenant: {
       id: tenant.id,

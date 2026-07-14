@@ -2318,6 +2318,50 @@ input:disabled {
   background: #faf9f5;
 }
 
+.participant-request-disclosure {
+  margin: 24px 0;
+  padding: 20px;
+  border-left: 4px solid var(--green-700);
+  border-radius: 0 12px 12px 0;
+  background: #f3f7f4;
+}
+
+.participant-request-disclosure h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 23px;
+  font-weight: 400;
+}
+
+.participant-request-disclosure dl {
+  display: grid;
+  margin: 16px 0;
+  gap: 9px;
+}
+
+.participant-request-disclosure dl div {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.35fr) 1fr;
+  gap: 12px;
+}
+
+.participant-request-disclosure dt {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.participant-request-disclosure dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.participant-request-disclosure p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .participant-terms > div {
   margin: 18px 0;
   line-height: 1.75;

@@ -27,6 +27,7 @@ export type ParticipantAssignment = {
   completed: boolean;
   content?: import("@/lib/owner-types").WorkflowActivityContent;
   contentHash?: string;
+  dueAt?: string;
   expiresAt?: string;
   interaction?: { id: string; startedAt: string };
   interactionEvidence?: {
@@ -37,6 +38,8 @@ export type ParticipantAssignment = {
   instructions?: string;
   progress?: { current: number; total: number };
   purpose?: string;
+  requestAccess?: { postCompletion: "receipt_only" | "content_until_expiration" | "content_always" };
+  requester?: { email: string | null; relationship: "requesting_organization" };
   receiptAvailable?: boolean;
   responseMode?: import("@/lib/owner-types").WorkflowActivity["responseMode"];
   savedResponse?: unknown;
@@ -50,7 +53,7 @@ export type ParticipantAssignment = {
 export type OpenParticipantAssignment = ParticipantAssignment & Required<Pick<
   ParticipantAssignment,
   "assignmentId" | "content" | "contentHash" | "expiresAt" | "interaction" |
-  "purpose" | "responseMode" | "tenant" | "title"
+  "purpose" | "requestAccess" | "requester" | "responseMode" | "tenant" | "title"
 >>;
 
 export type ParticipantReceipt = {
@@ -64,6 +67,7 @@ export type ParticipantReceipt = {
     verified: boolean;
   };
   issuedAt: string;
+  requester: { email: string | null; relationship: "requesting_organization" };
   request: {
     activities?: Array<import("@/lib/owner-types").WorkflowActivity>;
     contentAccess?: { available: boolean; policy: string };

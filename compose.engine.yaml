@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-tools
-    image: vasi-engine-tools:0.22.0
+    image: vasi-engine-tools:0.23.0
     entrypoint: ["node", "scripts/settings.mjs", "--scope", "engine"]
     command: ["list"]
     user: "0:0"
@@ -33,7 +33,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-runtime
-    image: vasi-engine:0.22.0
+    image: vasi-engine:0.23.0
     command: ["node", "scripts/engine-migrate.mjs"]
     user: "1000:1000"
     volumes:
@@ -55,7 +55,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-maintenance
-    image: vasi-engine-maintenance:0.22.0
+    image: vasi-engine-maintenance:0.23.0
     command: ["scripts/backup.mjs"]
     user: "1000:1000"
     volumes:
@@ -77,7 +77,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-maintenance
-    image: vasi-engine-maintenance:0.22.0
+    image: vasi-engine-maintenance:0.23.0
     entrypoint: ["node", "scripts/probe-capacity-readiness.mjs"]
     user: "1000:1000"
     volumes:
@@ -123,7 +123,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-tools
-    image: vasi-engine-tools:0.22.0
+    image: vasi-engine-tools:0.23.0
     entrypoint: ["node", "scripts/render-database-egress-policy.mjs"]
     user: "1000:1000"
     volumes:
@@ -145,7 +145,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: database-gateway-runtime
-    image: vasi-database-gateway:0.22.0
+    image: vasi-database-gateway:0.23.0
     restart: unless-stopped
     init: true
     user: "1000:1000"
@@ -179,7 +179,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-runtime
-    image: vasi-engine:0.22.0
+    image: vasi-engine:0.23.0
     command: ["node", "services/engine/server.mjs"]
     restart: unless-stopped
     init: true
@@ -213,7 +213,7 @@ services:
       start_period: 15s
 
   worker:
-    image: vasi-engine:0.22.0
+    image: vasi-engine:0.23.0
     command: ["node", "services/worker/worker.mjs"]
     restart: unless-stopped
     init: true
@@ -239,7 +239,7 @@ services:
         condition: service_healthy
 
   integration-gateway:
-    image: vasi-engine:0.22.0
+    image: vasi-engine:0.23.0
     command: ["node", "services/integration-gateway/server.mjs"]
     restart: unless-stopped
     init: true
@@ -276,7 +276,7 @@ services:
       start_period: 15s
 
   private-ingress:
-    image: vasi-engine:0.22.0
+    image: vasi-engine:0.23.0
     command: ["node", "services/private-ingress/server.mjs"]
     restart: unless-stopped
     init: true

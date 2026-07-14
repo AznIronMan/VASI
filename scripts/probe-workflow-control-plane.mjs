@@ -102,6 +102,13 @@ expectStatus(opened, 200, "first activity open");
 if (opened.body.activityId !== "decision" || opened.body.progress?.total !== 2) {
   throw new Error("The ordered activity projection proof failed.");
 }
+if (
+  opened.body.requester?.email !== manager.email ||
+  opened.body.requestAccess?.postCompletion !== "content_until_expiration" ||
+  !opened.body.dueAt
+) {
+  throw new Error("The participant pre-action requester and access disclosure proof failed.");
+}
 const firstResponse = await respond(participant, handle, opened.body, "yes");
 expectStatus(firstResponse, 200, "first activity response");
 if (firstResponse.body.completed !== false) throw new Error("The workflow continued-state proof failed.");
@@ -118,7 +125,9 @@ const record = await call(auditor, "POST", "/v1/owner/records", {
 });
 expectStatus(record, 200, "auditor record access");
 if (
-  record.body.manifest?.schema !== "vasi-evidence-manifest/v7" ||
+  record.body.manifest?.schema !== "vasi-evidence-manifest/v8" ||
+  record.body.manifest.requester?.email !== manager.email ||
+  record.body.manifest.requester?.principalId !== manager.principalId ||
   record.body.manifest.workflow.snapshot.title !== "Published revision one" ||
   record.body.manifest.outcome.activities.length !== 2 ||
   record.body.manifest.notificationDelivery?.jobs?.find((job) =>
@@ -213,7 +222,19 @@ if (JSON.stringify(requestList.body).match(/participantPath|responseMetadata|cre
   throw new Error("The owner delivery projection exposed a restricted delivery field.");
 }
 
-console.info("VASI workflow draft, publication, role, branch, lifecycle, access, outbox, and seal checks passed.");
+await expectCall(owner, "POST", "/v1/owner/members", {
+  email: manager.email,
+  roles: ["manager"],
+  status: "disabled",
+  tenantId: tenant.body.id,
+}, 200, "requester membership disable");
+const history = await call(participant, "GET", "/v1/participant/history");
+expectStatus(history, 200, "requester-stable participant history");
+if (history.body.find((entry) => entry.requestId === issued.body.requestId)?.sender?.email !== manager.email) {
+  throw new Error("Participant history changed after the requesting membership was disabled.");
+}
+
+console.info("VASI workflow draft, publication, requester provenance, role, branch, lifecycle, access, outbox, and seal checks passed.");
 
 function workflowDocument(title) {
   return {

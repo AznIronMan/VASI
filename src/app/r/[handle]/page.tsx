@@ -55,7 +55,8 @@ export default async function ParticipantRequestPage({
 function isCompleteAssignment(value: ParticipantAssignment): value is OpenParticipantAssignment {
   return Boolean(
     value.assignmentId && value.content && value.contentHash && value.expiresAt &&
-    value.interaction && value.purpose && value.responseMode && value.tenant && value.title,
+    value.interaction && value.purpose && value.requestAccess && value.requester &&
+    value.responseMode && value.tenant && value.title,
   );
 }
 

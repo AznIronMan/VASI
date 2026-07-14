@@ -45,6 +45,7 @@ export default async function ReceiptPage({ params }: { params: Promise<{ handle
         <dl>
           <div><dt>Response</dt><dd>{receipt.request.response}</dd></div>
           <div><dt>Purpose</dt><dd>{receipt.request.purpose}</dd></div>
+          <div><dt>Requested by</dt><dd>{receipt.requester.email || receipt.tenant.name}</dd></div>
           <div><dt>Completed</dt><dd>{new Date(receipt.completedAt).toLocaleString()}</dd></div>
           <div><dt>Seal</dt><dd>{receipt.integrity.profile} · {receipt.integrity.algorithm}</dd></div>
           <div><dt>Manifest fingerprint</dt><dd className="receipt-hash">{receipt.integrity.manifestHash}</dd></div>

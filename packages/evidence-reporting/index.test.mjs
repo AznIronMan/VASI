@@ -20,6 +20,7 @@ describe("deterministic evidence reports", () => {
       ]);
     }
     expect(JSON.stringify(reports.participant)).not.toContain("192.0.2.20");
+    expect(reports.participant.requester.email).toBe("owner@example.test");
     expect(reports.participant.activityTiming[0]).toMatchObject({
       activityId: "terms",
       confidence: "medium",

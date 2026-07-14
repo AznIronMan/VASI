@@ -151,6 +151,13 @@ and seals only the bounded attempts available when a participant transaction
 completes. See the
 [notification delivery decision](architecture/notification-delivery-evidence.md).
 
+VASI 0.23.0 requires migration `0014_engine_requester_provenance` before the
+new engine starts. It backfills the requester's immutable snapshot from sealed
+issuance evidence where possible, then freezes it. New issuance requires an
+authenticated actor email. The snapshot identifies the accountable user and is
+separate from the configured Graph or SMTP sender mailbox. See the
+[requester provenance decision](architecture/requester-provenance-and-participant-disclosure.md).
+
 Document scanning also starts with a disabled per-tenant
 `document.malware_scan` binding. An operator must add
 `https_malware_scanner` and the exact scanner hostname to the active
@@ -433,7 +440,7 @@ encrypted off-host custody or establish an RPO/RTO.
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.
 
-For rollback, first stop the complete 0.22.0 engine stack. Disable its two
+For rollback, first stop the complete 0.23.0 engine stack. Disable its two
 timers, remove the policy with
 `sudo /bin/sh scripts/apply-database-egress-policy.sh remove`, switch the whole
 release—not selected files—to the prior verified version, and follow that

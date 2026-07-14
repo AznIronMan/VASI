@@ -98,7 +98,14 @@ export function sealedTestRecord() {
     notificationDelivery,
     participantContext,
     request: { expiresAt: "2026-01-08T00:00:00.000Z", id: "request-1", purpose: "Test evidence reporting" },
-    schema: "vasi-evidence-manifest/v7",
+    requester: {
+      email: "owner@example.test",
+      principalId: "owner",
+      provenance: "authenticated_actor_at_issuance",
+      relationship: "requesting_organization",
+      schema: "vasi-requester-snapshot/v1",
+    },
+    schema: "vasi-evidence-manifest/v8",
     tenant: { id: "tenant-1", name: "Example Company" },
     timestamps: {
       completedAt: "2026-01-01T00:02:00.000Z",

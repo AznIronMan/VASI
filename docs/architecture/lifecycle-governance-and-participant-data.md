@@ -83,7 +83,8 @@ evidence or establish that a retention decision was legally correct.
 ## Participant history and reviewed data requests
 
 The V·Sign workspace lists records bound to the stable principal or verified
-email. It shows the requesting organization, available sender email, sent/opened/
+email. It shows the requesting organization, immutable issuance-time requester
+email when available, sent/opened/
 completed times, lifecycle availability, and the participant report. The
 participant report is privacy-reduced and remains distinct from the fuller
 data-request workflow.

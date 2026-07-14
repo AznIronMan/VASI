@@ -12,6 +12,7 @@ import {
   validateStoredParticipantContextSnapshot,
 } from "../engine-domain/context.mjs";
 import { validateNotificationDeliveryEvidence } from "../engine-domain/notifications.mjs";
+import { validateRequesterSnapshot } from "../engine-domain/requester.mjs";
 
 const GENESIS_HASH = "0".repeat(64);
 
@@ -66,14 +67,17 @@ export function verifyEvidenceRecord(record, options = {}) {
     if (JSON.stringify(evidence?.eventHashes) !== JSON.stringify(eventHashes)) {
       errors.push("manifest_event_hashes_invalid");
     }
-    if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7"].includes(manifest.schema)) {
+    if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8"].includes(manifest.schema)) {
       verifyActivityInteractionEvidence(manifest.activityInteraction, events, errors);
     }
-    if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7"].includes(manifest.schema)) {
+    if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8"].includes(manifest.schema)) {
       verifyParticipantContextEvidence(manifest.participantContext, events, errors);
     }
-    if (manifest.schema === "vasi-evidence-manifest/v7") {
+    if (["vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8"].includes(manifest.schema)) {
       verifyNotificationDeliveryEvidence(manifest.notificationDelivery, manifest.timestamps?.completedAt, errors);
+    }
+    if (manifest.schema === "vasi-evidence-manifest/v8") {
+      verifyRequesterEvidence(manifest.requester, events, errors);
     }
   }
 
@@ -113,6 +117,7 @@ export function verifyEvidenceRecord(record, options = {}) {
       activityInteraction: !errors.some((error) => error.startsWith("activity_interaction_")),
       notificationDelivery: !errors.some((error) => error.startsWith("notification_delivery_")),
       participantContext: !errors.some((error) => error.startsWith("participant_context_")),
+      requester: !errors.some((error) => error.startsWith("requester_")),
       manifest: Boolean(manifest) && !errors.includes("manifest_missing"),
       primarySeal: Boolean(primary) && !errors.includes("primary_seal_missing") && sealResults.some((seal) => seal.role === "vasi_integrity" && seal.verified),
     }),
@@ -120,6 +125,30 @@ export function verifyEvidenceRecord(record, options = {}) {
     seals: Object.freeze(sealResults),
     verified: errors.length === 0,
   });
+}
+
+function verifyRequesterEvidence(value, events, errors) {
+  let requester;
+  try {
+    requester = validateRequesterSnapshot(value);
+  } catch {
+    errors.push("requester_snapshot_invalid");
+    return;
+  }
+  const issuance = events.find((event) =>
+    ["request.issued", "request.scheduled"].includes(event?.eventData?.eventType),
+  );
+  if (!issuance) {
+    errors.push("requester_issuance_event_missing");
+    return;
+  }
+  const actor = issuance.eventData?.actor;
+  if (actor?.principalId !== requester.principalId) {
+    errors.push("requester_principal_binding_invalid");
+  }
+  if (requester.email && actor?.email?.toLowerCase() !== requester.email) {
+    errors.push("requester_email_binding_invalid");
+  }
 }
 
 function verifyNotificationDeliveryEvidence(value, completedAt, errors) {

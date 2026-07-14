@@ -225,10 +225,17 @@ async function proveHoldSafeRetentionPurge() {
 async function proveReviewedParticipantDataExport() {
   const tenant = await createTenant("VASI Participant Data Proof", "participant-data");
   const completed = await issueAndCompleteWorkflow(tenant.id, participant, "Participant data export proof");
+  await expectImmutableFailure(
+    `update "vasi_engine"."request_instance"
+     set "requesterSnapshot" = jsonb_set("requesterSnapshot", '{email}', '"changed@example.test"')
+     where "id" = $1`,
+    [completed.requestId],
+  );
   const history = await call(participant, "GET", "/v1/participant/history");
   expectStatus(history, 200, "participant history");
-  if (!history.body.some((entry) => entry.assignmentId === completed.assignmentId)) {
-    throw new Error("The participant history did not include the completed record.");
+  const historyRecord = history.body.find((entry) => entry.assignmentId === completed.assignmentId);
+  if (!historyRecord || historyRecord.sender?.email !== owner.email) {
+    throw new Error("The participant history omitted the immutable requesting user.");
   }
 
   const requested = await call(participant, "POST", "/v1/participant/data-requests", {
@@ -282,6 +289,11 @@ async function proveReviewedParticipantDataExport() {
     ))
   ) throw new Error("The reviewed participant data export omitted expected participant data.");
   const serialized = bytes.toString("utf8");
+  const exportedRecord = payload.scopes.flatMap((scope) => scope.records)
+    .find((entry) => entry.assignment.id === completed.assignmentId);
+  if (exportedRecord?.request?.sender?.email !== owner.email) {
+    throw new Error("The reviewed participant data export omitted the immutable requesting user.");
+  }
   if (serialized.includes('"answerKey"') ||
       serialized.includes("Exact retention proof terms.") ||
       serialized.includes('"notificationPolicy"')) {
@@ -447,6 +459,7 @@ async function issueAndCompleteWorkflow(tenantId, participantActor, title) {
     assignmentId: issued.body.assignmentId,
     contextSnapshotIds,
     manifestHash: completed.body.integrity.manifestHash,
+    requestId: issued.body.requestId,
   };
 }
 

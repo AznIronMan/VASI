@@ -98,7 +98,9 @@ function reportContext(record) {
   const participantEvents = record.events.filter((event) =>
     event.eventData?.actor?.principalId === manifest.assignment?.principalId,
   );
-  const requesterEvent = record.events.find((event) => event.eventData?.eventType === "request.issued");
+  const requesterEvent = record.events.find((event) =>
+    ["request.issued", "request.scheduled"].includes(event.eventData?.eventType),
+  );
   const participantActor = participantEvents.find((event) => event.eventData?.actor)?.eventData.actor || {};
   const startedAt = manifest.timestamps?.startedAt;
   const completedAt = manifest.timestamps?.completedAt;
@@ -165,8 +167,8 @@ function reportContext(record) {
     }))),
     record,
     requester: {
-      email: requesterEvent?.eventData?.actor?.email,
-      principalId: requesterEvent?.eventData?.actor?.principalId,
+      email: manifest.requester?.email ?? requesterEvent?.eventData?.actor?.email,
+      principalId: manifest.requester?.principalId ?? requesterEvent?.eventData?.actor?.principalId,
       tenant: manifest.tenant,
     },
     seals,
@@ -218,11 +220,11 @@ function evidenceLimitations(manifest) {
   for (const limitation of manifest.participantContext?.policy?.limitations || []) {
     limitations.push(limitation);
   }
-  if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7"].includes(manifest.schema) &&
+  if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8"].includes(manifest.schema) &&
       !(manifest.activityInteraction?.events || []).length) {
     limitations.push("No browser-reported generalized activity-presence events were available when the record was sealed.");
   }
-  if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7"].includes(manifest.schema) &&
+  if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8"].includes(manifest.schema) &&
       !(manifest.participantContext?.snapshots || []).length) {
     limitations.push("No privacy-bounded browser/device context snapshot was available when the record was sealed.");
   }

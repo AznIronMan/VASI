@@ -43,4 +43,14 @@ describe("portable evidence record verification", () => {
     expect(result.verified).toBe(false);
     expect(result.errors).toContain("notification_delivery_field_unsupported");
   });
+
+  it("binds the requester snapshot to the immutable issuance actor", () => {
+    const { record } = sealedTestRecord();
+    expect(verifyEvidenceRecord(record).checks.requester).toBe(true);
+    const altered = structuredClone(record);
+    altered.manifest.requester.email = "different@example.test";
+    const result = verifyEvidenceRecord(altered);
+    expect(result.verified).toBe(false);
+    expect(result.errors).toContain("requester_email_binding_invalid");
+  });
 });

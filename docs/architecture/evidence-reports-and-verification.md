@@ -1,17 +1,22 @@
 # Evidence reports, portable bundles, and verification
 
-Status: implemented in VASI 0.9.0.
+Status: implemented in VASI 0.9.0 and extended through VASI 0.23.0.
 
 VASI 0.18.0 extends the sealed record to manifest version 6 with fixed,
 privacy-bounded participant-context observations. Technical and structured
 profiles retain those values; participant and plain-language profiles expose
 only their presence, purposes, provenance class, and limitations.
 
-VASI 0.22.0 extends the current sealed record to manifest version 7 with
+VASI 0.22.0 extended the sealed record to manifest version 7 with
 privacy-bounded notification jobs and immutable adapter attempts available at
 completion. Participant and plain-language reports omit internal job IDs and
 failure codes. Every audience is told that provider acceptance does not prove
 inbox delivery, receipt, reading, attention, or identity.
+
+VASI 0.23.0 extends the sealed record to manifest version 8 with the immutable
+issuance-time requester snapshot. Reports prefer that snapshot over event
+fallback, and offline verification binds it to the first scheduled-or-issued
+actor so current membership cannot rewrite the historical requester.
 
 ## Purpose and boundary
 
