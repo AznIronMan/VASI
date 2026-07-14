@@ -1,10 +1,10 @@
 {
   "name": "vasi",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "private": true,
   "description": "Verified Authorized Signing Infrastructure",
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "dev": "next dev",
@@ -16,7 +16,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run lint && npm run typecheck && npm run test",
-    "auth:migrate": "node scripts/migrate.mjs"
+    "auth:migrate": "node scripts/migrate.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "settings": "node scripts/settings.mjs",
+    "settings:init": "node scripts/settings.mjs init",
+    "settings:list": "node scripts/settings.mjs list"
   },
   "dependencies": {
     "better-auth": "1.6.23",

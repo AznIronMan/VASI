@@ -2,133 +2,130 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.2.2`
+Version: `0.3.0`
 
 A CNB project maintained by Street Kings Productions.
 
 ## Current milestone
 
-The authentication portal is deployed and responding at
-`https://vsign.cnb.llc`. Microsoft, Google, Yahoo, and username/password sign-in
-are enabled in production. Transactional verification and password-recovery
-messages use a mailbox-scoped Microsoft Graph application, with SMTP retained
-as a fallback. Zoho OIDC support is available and awaits production client
-credentials. The Apple connector implementation remains available, but Apple is
-hidden from login and onboarding while Developer Program approval is pending.
+VASI currently provides the V·Sign identity gateway: public authentication and
+SSO-first onboarding, private identity administration, invitations, account
+lifecycle controls, and transactional email. Microsoft, Google, Yahoo, and
+username/password sign-in are available; Zoho is implemented and awaits a
+production client; Apple is implemented but hidden until Apple Developer
+approval is complete.
 
-The internal identity administration console is available at the configured
-private origin under `/admin`. It lists connector health, manual-password
-availability, and account state; supports invitations, password setup/reset,
-account enable/disable, and forced connector disconnection; and records each
-administrative change. Public account creation and invitation acceptance start
-with an email-domain check that recommends an available Microsoft, Google,
-Yahoo, or Zoho connection before exposing the secondary manual-password path.
-Provider actions remain primary on sign-in; username/password is contained under
-an `Other methods` disclosure.
-
-The production container workflow includes a one-shot database migrator,
-restart policy, liveness monitoring, a read-only filesystem, and a configurable
-loopback or private-network bind for trusted HTTPS gateways.
-
-Administration has a narrow operator role, but document authorization is still
-the next application milestone. CNB signer roles, document access policy, and
-the signing workspace must be added on top of the verified user session.
+The product direction is a private, independently deployable interaction and
+evidence engine behind this gateway. It will record the authenticated
+participant, exact immutable content and questions presented, activity and
+timing evidence, responses and outcomes, and a tamper-evident chronology. That
+engine is not yet implemented in this release; `/workspace` remains the
+verified-session handoff point.
 
 ## Included
 
-- Next.js 16 App Router portal with accessible desktop and mobile layouts.
-- Better Auth 1.6 with PostgreSQL-backed users, accounts, sessions, verification
-  tokens, and rate limits.
-- Built-in Microsoft, Google, and Apple OAuth/OIDC providers, with Apple login
-  exposure gated until its developer configuration is approved and verified.
-- Yahoo OpenID Connect through the generic OAuth authorization-code flow.
-- Zoho OpenID Connect with consumer-domain and hosted-domain MX discovery.
-- Username or email sign-in, registration, required email verification,
-  password recovery, and session revocation after password reset.
-- SSO-first sign-in, registration, and invitation acceptance with common-domain
-  mapping plus Microsoft 365, Google Workspace, and Zoho Mail MX discovery.
-- Internal-host-only identity administration with operator allowlisting,
-  account disablement, session revocation, connector status and disconnection,
-  manual-password controls, invitations, and audit records.
-- Microsoft Graph transactional delivery restricted to its configured sender
-  mailbox, with SMTP available as an explicit fallback.
-- Twelve-hour sessions, throttled authentication endpoints, secure cookie and
-  origin defaults, encrypted provider tokens, security response headers, and
-  generic account errors.
-- Reviewed SQL migration, production build, health endpoint, and container image.
+- Next.js 16 and Better Auth with PostgreSQL-backed users, accounts, sessions,
+  verification records, and rate limits.
+- Microsoft, Google, Yahoo, Zoho, Apple-ready, and manual authentication with an
+  SSO-first participant experience.
+- Internal-host-only identity administration, operator allowlisting,
+  invitations, connector health/disconnection, password controls, account
+  disablement, session revocation, and audit records.
+- Microsoft Graph transactional delivery restricted to its configured mailbox,
+  with SMTP as an optional fallback.
+- A local SQLite bootstrap at `data/VASI.settings` containing only the
+  PostgreSQL connection, installation identity, pool/transport selection, and
+  the key that decrypts runtime settings.
+- AES-256-GCM encrypted runtime configuration in PostgreSQL, audited settings
+  changes, forward-only migrations, and a value-redacting settings CLI.
+- A non-root application image, loopback-only published port, health check,
+  read-only application filesystem, and explicit release migration.
+
+## Configuration model
+
+VASI does not use environment files. A populated `data/VASI.settings` is local
+installation state and must never be committed, copied into an image, or sent
+with a support bundle. It contains the minimum information needed to reach
+PostgreSQL and decrypt the remaining settings. Provider credentials, auth and
+mailer secrets, origins, allowlists, and other runtime configuration are
+encrypted in PostgreSQL and scoped to the installation ID.
+
+The bootstrap database and PostgreSQL must be backed up together. Losing
+`VASI.settings` loses the decryption key for the PostgreSQL settings; restoring
+the file against the wrong database or installation will not decrypt them.
+Keep the file at mode `0600` and its directory private.
+
+Settings are loaded once per application process. Restart the app after a
+settings change. The settings listing command reports names and versions but
+never values.
 
 ## Local setup
 
-Requirements: Node.js 20.9 or newer and PostgreSQL 15 or newer. Docker is
-optional and can provide PostgreSQL with the included Compose file.
+Requirements: Node.js 24 or newer and PostgreSQL 15 or newer. Docker is
+optional and can provide PostgreSQL with the development Compose file.
 
 ```bash
-cp .env.example .env.local
 npm install
 docker compose up -d postgres
-npm run auth:migrate
+npm run settings:init
 npm run dev
 ```
 
-Open `http://localhost:3000`. Without provider credentials, the Microsoft,
-Google, Yahoo, and Zoho buttons remain visible and identify that configuration
-is required. Apple remains hidden unless `APPLE_LOGIN_ENABLED=true`. The manual
-sign-in form is available under `Other methods`. In development, verification
-and reset URLs are written to the server console when transactional email is not
-configured. Production intentionally rejects email delivery when the selected
-Graph or SMTP provider is incomplete.
+The initializer prompts privately for the PostgreSQL credential, creates
+`data/VASI.settings`, applies the database migrations, generates a strong auth
+secret, and stores the required gateway settings in PostgreSQL. Open
+`http://localhost:3000` after initialization.
 
-For local administration, set `VASI_ADMIN_ORIGIN` to the local origin and add
-your test account to `VASI_ADMIN_EMAILS`. The admin plugin promotes an
-allowlisted account to the `admin` role when a new session is created.
+Without provider credentials, provider actions identify that configuration is
+required. Apple remains hidden until its login flag is enabled. Manual sign-in
+is under `Other methods`. Development verification and reset URLs are written
+to the server console when no mail transport is configured; production fails
+closed when the selected transport is incomplete.
 
-Useful checks:
+Useful commands:
 
 ```bash
+npm run settings:list
+npm run settings -- set GOOGLE_CLIENT_ID
+npm run settings -- set GOOGLE_CLIENT_SECRET
+npm run settings -- unset GOOGLE_CLIENT_ID
+npm run db:migrate
 npm run check
 npm run build
-npm audit
 ```
 
-## Production configuration
+Secret values are accepted only through hidden interactive input. Do not place
+them in command arguments, shell history, source files, build arguments, or
+logs.
 
-Copy the names from `.env.example` into the deployment secret store. At minimum,
-configure:
+## Production containers
 
-- `BETTER_AUTH_URL=https://vsign.cnb.llc`
-- `BETTER_AUTH_SECRET` with at least 32 random characters
-- `VASI_ADMIN_ORIGIN` for the private HTTPS admin hostname
-- `VASI_ADMIN_EMAILS` as a comma-separated operator allowlist
-- `DATABASE_URL` for durable PostgreSQL
-- A complete Microsoft Graph mailer configuration, or `AUTH_EMAIL_FROM`,
-  `SMTP_HOST`, and any credentials required by an SMTP fallback
-- One complete client ID/client secret set for each social provider to enable
-- `ZOHO_ACCOUNTS_ORIGIN` matching the data center where the Zoho client is
-  registered; it defaults to the United States origin
-- `APPLE_LOGIN_ENABLED=true` only after the Apple callback, signing key, and
-  Private Email Relay configuration have been approved and verified
-
-Generate the auth secret with `openssl rand -base64 48`. Never store production
-values in tracked files or build arguments.
-
-Apply `npm run auth:migrate` as a release step before starting the new app. Build
-with `npm run build`, start with `npm start`, and terminate TLS at a trusted proxy
-that forwards the original HTTPS host. The liveness endpoint is `GET /api/health`.
-
-See [Authentication setup](docs/authentication.md) for public and internal
-provider callbacks, admin controls, onboarding behavior, Apple key handling,
-email behavior, and the production checklist.
-
-## Container image
+Create the deployment directory and initialize it from an interactive terminal:
 
 ```bash
-export VASI_ENV_FILE=/absolute/path/to/vasi.env
-docker compose -f compose.production.yaml run --rm migrate
+install -d -m 700 data
+docker compose -f compose.production.yaml --profile tools run --rm settings init
+docker compose -f compose.production.yaml --profile release run --rm migrate
 docker compose -f compose.production.yaml up -d --build app
 ```
 
-The app image runs as a non-root user and does not contain local environment
-files, task records, or operator-private material. The production Compose file
-binds to `127.0.0.1:3000` by default; set `VASI_BIND_ADDRESS` or `VASI_PORT` only
-when the trusted ingress topology requires it. Database migration remains an
-explicit, repeatable release step and never runs automatically on app startup.
+The settings tool performs the one-time ownership transition needed for the
+non-root runtime container. Run later changes through the same tool service:
+
+```bash
+docker compose -f compose.production.yaml --profile tools run --rm settings list
+docker compose -f compose.production.yaml --profile tools run --rm settings set YAHOO_CLIENT_SECRET
+```
+
+The app publishes only `127.0.0.1:3000` and expects a trusted HTTPS reverse
+proxy. The liveness endpoint is `GET /api/health`. Database migrations are an
+explicit, repeatable release step and never run automatically at app startup.
+
+For a one-time migration from an older container, stream its configuration to
+`settings import-env -`; no temporary environment file is required. A protected
+legacy file can instead be mounted and imported by path, then securely retired
+only after the new application passes its checks. This compatibility command is
+not the continuing configuration mechanism.
+
+See [Authentication setup](docs/authentication.md) for callbacks, provider and
+mailer settings, administration behavior, and the release checklist.

@@ -7,7 +7,6 @@ coverage/
 
 # Runtime configuration and local data
 .env*
-!.env.example
 *.log
 data/
 

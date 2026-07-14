@@ -1,27 +1,30 @@
 import { toNextJsHandler } from "better-auth/next-js";
 
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
 import { isRequestForOrigin } from "@/lib/host-policy";
-import { resolveServerEnvironment } from "@/lib/server-environment";
-
-const handlers = toNextJsHandler(auth);
-const { adminOrigin } = resolveServerEnvironment();
+import { getRuntimeSettings } from "@/lib/runtime-settings";
+import { resolveServerSettings } from "@/lib/server-settings";
 
 function isRestrictedAdminEndpoint(request: Request) {
   return new URL(request.url).pathname.startsWith("/api/auth/admin/");
 }
 
-function isAllowed(request: Request) {
-  return !isRestrictedAdminEndpoint(request) ||
-    isRequestForOrigin(request.headers, adminOrigin);
+async function isAllowed(request: Request) {
+  if (!isRestrictedAdminEndpoint(request)) return true;
+  const { adminOrigin } = resolveServerSettings(await getRuntimeSettings());
+  return isRequestForOrigin(request.headers, adminOrigin);
 }
 
-export async function GET(request: Request) {
-  if (!isAllowed(request)) return new Response(null, { status: 404 });
-  return handlers.GET(request);
+async function handle(request: Request, method: "GET" | "POST") {
+  if (!(await isAllowed(request))) return new Response(null, { status: 404 });
+  const handlers = toNextJsHandler(await getAuth());
+  return handlers[method](request);
 }
 
-export async function POST(request: Request) {
-  if (!isAllowed(request)) return new Response(null, { status: 404 });
-  return handlers.POST(request);
+export function GET(request: Request) {
+  return handle(request, "GET");
+}
+
+export function POST(request: Request) {
+  return handle(request, "POST");
 }

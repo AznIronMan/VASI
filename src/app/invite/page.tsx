@@ -4,6 +4,9 @@ import { SsoOnboarding } from "@/components/auth/sso-onboarding";
 import { BrandMark } from "@/components/brand-mark";
 import { getLoginAuthProviderAvailability } from "@/lib/auth-providers";
 import { getInvitation } from "@/lib/invitations";
+import { getRuntimeSettings } from "@/lib/runtime-settings";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Accept invitation",
@@ -15,7 +18,10 @@ export default async function InvitationPage({
   searchParams: Promise<{ error?: string; token?: string }>;
 }) {
   const { error, token = "" } = await searchParams;
-  const invitation = await getInvitation(token);
+  const [invitation, settings] = await Promise.all([
+    getInvitation(token),
+    getRuntimeSettings(),
+  ]);
 
   return (
     <main className="invite-shell">
@@ -39,7 +45,7 @@ export default async function InvitationPage({
             <SsoOnboarding
               initialEmail={invitation.email}
               inviteToken={token}
-              providers={getLoginAuthProviderAvailability()}
+              providers={getLoginAuthProviderAvailability(settings)}
             />
           </>
         ) : (

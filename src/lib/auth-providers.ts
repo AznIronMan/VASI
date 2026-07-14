@@ -8,7 +8,7 @@ export type AuthProviderAvailability = {
   configured: boolean;
 };
 
-type PublicEnvironment = Record<string, string | undefined>;
+type ProviderSettings = Record<string, string | undefined>;
 
 const providerLabels: Record<AuthProviderId, string> = {
   microsoft: "Microsoft",
@@ -18,23 +18,23 @@ const providerLabels: Record<AuthProviderId, string> = {
   zoho: "Zoho",
 };
 
-function hasValues(environment: PublicEnvironment, keys: string[]) {
-  return keys.every((key) => Boolean(environment[key]?.trim()));
+function hasValues(settings: ProviderSettings, keys: string[]) {
+  return keys.every((key) => Boolean(settings[key]?.trim()));
 }
 
 export function isProviderConfigured(
   provider: AuthProviderId,
-  environment: PublicEnvironment = process.env,
+  settings: ProviderSettings,
 ) {
   switch (provider) {
     case "microsoft":
-      return hasValues(environment, ["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET"]);
+      return hasValues(settings, ["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET"]);
     case "google":
-      return hasValues(environment, ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]);
+      return hasValues(settings, ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]);
     case "apple":
       return (
-        hasValues(environment, ["APPLE_CLIENT_ID", "APPLE_CLIENT_SECRET"]) ||
-        hasValues(environment, [
+        hasValues(settings, ["APPLE_CLIENT_ID", "APPLE_CLIENT_SECRET"]) ||
+        hasValues(settings, [
           "APPLE_CLIENT_ID",
           "APPLE_TEAM_ID",
           "APPLE_KEY_ID",
@@ -42,28 +42,28 @@ export function isProviderConfigured(
         ])
       );
     case "yahoo":
-      return hasValues(environment, ["YAHOO_CLIENT_ID", "YAHOO_CLIENT_SECRET"]);
+      return hasValues(settings, ["YAHOO_CLIENT_ID", "YAHOO_CLIENT_SECRET"]);
     case "zoho":
-      return hasValues(environment, ["ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET"]);
+      return hasValues(settings, ["ZOHO_CLIENT_ID", "ZOHO_CLIENT_SECRET"]);
   }
 }
 
 export function getAuthProviderAvailability(
-  environment: PublicEnvironment = process.env,
+  settings: ProviderSettings,
 ): AuthProviderAvailability[] {
   return authProviderIds.map((id) => ({
     id,
     label: providerLabels[id],
-    configured: isProviderConfigured(id, environment),
+    configured: isProviderConfigured(id, settings),
   }));
 }
 
 export function getLoginAuthProviderAvailability(
-  environment: PublicEnvironment = process.env,
+  settings: ProviderSettings,
 ): AuthProviderAvailability[] {
-  const appleLoginEnabled = environment.APPLE_LOGIN_ENABLED?.trim().toLowerCase() === "true";
+  const appleLoginEnabled = settings.APPLE_LOGIN_ENABLED?.trim().toLowerCase() === "true";
 
-  return getAuthProviderAvailability(environment).filter(
+  return getAuthProviderAvailability(settings).filter(
     (provider) => provider.id !== "apple" || appleLoginEnabled,
   );
 }

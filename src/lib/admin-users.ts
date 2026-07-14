@@ -6,6 +6,7 @@ import {
   type AuthProviderId,
 } from "@/lib/auth-providers";
 import { database } from "@/lib/database";
+import { getRuntimeSettings, type RuntimeSettings } from "@/lib/runtime-settings";
 
 export type ConnectorHealth = "active" | "stale" | "error" | "disconnected";
 
@@ -76,7 +77,7 @@ type UserRow = {
 };
 
 export async function loadAdminDashboard() {
-  const [usersResult, invitationResult] = await Promise.all([
+  const [usersResult, invitationResult, settings] = await Promise.all([
     database.query<UserRow>(`
       select
         u."id",
@@ -118,6 +119,7 @@ export async function loadAdminDashboard() {
       order by "createdAt" desc
       limit 25
     `),
+    getRuntimeSettings(),
   ]);
 
   return {
@@ -126,13 +128,13 @@ export async function loadAdminDashboard() {
       createdAt: new Date(invitation.createdAt).toISOString(),
       expiresAt: new Date(invitation.expiresAt).toISOString(),
     })) satisfies PendingInvitation[],
-    users: usersResult.rows.map(toAdminUser),
+    users: usersResult.rows.map((row) => toAdminUser(row, settings)),
   };
 }
 
-function toAdminUser(row: UserRow): AdminUser {
+function toAdminUser(row: UserRow, settings: RuntimeSettings): AdminUser {
   const availability = new Map(
-    getAuthProviderAvailability().map((provider) => [provider.id, provider]),
+    getAuthProviderAvailability(settings).map((provider) => [provider.id, provider]),
   );
   const accounts = Array.isArray(row.accounts) ? row.accounts : [];
 

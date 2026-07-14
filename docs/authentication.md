@@ -5,6 +5,40 @@ public production origin is `https://vsign.cnb.llc`. A separately configured
 private HTTPS origin serves the internal administration console. Sessions are
 host-only and are not shared between the public and internal hosts.
 
+## Runtime settings
+
+VASI does not read application configuration from environment files. The local,
+untracked `data/VASI.settings` SQLite database is the bootstrap boundary. It
+contains only:
+
+- a random installation identifier;
+- the PostgreSQL connection URL, verified-TLS selection, and pool limit; and
+- a random 256-bit key used to decrypt runtime settings in PostgreSQL.
+
+All settings named in this document—including origins, allowlists, identity
+provider clients, auth secrets, and mail credentials—are encrypted with
+AES-256-GCM in `vasi_runtime_setting`. Encryption binds each value to its
+installation, scope, and name. `vasi_runtime_setting_audit` records set/unset
+operations without recording values.
+
+Initialize a source deployment with `npm run settings:init`, or a container
+deployment with:
+
+```bash
+install -d -m 700 data
+docker compose -f compose.production.yaml --profile tools run --rm settings init
+```
+
+Use `npm run settings -- set SETTING_NAME` or the Compose `settings` tool to
+change one value through hidden terminal input. `settings list` reveals only
+configured names, versions, and secret classifications. Restart the app after
+changing a setting because each process intentionally loads one consistent
+settings snapshot.
+
+`VASI.settings` is mode `0600`, ignored by Git, excluded from the container
+build context, and mounted read-only into the app. Back it up securely together
+with PostgreSQL. Neither half is independently sufficient for recovery.
+
 ## Identity provider callbacks
 
 Register these HTTPS redirect URIs with the corresponding provider:
@@ -50,8 +84,9 @@ either:
 - `APPLE_TEAM_ID`, `APPLE_KEY_ID`, and `APPLE_PRIVATE_KEY`, which generate a new
   180-day client secret at runtime.
 
-Store the `.p8` private key in the deployment secret store. If it is represented
-on one line, encode newlines as `\n`. Do not add the key file to the repository.
+Store the `.p8` private-key value through the VASI settings tool. If it is
+represented on one line, encode newlines as `\n`. Do not add the key file to the
+repository or keep it as a runtime file.
 Apple is excluded from public login and onboarding by default while Developer
 Program approval is pending. Set `APPLE_LOGIN_ENABLED=true` only after the
 Service ID, callback, signing key, and Private Email Relay configuration have
@@ -106,6 +141,8 @@ Configure the private console with:
 
 - `VASI_ADMIN_ORIGIN`, an exact HTTPS origin with no path; and
 - `VASI_ADMIN_EMAILS`, a comma-separated allowlist of operator email addresses.
+
+Set both values through the VASI settings tool.
 
 The `/admin` page, custom admin APIs, and Better Auth admin endpoints return 404
 on every other hostname. On the internal hostname they additionally require an
@@ -166,23 +203,27 @@ local relay.
 
 Production must not launch until verification and reset delivery has been
 exercised against the real sender domain. Graph secrets and SMTP credentials
-belong only in the deployment secret store.
+must be entered through hidden settings-tool input and remain encrypted in
+PostgreSQL.
 
 ## Security and release checklist
 
-1. Set a unique `BETTER_AUTH_SECRET` of at least 32 random characters.
-2. Use a dedicated PostgreSQL role and require TLS for remote database traffic.
-   Set `DATABASE_SSL=disable` only when PostgreSQL is reached over a trusted
-   private or loopback path and the server does not offer TLS.
-3. Apply the tracked migration with `npm run auth:migrate` before application
+1. Initialize a unique `VASI.settings`; the initializer generates a
+   `BETTER_AUTH_SECRET` longer than 32 characters and stores it encrypted in
+   PostgreSQL.
+2. Use a dedicated PostgreSQL role. Select verified PostgreSQL TLS during
+   bootstrap for remote database traffic. Disable it only over a trusted private
+   or loopback path when that PostgreSQL service does not offer TLS.
+3. Apply the tracked migration with `npm run db:migrate` before application
    rollout, or run the production migrator with
    `docker compose -f compose.production.yaml run --rm migrate`; the migration
    runner verifies its checksum and is safe to repeat.
 4. Keep the origin reachable only through the trusted HTTPS reverse proxy.
 5. Confirm every provider callback and remove unused local callbacks from
    production provider registrations.
-6. Back up the auth encryption secret before rollout; provider tokens are
-   encrypted at rest and depend on this key.
+6. Back up `VASI.settings` and PostgreSQL as a matched recovery set. Protect the
+   auth secret and bootstrap settings key; encrypted provider tokens and runtime
+   settings depend on them.
 7. Exercise registration, verification, recovery, sign-out, and session expiry.
 8. For Graph email, confirm the mailer is authorized for the sender mailbox and
    denied for a second mailbox outside its Exchange management scope.
@@ -191,3 +232,5 @@ belong only in the deployment secret store.
     administration access, and keep the internal hostname off public ingress.
 11. Confirm `/admin` and `/api/admin/*` return 404 on the public hostname and
     require an allowlisted administrator on the private hostname.
+12. Confirm `VASI.settings` is mode `0600`, absent from the image and repository,
+    and that the running app has no application secrets in its environment.

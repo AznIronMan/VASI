@@ -26,14 +26,14 @@ const graphConfigurationKeys = [
 let cachedAccessToken: CachedAccessToken | undefined;
 
 export function hasGraphEmailConfiguration(
-  environment: GraphEmailEnvironment = process.env,
+  environment: GraphEmailEnvironment,
 ) {
   return graphConfigurationKeys.every((key) => Boolean(environment[key]?.trim()));
 }
 
 export async function sendGraphEmail(
   message: GraphEmailMessage,
-  environment: GraphEmailEnvironment = process.env,
+  environment: GraphEmailEnvironment,
   request: typeof fetch = fetch,
 ) {
   if (!hasGraphEmailConfiguration(environment)) {

@@ -38,6 +38,6 @@ describe("database connection configuration", () => {
         "postgresql://user:pass@database.example/vasi",
         "prefer",
       ),
-    ).toThrow("DATABASE_SSL must be either require or disable.");
+    ).toThrow("The PostgreSQL SSL mode must be either require or disable.");
   });
 });

@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 
 import { hasGraphEmailConfiguration, sendGraphEmail } from "@/lib/graph-email";
+import { getRuntimeSettings } from "@/lib/runtime-settings";
 
 type AuthEmail = {
   to: string;
@@ -13,11 +14,11 @@ type AuthEmail = {
 
 type EmailEnvironment = Record<string, string | undefined>;
 
-export function hasEmailConfiguration(environment: EmailEnvironment = process.env) {
+export function hasEmailConfiguration(environment: EmailEnvironment) {
   return resolveEmailProvider(environment) !== undefined;
 }
 
-export function resolveEmailProvider(environment: EmailEnvironment = process.env) {
+export function resolveEmailProvider(environment: EmailEnvironment) {
   const requestedProvider = environment.AUTH_EMAIL_PROVIDER?.trim().toLowerCase();
   const hasGraph = hasGraphEmailConfiguration(environment);
   const hasSmtp = ["SMTP_HOST", "AUTH_EMAIL_FROM"].every((key) =>
@@ -49,7 +50,8 @@ function escapeHtml(value: string) {
 }
 
 export async function sendAuthEmail(email: AuthEmail) {
-  const provider = resolveEmailProvider();
+  const settings = await getRuntimeSettings();
+  const provider = resolveEmailProvider(settings);
   if (!provider) {
     if (process.env.NODE_ENV !== "production") {
       console.info(`[VASI auth email] ${email.subject}: ${email.actionUrl}`);
@@ -80,34 +82,34 @@ export async function sendAuthEmail(email: AuthEmail) {
       to: email.to,
       subject: email.subject,
       html,
-    });
+    }, settings);
     return;
   }
 
-  const port = Number(process.env.SMTP_PORT ?? "587");
-  const secure = process.env.SMTP_SECURE === "true";
-  const hasUser = Boolean(process.env.SMTP_USER);
-  const hasPassword = Boolean(process.env.SMTP_PASSWORD);
+  const port = Number(settings.SMTP_PORT ?? "587");
+  const secure = settings.SMTP_SECURE === "true";
+  const hasUser = Boolean(settings.SMTP_USER);
+  const hasPassword = Boolean(settings.SMTP_PASSWORD);
   if (hasUser !== hasPassword) {
     throw new Error("SMTP_USER and SMTP_PASSWORD must be configured together.");
   }
 
   const hasCredentials = hasUser && hasPassword;
   const transport = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
+    host: settings.SMTP_HOST,
     port,
     secure,
-    requireTLS: !secure && process.env.SMTP_REQUIRE_TLS !== "false",
+    requireTLS: !secure && settings.SMTP_REQUIRE_TLS !== "false",
     auth: hasCredentials
       ? {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASSWORD,
+          user: settings.SMTP_USER,
+          pass: settings.SMTP_PASSWORD,
         }
       : undefined,
   });
 
   await transport.sendMail({
-    from: process.env.AUTH_EMAIL_FROM,
+    from: settings.AUTH_EMAIL_FROM,
     to: email.to,
     subject: email.subject,
     text: `${email.heading}\n\n${email.message}\n\n${email.actionLabel}: ${email.actionUrl}`,

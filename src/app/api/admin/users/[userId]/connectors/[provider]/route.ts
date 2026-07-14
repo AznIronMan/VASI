@@ -6,6 +6,7 @@ import {
   type AuthProviderId,
 } from "@/lib/auth-providers";
 import { database } from "@/lib/database";
+import { getRuntimeSettings } from "@/lib/runtime-settings";
 
 export async function DELETE(
   request: Request,
@@ -27,7 +28,10 @@ export async function DELETE(
     );
   }
 
-  const client = await database.connect();
+  const [client, settings] = await Promise.all([
+    database.connect(),
+    getRuntimeSettings(),
+  ]);
   try {
     await client.query("begin");
     const accounts = await client.query<{
@@ -51,7 +55,7 @@ export async function DELETE(
         ? Boolean(account.password)
         : account.providerId !== provider &&
           authProviderIds.includes(account.providerId as AuthProviderId) &&
-          isProviderConfigured(account.providerId as AuthProviderId),
+          isProviderConfigured(account.providerId as AuthProviderId, settings),
     );
     if (!remainingMethods.length) {
       await client.query("rollback");

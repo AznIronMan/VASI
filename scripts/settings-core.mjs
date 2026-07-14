@@ -1,0 +1,342 @@
+import { createCipheriv, randomBytes, randomUUID } from "node:crypto";
+import {
+  chownSync,
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+} from "node:fs";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import pg from "pg";
+
+import settingDefinitions from "../config/runtime-settings.json" with { type: "json" };
+
+const { Pool } = pg;
+const BOOTSTRAP_SCHEMA_VERSION = 1;
+const SETTINGS_SCOPE = "gateway";
+
+export function defaultSettingsPath() {
+  return path.resolve(process.cwd(), "data", "VASI.settings");
+}
+
+export function createBootstrapSettings({
+  databasePoolMax,
+  databaseSSL,
+  databaseURL,
+  settingsPath = defaultSettingsPath(),
+}) {
+  if (existsSync(settingsPath)) {
+    throw new Error(`VASI bootstrap settings already exist at ${settingsPath}.`);
+  }
+
+  validateDatabaseSettings({ databasePoolMax, databaseSSL, databaseURL });
+  const directory = path.dirname(settingsPath);
+  mkdirSync(directory, { mode: 0o700, recursive: true });
+  if (process.getuid?.() === 0) {
+    chownSync(directory, 1000, 1000);
+  }
+  chmodSync(directory, 0o700);
+
+  const installationId = randomUUID();
+  const settingsKey = randomBytes(32);
+  const sqlite = new DatabaseSync(settingsPath);
+  try {
+    sqlite.exec(`
+      pragma journal_mode = delete;
+      pragma synchronous = full;
+      create table "vasi_bootstrap" (
+        "id" integer primary key check ("id" = 1),
+        "schemaVersion" integer not null,
+        "installationId" text not null,
+        "databaseURL" text not null,
+        "databaseSSL" text not null check ("databaseSSL" in ('disable', 'require')),
+        "databasePoolMax" integer not null check ("databasePoolMax" between 1 and 100),
+        "settingsKey" blob not null check (length("settingsKey") = 32),
+        "createdAt" text not null
+      )
+    `);
+    sqlite.prepare(`
+      insert into "vasi_bootstrap"
+        ("id", "schemaVersion", "installationId", "databaseURL", "databaseSSL", "databasePoolMax", "settingsKey", "createdAt")
+      values (1, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      BOOTSTRAP_SCHEMA_VERSION,
+      installationId,
+      databaseURL,
+      databaseSSL,
+      databasePoolMax,
+      settingsKey,
+      new Date().toISOString(),
+    );
+  } finally {
+    sqlite.close();
+    if (process.getuid?.() === 0) {
+      chownSync(settingsPath, 1000, 1000);
+    }
+    chmodSync(settingsPath, 0o600);
+  }
+
+  return loadBootstrapSettings(settingsPath);
+}
+
+export function loadBootstrapSettings(settingsPath = defaultSettingsPath()) {
+  if (!existsSync(settingsPath)) {
+    throw new Error(`VASI bootstrap settings are unavailable at ${settingsPath}.`);
+  }
+  if ((statSync(settingsPath).mode & 0o777) !== 0o600) {
+    chmodSync(settingsPath, 0o600);
+  }
+  if ((statSync(settingsPath).mode & 0o777) !== 0o600) {
+    throw new Error("The VASI bootstrap settings file must use mode 0600.");
+  }
+
+  const sqlite = new DatabaseSync(settingsPath, { readOnly: true });
+  try {
+    const row = sqlite.prepare(`
+      select "schemaVersion", "installationId", "databaseURL", "databaseSSL",
+             "databasePoolMax", "settingsKey"
+      from "vasi_bootstrap" where "id" = 1
+    `).get();
+    if (!row) throw new Error("The VASI bootstrap record is missing.");
+    if (row.schemaVersion !== BOOTSTRAP_SCHEMA_VERSION) {
+      throw new Error(`Unsupported VASI bootstrap schema version ${row.schemaVersion}.`);
+    }
+
+    const settings = {
+      databasePoolMax: Number(row.databasePoolMax),
+      databaseSSL: String(row.databaseSSL),
+      databaseURL: String(row.databaseURL),
+      installationId: String(row.installationId),
+      settingsKey: Buffer.from(row.settingsKey),
+    };
+    validateDatabaseSettings(settings);
+    if (settings.settingsKey.length !== 32) {
+      throw new Error("The VASI runtime-settings key is invalid.");
+    }
+    return settings;
+  } finally {
+    sqlite.close();
+  }
+}
+
+export function createSettingsPool(bootstrap = loadBootstrapSettings()) {
+  const databaseURL = new URL(bootstrap.databaseURL);
+  databaseURL.searchParams.set(
+    "sslmode",
+    bootstrap.databaseSSL === "require" ? "verify-full" : "disable",
+  );
+  return new Pool({
+    connectionString: databaseURL.toString(),
+    connectionTimeoutMillis: 5_000,
+    idleTimeoutMillis: 30_000,
+    max: bootstrap.databasePoolMax,
+    ssl: bootstrap.databaseSSL === "require" ? { rejectUnauthorized: true } : false,
+  });
+}
+
+export async function writeRuntimeSettings({
+  bootstrap = loadBootstrapSettings(),
+  includeDefaults = false,
+  source,
+  values,
+}) {
+  const pool = createSettingsPool(bootstrap);
+  const definitions = new Map(settingDefinitions.map((definition) => [definition.name, definition]));
+  const configuredValues = { ...values };
+  if (includeDefaults) {
+    for (const definition of settingDefinitions) {
+      if (configuredValues[definition.name] === undefined && definition.default !== undefined) {
+        configuredValues[definition.name] = definition.default;
+      }
+    }
+  }
+
+  const unknown = Object.keys(configuredValues).filter((name) => !definitions.has(name));
+  if (unknown.length) throw new Error(`Unknown VASI runtime settings: ${unknown.join(", ")}.`);
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    for (const [name, rawValue] of Object.entries(configuredValues)) {
+      if (rawValue === undefined || rawValue === "") continue;
+      const definition = definitions.get(name);
+      const value = String(rawValue);
+      const encrypted = encryptRuntimeSetting({
+        installationId: bootstrap.installationId,
+        name,
+        scope: SETTINGS_SCOPE,
+        settingsKey: bootstrap.settingsKey,
+        value,
+      });
+      const result = await client.query(
+        `insert into "vasi_runtime_setting"
+          ("installationId", "scope", "name", "ciphertext", "iv", "authTag", "isSecret")
+         values ($1, $2, $3, $4, $5, $6, $7)
+         on conflict ("installationId", "scope", "name") do update set
+           "ciphertext" = excluded."ciphertext",
+           "iv" = excluded."iv",
+           "authTag" = excluded."authTag",
+           "isSecret" = excluded."isSecret",
+           "version" = "vasi_runtime_setting"."version" + 1,
+           "updatedAt" = CURRENT_TIMESTAMP
+         returning "version"`,
+        [
+          bootstrap.installationId,
+          SETTINGS_SCOPE,
+          name,
+          encrypted.ciphertext,
+          encrypted.iv,
+          encrypted.authTag,
+          definition.secret,
+        ],
+      );
+      await client.query(
+        `insert into "vasi_runtime_setting_audit"
+          ("id", "installationId", "scope", "name", "action", "version", "source")
+         values ($1, $2, $3, $4, 'set', $5, $6)`,
+        [
+          randomUUID(),
+          bootstrap.installationId,
+          SETTINGS_SCOPE,
+          name,
+          result.rows[0].version,
+          source,
+        ],
+      );
+    }
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+export async function unsetRuntimeSetting(name, source) {
+  const definition = settingDefinitions.find((item) => item.name === name);
+  if (!definition) throw new Error(`Unknown VASI runtime setting ${name}.`);
+  if (definition.required) throw new Error(`Required VASI runtime setting ${name} cannot be removed.`);
+
+  const bootstrap = loadBootstrapSettings();
+  const pool = createSettingsPool(bootstrap);
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const result = await client.query(
+      `delete from "vasi_runtime_setting"
+       where "installationId" = $1 and "scope" = $2 and "name" = $3
+       returning "version"`,
+      [bootstrap.installationId, SETTINGS_SCOPE, name],
+    );
+    if (result.rowCount) {
+      await client.query(
+        `insert into "vasi_runtime_setting_audit"
+          ("id", "installationId", "scope", "name", "action", "version", "source")
+         values ($1, $2, $3, $4, 'unset', $5, $6)`,
+        [
+          randomUUID(),
+          bootstrap.installationId,
+          SETTINGS_SCOPE,
+          name,
+          result.rows[0].version,
+          source,
+        ],
+      );
+    }
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+export async function listRuntimeSettings() {
+  const bootstrap = loadBootstrapSettings();
+  const pool = createSettingsPool(bootstrap);
+  try {
+    const result = await pool.query(
+      `select "name", "isSecret", "version", "updatedAt"
+       from "vasi_runtime_setting"
+       where "installationId" = $1 and "scope" = $2
+       order by "name"`,
+      [bootstrap.installationId, SETTINGS_SCOPE],
+    );
+    return result.rows;
+  } finally {
+    await pool.end();
+  }
+}
+
+export function parseEnvironmentFile(filePath) {
+  return parseEnvironmentText(readFileSync(filePath, "utf8"));
+}
+
+export function parseEnvironmentText(contents) {
+  const values = {};
+  for (const [index, sourceLine] of contents.split(/\r?\n/).entries()) {
+    const line = sourceLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const match = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!match) throw new Error(`Invalid environment-file syntax on line ${index + 1}.`);
+    const [, name, sourceValue] = match;
+    values[name] = parseEnvironmentValue(sourceValue);
+  }
+  return values;
+}
+
+export function settingDefinition(name) {
+  return settingDefinitions.find((definition) => definition.name === name);
+}
+
+export function runtimeSettingNames() {
+  return settingDefinitions.map((definition) => definition.name);
+}
+
+function parseEnvironmentValue(sourceValue) {
+  if (sourceValue.startsWith('"')) {
+    try {
+      return JSON.parse(sourceValue);
+    } catch {
+      throw new Error("Invalid double-quoted environment value.");
+    }
+  }
+  if (sourceValue.startsWith("'")) {
+    if (!sourceValue.endsWith("'")) throw new Error("Invalid single-quoted environment value.");
+    return sourceValue.slice(1, -1);
+  }
+  return sourceValue.replace(/\s+#.*$/, "").trim();
+}
+
+function encryptRuntimeSetting({ installationId, name, scope, settingsKey, value }) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", settingsKey, iv);
+  cipher.setAAD(runtimeSettingAAD({ installationId, name, scope }));
+  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return { authTag: cipher.getAuthTag(), ciphertext, iv };
+}
+
+function runtimeSettingAAD({ installationId, name, scope }) {
+  return Buffer.from(
+    ["vasi-runtime-setting-v1", installationId, scope, name].join("\0"),
+    "utf8",
+  );
+}
+
+function validateDatabaseSettings({ databasePoolMax, databaseSSL, databaseURL }) {
+  if (!String(databaseURL).startsWith("postgresql://") && !String(databaseURL).startsWith("postgres://")) {
+    throw new Error("The VASI PostgreSQL bootstrap URL is invalid.");
+  }
+  if (!['disable', 'require'].includes(databaseSSL)) {
+    throw new Error("The VASI PostgreSQL SSL mode is invalid.");
+  }
+  if (!Number.isInteger(Number(databasePoolMax)) || Number(databasePoolMax) < 1 || Number(databasePoolMax) > 100) {
+    throw new Error("The VASI PostgreSQL pool size must be between 1 and 100.");
+  }
+}

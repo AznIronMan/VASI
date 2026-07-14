@@ -4,13 +4,16 @@ import { redirect } from "next/navigation";
 
 import { BrandMark } from "@/components/brand-mark";
 import { SignOutButton } from "@/components/auth/sign-out-button";
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Workspace",
 };
 
 export default async function WorkspacePage() {
+  const auth = await getAuth();
   const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session) {

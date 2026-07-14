@@ -3,7 +3,7 @@ export function resolveDatabaseConnectionOptions(
   sslMode: string | undefined,
 ) {
   if (sslMode !== undefined && sslMode !== "disable" && sslMode !== "require") {
-    throw new Error("DATABASE_SSL must be either require or disable.");
+    throw new Error("The PostgreSQL SSL mode must be either require or disable.");
   }
 
   if (!sslMode) {

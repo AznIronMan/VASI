@@ -2,14 +2,15 @@ import { randomBytes } from "node:crypto";
 
 import { authorizeAdminMutation } from "@/lib/admin-access";
 import { writeAdminAudit } from "@/lib/admin-users";
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
 import {
   authProviderIds,
   isProviderConfigured,
   type AuthProviderId,
 } from "@/lib/auth-providers";
 import { database } from "@/lib/database";
-import { resolveServerEnvironment } from "@/lib/server-environment";
+import { getRuntimeSettings } from "@/lib/runtime-settings";
+import { resolveServerSettings } from "@/lib/server-settings";
 
 type UserAction =
   | { action: "reset-password" }
@@ -47,6 +48,7 @@ export async function POST(
         );
       }
 
+      const auth = await getAuth();
       if (action.enabled) {
         await auth.api.unbanUser({ body: { userId }, headers: request.headers });
       } else {
@@ -110,6 +112,7 @@ export async function POST(
       }
 
       if (action.enabled) {
+        const auth = await getAuth();
         if (!user.manualPassword) {
           await auth.api.setUserPassword({
             body: {
@@ -142,7 +145,8 @@ export async function POST(
 }
 
 async function sendPublicPasswordReset(email: string) {
-  const { baseURL } = resolveServerEnvironment();
+  const [auth, settings] = await Promise.all([getAuth(), getRuntimeSettings()]);
+  const { baseURL } = resolveServerSettings(settings);
   const publicHeaders = new Headers({
     host: new URL(baseURL).host,
     origin: baseURL,
@@ -154,6 +158,7 @@ async function sendPublicPasswordReset(email: string) {
 }
 
 async function disableManualPassword(userId: string) {
+  const settings = await getRuntimeSettings();
   const client = await database.connect();
   try {
     await client.query("begin");
@@ -170,7 +175,7 @@ async function disableManualPassword(userId: string) {
     const otherMethods = accounts.rows.filter(
       (account) =>
         authProviderIds.includes(account.providerId as AuthProviderId) &&
-        isProviderConfigured(account.providerId as AuthProviderId),
+        isProviderConfigured(account.providerId as AuthProviderId, settings),
     );
     if (!otherMethods.length) {
       throw new Error("A user must retain at least one sign-in method.");

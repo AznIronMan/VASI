@@ -1,11 +1,13 @@
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
 import {
   hasExpectedMutationOrigin,
   isRequestForOrigin,
 } from "@/lib/host-policy";
-import { resolveServerEnvironment } from "@/lib/server-environment";
+import { getRuntimeSettings } from "@/lib/runtime-settings";
+import { resolveServerSettings } from "@/lib/server-settings";
 
-type AdminSession = Awaited<ReturnType<typeof auth.api.getSession>>;
+type AuthInstance = Awaited<ReturnType<typeof getAuth>>;
+type AdminSession = Awaited<ReturnType<AuthInstance["api"]["getSession"]>>;
 
 export type AuthorizedAdmin = {
   ok: true;
@@ -21,7 +23,8 @@ export type DeniedAdmin = {
 export async function authorizeAdminHeaders(headers: Headers): Promise<
   AuthorizedAdmin | DeniedAdmin
 > {
-  const { adminEmails, adminOrigin } = resolveServerEnvironment();
+  const [auth, settings] = await Promise.all([getAuth(), getRuntimeSettings()]);
+  const { adminEmails, adminOrigin } = resolveServerSettings(settings);
 
   if (!isRequestForOrigin(headers, adminOrigin)) {
     return {
@@ -64,7 +67,7 @@ export async function authorizeAdminMutation(request: Request) {
   const authorization = await authorizeAdminHeaders(request.headers);
   if (!authorization.ok) return authorization;
 
-  const { adminOrigin } = resolveServerEnvironment();
+  const { adminOrigin } = resolveServerSettings(await getRuntimeSettings());
   if (!hasExpectedMutationOrigin(request.headers, adminOrigin)) {
     return {
       ok: false as const,

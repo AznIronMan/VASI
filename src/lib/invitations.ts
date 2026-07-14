@@ -3,7 +3,8 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { database } from "@/lib/database";
 import { sendAuthEmail } from "@/lib/email";
 import { emailDomain } from "@/lib/provider-recommendation";
-import { resolveServerEnvironment } from "@/lib/server-environment";
+import { getRuntimeSettings } from "@/lib/runtime-settings";
+import { resolveServerSettings } from "@/lib/server-settings";
 import { writeAdminAudit } from "@/lib/admin-users";
 
 const INVITATION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1_000;
@@ -50,7 +51,7 @@ export async function createInvitation(emailValue: string, actorUserId: string) 
     client.release();
   }
 
-  const { baseURL } = resolveServerEnvironment();
+  const { baseURL } = resolveServerSettings(await getRuntimeSettings());
   try {
     await sendAuthEmail({
       to: email,

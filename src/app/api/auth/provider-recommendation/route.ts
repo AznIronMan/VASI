@@ -7,6 +7,7 @@ import {
   emailDomain,
   recommendProviderForEmail,
 } from "@/lib/provider-recommendation";
+import { getRuntimeSettings } from "@/lib/runtime-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
 
-  const provider = await recommendProviderForEmail(email);
-  const availability = getLoginAuthProviderAvailability();
+  const [provider, settings] = await Promise.all([
+    recommendProviderForEmail(email),
+    getRuntimeSettings(),
+  ]);
+  const availability = getLoginAuthProviderAvailability(settings);
   const selected = provider
     ? availability.find((item) => item.id === provider)
     : undefined;

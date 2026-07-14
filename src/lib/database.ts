@@ -1,27 +1,34 @@
 import { Pool } from "pg";
 
+import { loadBootstrapSettings } from "@/lib/bootstrap-settings";
 import { resolveDatabaseConnectionOptions } from "@/lib/database-config";
-import { resolveServerEnvironment } from "@/lib/server-environment";
 
 const globalForDatabase = globalThis as unknown as {
   vasiPool?: Pool;
 };
 
-const { databaseURL } = resolveServerEnvironment();
-const connectionOptions = resolveDatabaseConnectionOptions(
-  databaseURL,
-  process.env.DATABASE_SSL,
-);
+export function getDatabase() {
+  if (globalForDatabase.vasiPool) return globalForDatabase.vasiPool;
 
-export const database =
-  globalForDatabase.vasiPool ??
-  new Pool({
+  const bootstrap = loadBootstrapSettings();
+  const connectionOptions = resolveDatabaseConnectionOptions(
+    bootstrap.databaseURL,
+    bootstrap.databaseSSL,
+  );
+  const pool = new Pool({
     ...connectionOptions,
-    max: Number(process.env.DATABASE_POOL_MAX ?? "10"),
+    max: bootstrap.databasePoolMax,
     connectionTimeoutMillis: 5_000,
     idleTimeoutMillis: 30_000,
   });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForDatabase.vasiPool = database;
+  globalForDatabase.vasiPool = pool;
+  return pool;
 }
+
+export const database = new Proxy({} as Pool, {
+  get(_target, property) {
+    const pool = getDatabase();
+    const value = Reflect.get(pool, property, pool);
+    return typeof value === "function" ? value.bind(pool) : value;
+  },
+});
