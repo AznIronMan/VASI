@@ -130,6 +130,22 @@ export async function ensureSigningKeys(client, provider) {
   }
 }
 
+export async function initializeSigningKeys(database, settings) {
+  const provider = createSigningProvider(settings);
+  const client = await database.connect();
+  try {
+    await client.query("begin");
+    await ensureSigningKeys(client, provider);
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+  return provider;
+}
+
 function certificateConfiguration(settings) {
   const chain = optionalSetting(settings, "EVIDENCE_CERTIFICATE_CHAIN_PEM");
   const privateKey = optionalSetting(settings, "EVIDENCE_CERTIFICATE_PRIVATE_KEY_PEM");

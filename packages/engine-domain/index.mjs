@@ -17,6 +17,7 @@ const serviceActions = Object.freeze({
     "integration.update",
     "membership.list",
     "membership.update",
+    "operations.read",
     "lifecycle.hold.command",
     "lifecycle.policy.list",
     "lifecycle.policy.update",

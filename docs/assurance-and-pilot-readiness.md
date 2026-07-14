@@ -154,6 +154,19 @@ disk growth. Alerts must identify a service, tenant-safe opaque reference,
 event type, and correlation ID—not an answer, signature, document content,
 provider token, credential, participant path, or full email address.
 
+VASI 0.14.0 implements the engine-owned portion as the private
+`vasi-operational-snapshot/v1` contract. Only an authenticated administrator
+actor can read it through private ingress. The internal console and
+`npm run assurance:operations` consume the same aggregate shape: release and
+migration state, queue counts/age, delivery outcomes and bounded error codes,
+lifecycle pressure, signing-key status, product/settings change counts,
+tenant/binding counts, query latency, and connection-pool pressure. Contract
+tests and the live service proof reject participant, email, request, content,
+response, link, payload, recipient, and credential fields. The host probe
+applies the versioned thresholds in `config/assurance-policy.json` and exits
+nonzero on failure so an installation-selected scheduler can alert without
+making VASI depend on a proprietary monitoring product.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

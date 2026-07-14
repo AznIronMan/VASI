@@ -19,11 +19,13 @@ import { createEvidenceStore, EvidenceStoreError } from "./evidence-store.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { createLifecycleStore } from "./lifecycle-store.mjs";
 import { createMediaStore } from "./media-store.mjs";
+import { createOperationsStore } from "./operations-store.mjs";
 import { createProductStore } from "./product-store.mjs";
 import { createReportStore } from "./report-store.mjs";
+import { initializeSigningKeys } from "./signing-provider.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.13.0";
+const ENGINE_VERSION = "0.14.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -39,6 +41,8 @@ const lifecycle = createLifecycleStore(database, settings);
 const reports = createReportStore(database, settings);
 const workflows = createWorkflowStore(database, settings);
 const product = createProductStore(database, settings, bootstrap.installationId);
+const operations = createOperationsStore(database, { engineVersion: ENGINE_VERSION });
+await initializeSigningKeys(database, settings);
 await product.initialize();
 const seenServiceRequests = new Map();
 
@@ -200,6 +204,7 @@ function dispatchEvidence(action, actor, payload) {
     case "integration.update": return product.updateIntegration(actor, payload);
     case "installation.profile.read": return product.getInstallationProfile(actor);
     case "installation.profile.update": return product.updateInstallationProfile(actor, payload);
+    case "operations.read": return operations.snapshot(actor);
     case "membership.list": return workflows.listMembers(actor, payload);
     case "membership.update": return workflows.setMember(actor, payload);
     case "lifecycle.policy.list": return lifecycle.listPolicies(actor, payload);

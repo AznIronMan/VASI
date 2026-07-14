@@ -6,7 +6,7 @@ import path from "node:path";
 import { createSettingsPool, loadBootstrapSettings } from "./settings-core.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const migrations = [
+export const ENGINE_MIGRATIONS = Object.freeze([
   {
     name: "0001_engine_settings",
     path: path.join(repositoryRoot, "database", "settings-schema.sql"),
@@ -43,7 +43,14 @@ const migrations = [
     name: "0009_engine_productization",
     path: path.join(repositoryRoot, "database", "engine-productization.sql"),
   },
-];
+].map((migration) => Object.freeze(migration)));
+
+export async function engineMigrationManifest() {
+  return Promise.all(ENGINE_MIGRATIONS.map(async (migration) => ({
+    checksum: createHash("sha256").update(await readFile(migration.path, "utf8")).digest("hex"),
+    name: migration.name,
+  })));
+}
 
 export async function runEngineMigrations(bootstrap = loadBootstrapSettings()) {
   const pool = createSettingsPool(bootstrap);
@@ -64,7 +71,7 @@ export async function runEngineMigrations(bootstrap = loadBootstrapSettings()) {
       )
     `);
 
-    for (const migration of migrations) {
+    for (const migration of ENGINE_MIGRATIONS) {
       const sql = await readFile(migration.path, "utf8");
       const checksum = createHash("sha256").update(sql).digest("hex");
       const existing = await client.query(

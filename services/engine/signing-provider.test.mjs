@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   verifyDetachedIntegritySeal,
 } from "../../packages/engine-crypto/index.mjs";
-import { createSigningProvider, ensureSigningKeys } from "./signing-provider.mjs";
+import { createSigningProvider, ensureSigningKeys, initializeSigningKeys } from "./signing-provider.mjs";
 
 describe("replaceable evidence signing provider", () => {
   it("signs manifests and bundle indexes with distinct deterministic profiles", () => {
@@ -38,6 +38,30 @@ describe("replaceable evidence signing provider", () => {
     };
     await ensureSigningKeys(client, provider);
     expect(queries.some((sql) => sql.includes('"evidence_seal_key_status_event"'))).toBe(true);
+  });
+
+  it("registers configured signing custody transactionally during engine startup", async () => {
+    const settings = providerSettings("startup-key");
+    const queries = [];
+    const client = {
+      async query(sql) {
+        queries.push(sql);
+        if (sql.includes("on conflict")) return { rowCount: 1, rows: [{ keyId: "startup-key" }] };
+        if (sql.includes('select "sealRole"')) {
+          const provider = createSigningProvider(settings);
+          return {
+            rowCount: 1,
+            rows: [{ algorithm: "Ed25519", fingerprint: provider.keyRecords[0].fingerprint, sealRole: "vasi_integrity" }],
+          };
+        }
+        return { rowCount: 1, rows: [] };
+      },
+      release() { queries.push("release"); },
+    };
+    await initializeSigningKeys({ connect: async () => client }, settings);
+    expect(queries[0]).toBe("begin");
+    expect(queries.at(-2)).toBe("commit");
+    expect(queries.at(-1)).toBe("release");
   });
 
   it("fails closed for mismatched integrity keys and partial certificate custody", () => {

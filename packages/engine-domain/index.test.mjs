@@ -29,5 +29,8 @@ describe("engine service authorization", () => {
     expect(authorizeServiceAction("vasi-private-ingress", "participant.data_request.create").action).toBe(
       "participant.data_request.create",
     );
+    expect(authorizeServiceAction("vasi-private-ingress", "operations.read").action).toBe(
+      "operations.read",
+    );
   });
 });

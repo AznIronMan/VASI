@@ -177,8 +177,25 @@ npm run engine:probe:lifecycle # disposable conformance database only
 npm run engine:probe:productization # disposable conformance database only
 ```
 
+Run the privacy-safe operational probe on the engine host after migration and
+cutover, and from the installation's scheduler/monitor thereafter:
+
+```bash
+docker compose -f compose.engine.yaml --profile tools run --rm \
+  --entrypoint node settings scripts/probe-operational-readiness.mjs
+```
+
+The command exits nonzero when the release migration ledger drifts, the
+integrity key or installation profile is unavailable, worker locks are stale,
+or the configured database, queue-age, delivery-failure, failed-job, or
+data-request-age thresholds are exceeded. Its JSON output contains aggregate
+counts, ages, versions, status codes, and pool pressure only. Forward that
+output to the installation-selected monitor; do not add participant fields or
+secrets to alert labels.
+
 The proof verifies server trust, the V·Sign client certificate, engine health,
-a signed actor identity, and rejection of a replayed assertion. Also verify:
+a signed actor identity, the operational-snapshot privacy contract, and
+rejection of a replayed assertion. Also verify:
 
 1. unauthenticated TLS fails;
 2. the public route remains unavailable;

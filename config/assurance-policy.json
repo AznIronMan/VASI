@@ -32,6 +32,15 @@
     "requests": 200,
     "timeoutMilliseconds": 5000
   },
+  "operations": {
+    "maximumDatabaseQueryMilliseconds": 2000,
+    "maximumDatabaseWaitingClients": 0,
+    "maximumFailedJobs24Hours": 0,
+    "maximumGatewayFailures24Hours": 0,
+    "maximumOldestPendingDataRequestSeconds": 2592000,
+    "maximumOldestPendingSeconds": 900,
+    "maximumStaleRunningJobs": 0
+  },
   "source": {
     "failAuditSeverities": [
       "high",

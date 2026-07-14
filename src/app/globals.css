@@ -1485,6 +1485,88 @@ input::placeholder {
   min-height: 48px;
 }
 
+.operations-panel {
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid #d7d8d2;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.operations-heading,
+.operations-heading__actions,
+.operations-footnote {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.operations-heading {
+  justify-content: space-between;
+}
+
+.operations-heading h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.035em;
+}
+
+.operations-heading p:last-child,
+.operations-footnote,
+.operations-reasons {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.operations-heading p:last-child {
+  margin: 7px 0 0;
+}
+
+.operations-status {
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.operations-status--ready {
+  color: #1d6045;
+  background: #daf0e5;
+}
+
+.operations-status--attention {
+  color: #76550c;
+  background: #fff0bd;
+}
+
+.operations-status--critical {
+  color: #8a302b;
+  background: #f7d8d5;
+}
+
+.operations-overview {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.operations-overview strong {
+  overflow-wrap: anywhere;
+}
+
+.operations-footnote {
+  margin-top: 14px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.operations-reasons {
+  margin: 14px 0 0;
+}
+
 .pending-invitations {
   display: flex;
   margin: 10px 0 0;
@@ -1973,6 +2055,11 @@ input:disabled {
 
   .admin-overview {
     grid-template-columns: 1fr;
+  }
+
+  .operations-heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .admin-invite form {

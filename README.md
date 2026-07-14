@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.13.0`
+Version: `0.14.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -120,6 +120,16 @@ revisioned binding. Client secrets are write-only, encrypted in PostgreSQL,
 redacted from every read path, and provider failure bodies never enter VASI
 responses or delivery records.
 
+Version 0.14.0 adds privacy-safe operational readiness monitoring. The private
+engine now exposes an administrator-only aggregate snapshot covering migration
+drift, queue depth and age, delivery outcomes, lifecycle pressure, signing-key
+readiness, configuration changes, tenant/binding counts, and PostgreSQL pool
+pressure. The snapshot deliberately contains no tenant IDs, participant or
+request identity, email addresses, content, responses, links, payloads, or
+credentials. The internal console renders the same bounded view, while a
+host-side probe applies versioned failure thresholds before a browser
+administrator exists and can feed installation-selected alerting systems.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -200,6 +210,9 @@ milestones.
   dependency audits, CycloneDX source/image SBOMs, digest-pinned image scanning,
   runtime version alignment, sanitized Compose hardening checks, browser WCAG
   automation, and bounded read-only readiness load testing.
+- An administrator-only operational snapshot and host probe with explicit
+  migration, queue, delivery, signing, lifecycle, and database thresholds that
+  exclude customer evidence and identity data.
 
 ## Configuration model
 
@@ -381,6 +394,9 @@ operational approvals.
 The [productized tenancy and integration decision](docs/architecture/productized-tenancy-and-integrations.md)
 defines profile revisions, quotas, outbound isolation, deployment profiles,
 backup/restore, and tenant transfer constraints.
+The [operational readiness decision](docs/architecture/operational-readiness.md)
+defines the aggregate-only snapshot, authorization boundary, host-probe
+thresholds, privacy exclusions, and external-alerting handoff.
 The [assurance and pilot-readiness contract](docs/assurance-and-pilot-readiness.md)
 defines the threat register, repeatable release evidence, recovery/key drills,
 observability limits, and the first-party, independent, legal, and customer

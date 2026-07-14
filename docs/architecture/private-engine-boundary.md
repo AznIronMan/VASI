@@ -103,4 +103,7 @@ chains, legal holds, sealed purge tombstones, participant history, and reviewed
 data exports. VASI 0.11.0 adds revisioned installation/tenant policy and the
 separate allowlisted integration gateway, and VASI 0.13.0 adds its governed
 Microsoft Graph mail adapter. Higher-assurance external trust adapters remain
-later milestones.
+later milestones. VASI 0.14.0 adds an administrator-only, aggregate operational
+snapshot across this same service/actor boundary; it exposes health counts and
+ages but no customer identity, request, content, response, link, payload, or
+credential data.

@@ -55,5 +55,7 @@ describe("private engine routes", () => {
     expect(resolveEngineRoute("GET", "/v1/participant/data-requests")?.action).toBe(
       "participant.data_request.list",
     );
+    expect(resolveEngineRoute("GET", "/v1/admin/operations")?.action).toBe("operations.read");
+    expect(resolveEngineRoute("POST", "/v1/admin/operations")).toBeUndefined();
   });
 });
