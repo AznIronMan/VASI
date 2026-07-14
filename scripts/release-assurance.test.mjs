@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   inspectTrackedSource,
+  runtimeContractForImage,
   validateAutomationContract,
   validateComposeContracts,
   validateVersionAlignment,
@@ -34,5 +35,30 @@ describe("release assurance policy", () => {
     const result = await validateAutomationContract(root);
     expect(result.failures).toEqual([]);
     expect(result.jobs).toBeGreaterThan(0);
+  });
+
+  it("requires an explicit non-root readability contract for every release image role", () => {
+    expect(runtimeContractForImage("vasi:0.19.1")).toMatchObject({
+      entrypoint: "server.js",
+      imageUser: "node",
+      runUser: "1000:1000",
+    });
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.19.1")).toMatchObject({
+      entrypoint: "services/engine/server.mjs",
+      imageUser: "node",
+      runUser: "1000:1000",
+    });
+    expect(runtimeContractForImage(`vasi-engine-tools@sha256:${"a".repeat(64)}`)).toMatchObject({
+      entrypoint: "scripts/settings.mjs",
+      imageUser: "",
+      runUser: "0:0",
+    });
+    expect(() => runtimeContractForImage("unreviewed-image:latest")).toThrow(/no supported runtime contract/i);
+    expect(() => runtimeContractForImage("vasi:latest", [{
+      entrypoint: "../server.js",
+      image: "vasi",
+      imageUser: "node",
+      runUser: "1000:1000",
+    }])).toThrow(/no supported runtime contract/i);
   });
 });

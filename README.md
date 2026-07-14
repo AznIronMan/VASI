@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.19.0`
+Version: `0.19.1`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -104,10 +104,13 @@ version drift, weakened Compose boundaries, blocking dependency or image
 vulnerabilities, and dirty release source; it emits hashed source/image
 inventories, npm audit evidence, and CycloneDX SBOMs outside the repository. A
 digest-pinned scanner examines exact image tar exports without receiving the
-Docker socket. Browser-rendered WCAG automation and a bounded read-only load
-probe cover the public readiness surface. Runtime images no longer contain the
-unused npm toolchain, reducing their attack surface. The threat model and pilot
-contract explicitly separate first-party evidence from independent security,
+Docker socket. Each known release image must also pass its explicit runtime
+contract: the intended UID reads and parses the entrypoint inside a no-network,
+read-only, capability-dropped container, and an unknown image role fails closed.
+Browser-rendered WCAG automation and a bounded read-only load probe cover the
+public readiness surface. Runtime images no longer contain the unused npm
+toolchain, reducing their attack surface. The threat model and pilot contract
+explicitly separate first-party evidence from independent security,
 legal/privacy, accessibility, custody, and customer approvals.
 
 Version 0.13.0 adds governed Microsoft Graph mail to tenant workflow delivery.
@@ -192,6 +195,13 @@ document bytes, filenames, credentials, or raw provider bodies. Workflow
 snapshots and evidence-bundle indexes bind the inspection profile and result
 hash; owner and administrator consoles expose governed configuration, retry,
 and aggregate operational state.
+
+Version 0.19.1 makes release-image executability a blocking assurance check.
+Every supported image declares its expected configured user, intended runtime
+UID/GID, and entrypoint. The gate parses that entrypoint with no network, a
+read-only root filesystem, all capabilities dropped, and privilege escalation
+disabled, catching unreadable source archives or image-user drift before a
+migration or service cutover.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
@@ -284,8 +294,9 @@ assessment remain installation or pilot gates.
   export with audited access and automatic content expiry.
 - A release assurance gate with tracked-source policy, complete and production
   dependency audits, CycloneDX source/image SBOMs, digest-pinned image scanning,
-  runtime version alignment, sanitized Compose hardening checks, browser WCAG
-  automation, and bounded read-only readiness load testing.
+  fail-closed non-root entrypoint smoke checks, runtime version alignment,
+  sanitized Compose hardening checks, browser WCAG automation, and bounded
+  read-only readiness load testing.
 - An administrator-only operational snapshot and host probe with explicit
   migration, queue, delivery, document-scanning, signing, lifecycle, and
   database thresholds that exclude customer evidence and identity data.
@@ -468,9 +479,11 @@ credential redaction/kill-switch behavior, and evidence-bound tenant policy.
 Run `npm run assurance:source -- /new/protected/directory` from a clean release
 commit to create the source assurance manifest. Run
 `npm run assurance:images -- /new/protected/directory IMAGE...` on a Docker host
-to export and scan exact images without mounting the Docker socket into the
-scanner. The output directories must not already exist and must remain outside
-the repository.
+to verify the configured/runtime user contract, parse each known entrypoint in
+a no-network hardened container, and export/scan exact images without mounting
+the Docker socket into the scanner. Unknown image roles are rejected. The
+output directories must not already exist and must remain outside the
+repository.
 
 See [Authentication setup](docs/authentication.md) for callbacks, provider and
 mailer settings, administration behavior, and the release checklist. See

@@ -205,6 +205,14 @@ npm run engine:probe:productization # disposable conformance database only
 npm run engine:probe:context # disposable conformance database only
 ```
 
+Before any migration or cutover, run image assurance against every exact
+release image. In addition to SBOM/vulnerability evidence, it requires the
+declared configured user and runs `node --check` on the declared entrypoint as
+the intended UID/GID with no network, a read-only root filesystem, all
+capabilities dropped, and no privilege escalation. An unrecognized image role
+or unreadable entrypoint stops the release. This specifically protects builds
+from source archives extracted with overly restrictive permissions.
+
 Run the privacy-safe operational probe on the engine host after migration and
 cutover, and from the installation's scheduler/monitor thereafter:
 

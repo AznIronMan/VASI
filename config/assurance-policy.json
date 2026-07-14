@@ -29,6 +29,38 @@
       "HIGH",
       "CRITICAL"
     ],
+    "runtimeContracts": [
+      {
+        "entrypoint": "server.js",
+        "image": "vasi",
+        "imageUser": "node",
+        "runUser": "1000:1000"
+      },
+      {
+        "entrypoint": "scripts/migrate.mjs",
+        "image": "vasi-settings",
+        "imageUser": "",
+        "runUser": "1000:1000"
+      },
+      {
+        "entrypoint": "services/engine/server.mjs",
+        "image": "vasi-engine",
+        "imageUser": "node",
+        "runUser": "1000:1000"
+      },
+      {
+        "entrypoint": "scripts/settings.mjs",
+        "image": "vasi-engine-tools",
+        "imageUser": "",
+        "runUser": "0:0"
+      },
+      {
+        "entrypoint": "scripts/backup.mjs",
+        "image": "vasi-engine-maintenance",
+        "imageUser": "node",
+        "runUser": "1000:1000"
+      }
+    ],
     "scannerImage": "aquasec/trivy@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f"
   },
   "load": {

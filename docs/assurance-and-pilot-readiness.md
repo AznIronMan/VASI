@@ -77,7 +77,7 @@ legal enforceability by itself.
 | OUT-1 | SSRF, credential disclosure, duplicate delivery/scan, or provider response leakage | Installation exact Graph tenant/application/sender and SMTP/webhook/scanner host allowlists; fixed Graph origins; encrypted revisioned credentials; isolated integration process; bounded response handling; strict signed contracts; redaction; idempotency keys; immutable attempts | Graph and SMTP are at-least-once; webhook consumers must enforce idempotency; scanner service operation remains customer/provider controlled |
 | CFG-1 | Secret leakage through source, environment, logs, exports, or settings tools | No environment files; mode-0600 SQLite bootstrap; AES-256-GCM PostgreSQL runtime settings; value-redacting CLI; no application secrets in container environments; tracked-source secret gate; export redaction | Host memory, database administrator, and backup custody remain trusted boundaries |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
-| SUP-1 | Vulnerable or unaccounted dependency/image content | Lockfile builds; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; minimal non-root runtime images without npm | Vulnerability data changes over time, so every release and periodic rescan are required |
+| SUP-1 | Vulnerable, unaccounted, or non-executable image content | Lockfile builds; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; explicit configured-user and intended-UID entrypoint parse in a no-network/read-only/capability-dropped container; unknown image-role denial; minimal non-root runtime images without npm | Vulnerability data changes over time, so every release and periodic rescan are required |
 | AVAIL-1 | Resource exhaustion or dependency outage | Bounded payloads/chunks/batches; PostgreSQL pool limits; request timeouts; retry ceilings; health checks; read-only readiness load gate; external provider isolation | Customer-specific capacity, RTO/RPO, and denial-of-service protection require measured pilot targets |
 | PRIV-1 | Excess collection, fingerprinting, or misleading evidence interpretation | Purpose-limited fixed fields; unavailable values remain absent; generalized telemetry excludes interaction detail; participant context rejects plugin/font enumeration, invasive fingerprints, precise location, hardware IDs, hidden media, keys/content/coordinates, and secrets; every browser value is labeled supporting; participant history and reviewed data request; redacted public verification and participant reports | Legal/privacy owners must approve notices, lawful basis, retention, and subject-right handling |
 
@@ -92,8 +92,10 @@ and never reads `data/`, `.private/`, or `.tasks/`.
 # tracked-secret policy, version alignment, and Compose hardening.
 npm run assurance:source -- /protected/new-directory
 
-# Exact image tar exports are scanned without giving the scanner a Docker
-# socket. Both vulnerability reports and CycloneDX image SBOMs are retained.
+# Each known image first proves its configured/runtime user can read and parse
+# its entrypoint in a no-network hardened container. Exact tar exports are then
+# scanned without giving the scanner a Docker socket. Vulnerability reports and
+# CycloneDX image SBOMs are retained.
 npm run assurance:images -- /protected/new-directory vasi:VERSION vasi-engine:VERSION
 
 # Read-only bounded load against only health and public brand endpoints.
@@ -108,9 +110,12 @@ private/runtime paths are tracked, secret signatures are detected, the
 sanitized Compose boundary is weakened, or npm reports a HIGH/CRITICAL
 vulnerability. Image assurance uses a digest-pinned scanner, creates a
 temporary image tar, does not mount the Docker socket into the scanner, and
-fails on every fixed or unfixed HIGH/CRITICAL finding. The manifest records the
-Git commit, image IDs, scanner identity, policy, result summaries, and SHA-256
-of every generated artifact.
+fails on an unknown image role, configured-user drift, intended-user entrypoint
+read/parse failure, or any fixed or unfixed HIGH/CRITICAL finding. Runtime
+smoke uses no network, a read-only root filesystem, all capabilities dropped,
+and no privilege escalation. The manifest records the Git commit, image IDs,
+runtime-contract result, scanner identity, policy, result summaries, and
+SHA-256 of every generated artifact.
 
 These controls are first-party release evidence. They do not replace source
 review, an independent penetration test, manual assistive-technology testing,

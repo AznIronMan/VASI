@@ -246,6 +246,19 @@ async function imageAssurance(output, images, { dockerSudo }) {
   try {
     for (const [index, image] of images.entries()) {
       if (!/^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,255}$/.test(image)) throw new Error(`Invalid image reference ${image}.`);
+      const runtimeContract = runtimeContractForImage(image);
+      const configuredUser = JSON.parse((await dockerCapture(
+        docker,
+        ["image", "inspect", image, "--format", "{{json .Config.User}}"],
+      )).trim());
+      if (configuredUser !== runtimeContract.imageUser) {
+        throw new Error(`Release image ${image} has an unexpected configured runtime user.`);
+      }
+      await dockerCapture(docker, [
+        "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+        "--security-opt", "no-new-privileges:true", "--user", runtimeContract.runUser,
+        "--entrypoint", "node", image, "--check", runtimeContract.entrypoint,
+      ]);
       const temporary = path.join(session, `image-${index}`);
       await mkdir(temporary, { mode: 0o700 });
       const tarPath = path.join(temporary, "image.tar");
@@ -268,6 +281,12 @@ async function imageAssurance(output, images, { dockerSudo }) {
           blocking: blocking.map((entry) => ({ id: entry.VulnerabilityID, package: entry.PkgName, severity: entry.Severity })),
           digest: (await dockerCapture(docker, ["image", "inspect", image, "--format", "{{.Id}}"])) .trim(),
           image,
+          runtimeContract: {
+            entrypoint: runtimeContract.entrypoint,
+            imageUser: runtimeContract.imageUser,
+            runUser: runtimeContract.runUser,
+            verified: true,
+          },
           vulnerabilities: vulnerabilities.length,
         });
       } finally {
@@ -282,6 +301,32 @@ async function imageAssurance(output, images, { dockerSudo }) {
     throw new Error(`Release images contain blocking vulnerabilities: ${blocking.map((entry) => `${entry.image}:${entry.id}:${entry.package}`).join(", ")}.`);
   }
   return { scannerImage: policy.images.scannerImage, scannerVersion: scannerVersion.trim(), summaries };
+}
+
+export function runtimeContractForImage(image, contracts = policy.images.runtimeContracts) {
+  if (typeof image !== "string" || !Array.isArray(contracts)) {
+    throw new Error("The release image runtime contract is invalid.");
+  }
+  const repository = image.split("@", 1)[0];
+  const slash = repository.lastIndexOf("/");
+  const colon = repository.lastIndexOf(":");
+  const untagged = colon > slash ? repository.slice(0, colon) : repository;
+  const name = untagged.slice(untagged.lastIndexOf("/") + 1);
+  const contract = contracts.find((entry) => entry?.image === name);
+  if (
+    !contract || typeof contract.entrypoint !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/.test(contract.entrypoint) ||
+    contract.entrypoint.includes("..") || !/^(?:0|1000):(?:0|1000)$/.test(contract.runUser) ||
+    !["", "node"].includes(contract.imageUser)
+  ) {
+    throw new Error(`Release image ${image} has no supported runtime contract.`);
+  }
+  return Object.freeze({
+    entrypoint: contract.entrypoint,
+    image: contract.image,
+    imageUser: contract.imageUser,
+    runUser: contract.runUser,
+  });
 }
 
 async function main() {
