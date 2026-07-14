@@ -37,18 +37,68 @@ export type WorkflowQuestion = {
   type: "single_choice" | "multiple_choice";
 };
 
+export type ExternalMediaDescriptor = {
+  accessMode: "public" | "provider_shared" | "provider_authenticated";
+  adapter?: { id: string; version: string };
+  allowedOrigins?: string[];
+  capability?: "instrumented_player" | "version_aware_preview" | "generic_embed" | "external_link";
+  description?: string;
+  descriptorHash?: string;
+  dimensions?: { height: number; width: number };
+  durationMilliseconds?: number;
+  durationSeconds?: number;
+  embedUrl?: string;
+  id?: string;
+  itemId?: string;
+  kind: "image" | "video" | "audio" | "presentation" | "document";
+  limitations?: string[];
+  metadataProvenance?: string;
+  owner?: string;
+  provider: "youtube" | "vimeo" | "sharepoint" | "google_drive" | "dropbox" | "generic" | "external_link";
+  sourceUrl: string;
+  title: string;
+  version?: { cTag?: string; checksum?: string; eTag?: string; id?: string; lastModifiedAt?: string };
+};
+
+export type MediaSummary = {
+  calculation: { clock: string; policyVersion: string; telemetryPolicy: { heartbeatSeconds: number; idleSeconds: number; maxCreditedGapSeconds: number } };
+  capability: string;
+  confidence: { level: "none" | "low" | "medium"; limitations: string[] };
+  engagement: { engagedMilliseconds: number; openMilliseconds: number; visibleMilliseconds: number };
+  eventCount: number;
+  gaps: { count: number; uncreditedMilliseconds: number };
+  playback: {
+    completionMet: boolean;
+    durationMilliseconds?: number;
+    durationSource: string;
+    endedObserved: boolean;
+    percentBasisPoints: number;
+    providerErrorCount: number;
+    seekCount: number;
+    skippedMilliseconds: number;
+    thresholdPercent: number;
+    uniqueMilliseconds: number;
+  };
+  schema: "vasi-media-summary/v1";
+  sessionCount: number;
+  sessionIntegrity: { disconnectCount: number; incompleteSessionCount: number };
+};
+
 export type WorkflowActivityContent = {
-  acknowledgementLabel?: string;
   artifact?: OwnerArtifact;
   artifactId?: string;
+  accessibilityAlternative?: { label: string; url?: string };
+  acknowledgementLabel?: string;
   choices?: WorkflowChoice[];
   consentText?: string;
   displayName?: string;
+  descriptor?: ExternalMediaDescriptor;
   drawnSignatureLabel?: string;
   instructions?: string;
   labels?: { approved?: string; declined?: string; disapproved?: string };
   maxLength?: number;
   maxSelections?: number;
+  completionPolicy?: { minimumUniqueSeconds: number; mode: "playback" | "acknowledgement" | "playback_or_acknowledgement"; thresholdPercent: number };
   methods?: Array<"typed" | "drawn">;
   minLength?: number;
   minSelections?: number;
@@ -58,10 +108,12 @@ export type WorkflowActivityContent = {
   prompt?: string;
   questions?: WorkflowQuestion[];
   responseLabel?: string;
+  providerNotice?: string;
   resultDisclosure?: "pass_fail" | "pass_fail_and_score";
   statement?: string;
   terms?: string;
   typedNameLabel?: string;
+  telemetryPolicy?: { heartbeatSeconds: number; idleSeconds: number; maxCreditedGapSeconds: number };
   yesLabel?: string;
 };
 
@@ -71,11 +123,12 @@ export type WorkflowActivity = {
   id: string;
   instructions?: string;
   responseMode: "acknowledgement" | "yes_no" | "approval" | "single_choice" |
-    "multiple_choice" | "free_form" | "electronic_signature" | "document_review" | "questionnaire";
+    "multiple_choice" | "free_form" | "electronic_signature" | "document_review" | "questionnaire" |
+    "external_media";
   title: string;
   transition?: { cases?: { to: string | null; when: { equals: string } }[]; defaultTo?: string | null };
   type: "terms_response" | "approval" | "single_choice" | "multiple_choice" |
-    "free_form" | "electronic_signature" | "document_review" | "questionnaire";
+    "free_form" | "electronic_signature" | "document_review" | "questionnaire" | "external_media";
 };
 
 export type WorkflowDocument = {

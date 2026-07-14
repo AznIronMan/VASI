@@ -22,9 +22,14 @@ import {
 import { validateActivityResponse } from "../../packages/engine-domain/activities.mjs";
 import { validateParticipantArtifactInput } from "../../packages/engine-domain/artifacts.mjs";
 import { readArtifactChunk } from "./artifact-store.mjs";
+import { appendEvent } from "./evidence-events.mjs";
 import { EngineStoreError } from "./errors.mjs";
+import {
+  assertMediaCompletion,
+  loadMediaEvidence,
+  persistIssueMediaSnapshots,
+} from "./media-store.mjs";
 
-const ENGINE_VERSION = "0.7.0";
 const GENESIS_HASH = "0".repeat(64);
 
 export class EvidenceStoreError extends EngineStoreError {}
@@ -675,6 +680,13 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
       ],
     );
   }
+  await persistIssueMediaSnapshots(client, {
+    assignmentId,
+    issuedAt: now,
+    requestId,
+    tenantId: input.tenantId,
+    workflowRevisionId: revision.id,
+  });
   await appendEvent(client, {
     actor,
     assignmentId,
@@ -752,7 +764,8 @@ async function issuePublishedRequest(client, actor, input, outboxEncryptionSecre
 async function currentActivity(client, assignmentId, now) {
   const result = await client.query(
     `select i."id", i."activityId", i."ordinal", i."definition", i."definitionHash", i."openedAt",
-            saved."responseValue" as "savedResponse", saved."responseLabel" as "savedResponseLabel"
+            saved."responseValue" as "savedResponse", saved."responseLabel" as "savedResponseLabel",
+            media."summary" as "mediaSummary"
      from "vasi_engine"."activity_instance" i
      left join lateral (
        select "responseValue", "responseLabel"
@@ -760,6 +773,10 @@ async function currentActivity(client, assignmentId, now) {
        where "activityInstanceId" = i."id" and "state" = 'saved'
        order by "revision" desc limit 1
      ) saved on true
+     left join lateral (
+       select "summary" from "vasi_engine"."media_activity_summary_revision"
+       where "activityInstanceId" = i."id" order by "revision" desc limit 1
+     ) media on true
      where i."assignmentId" = $1 and i."status" = 'available'
      order by i."ordinal" limit 1 for update of i`,
     [assignmentId],
@@ -796,6 +813,7 @@ function workflowParticipantProjection(record, interaction, activity) {
     },
     purpose: record.purpose,
     responseMode: projection.responseMode,
+    mediaSummary: activity.mediaSummary,
     savedResponse: activity.savedResponse,
     savedResponseLabel: activity.savedResponseLabel,
     tenant: { id: record.tenantId, name: record.tenantName },
@@ -831,7 +849,7 @@ async function respondToWorkflowActivity({
   }
   const intent = payload?.intent ?? "submit";
   if (!['save', 'submit'].includes(intent)) throw new EvidenceStoreError("invalid_response_intent", 400);
-  const response = validateActivityResponse(activity.definition, payload?.response);
+  let response = validateActivityResponse(activity.definition, payload?.response);
   if (intent === "submit" && activity.definition.type === "document_review") {
     const presented = await client.query(
       `select 1 from "vasi_engine"."document_artifact_access_event"
@@ -843,6 +861,9 @@ async function respondToWorkflowActivity({
     if (!presented.rowCount) throw new EvidenceStoreError("document_not_presented", 409);
   }
   const completedAt = new Date();
+  if (intent === "submit") {
+    response = await assertMediaCompletion(client, record, activity, response, completedAt);
+  }
   const revisionResult = await client.query(
     `select coalesce(max("revision"), 0) + 1 as "revision"
      from "vasi_engine"."activity_response_revision" where "activityInstanceId" = $1`,
@@ -1048,6 +1069,7 @@ async function respondToWorkflowActivity({
     [record.assignmentId],
   );
   const events = await evidenceEvents(client, record.assignmentId);
+  const media = await loadMediaEvidence(client, record.assignmentId);
   const manifestId = randomUUID();
   const manifest = buildWorkflowManifest({
     actor,
@@ -1057,6 +1079,7 @@ async function respondToWorkflowActivity({
     manifestId,
     record,
     responses: responses.rows,
+    media,
   });
   const sealedRecord = await persistSeal(client, {
     completedAt,
@@ -1087,7 +1110,7 @@ async function respondToWorkflowActivity({
   return participantReceipt(sealedRecord);
 }
 
-function buildWorkflowManifest({ actor, completedAt, events, interaction, manifestId, record, responses }) {
+function buildWorkflowManifest({ actor, completedAt, events, interaction, manifestId, media, record, responses }) {
   return {
     assignment: {
       id: record.assignmentId,
@@ -1102,6 +1125,7 @@ function buildWorkflowManifest({ actor, completedAt, events, interaction, manife
       lastSequence: events.at(-1).sequence,
     },
     manifestId,
+    media,
     outcome: {
       activities: responses.map((row) => ({
         activityId: row.activityId,
@@ -1124,7 +1148,7 @@ function buildWorkflowManifest({ actor, completedAt, events, interaction, manife
       purpose: record.purpose,
       scheduledFor: record.scheduledFor ? new Date(record.scheduledFor).toISOString() : undefined,
     },
-    schema: "vasi-evidence-manifest/v3",
+    schema: "vasi-evidence-manifest/v4",
     tenant: { id: record.tenantId, name: record.tenantName },
     timestamps: {
       completedAt: completedAt.toISOString(),
@@ -1281,67 +1305,6 @@ async function queueNotification(client, {
      on conflict ("idempotencyKey") where "idempotencyKey" is not null do nothing`,
     [randomUUID(), tenantId, requestId, idempotencyKey, { envelope }, hashCanonicalJSON(payload), availableAt],
   );
-}
-
-async function appendEvent(client, {
-  actor,
-  assignmentId,
-  eventType,
-  payload,
-  receivedAt,
-  requestId,
-  tenantId,
-}) {
-  const head = await client.query(
-    `select "lastSequence", "lastHash" from "vasi_engine"."evidence_chain_head"
-     where "assignmentId" = $1 for update`,
-    [assignmentId],
-  );
-  if (!head.rowCount) throw new EvidenceStoreError("evidence_chain_missing", 500);
-  const sequence = Number(head.rows[0].lastSequence) + 1;
-  const previousHash = head.rows[0].lastHash;
-  const eventId = randomUUID();
-  const eventData = {
-    actor: actorSnapshot(actor),
-    assignmentId,
-    engineVersion: ENGINE_VERSION,
-    eventId,
-    eventType,
-    payload,
-    previousHash,
-    receivedAt: receivedAt.toISOString(),
-    requestId,
-    schema: "vasi-evidence-event/v1",
-    sequence,
-    tenantId,
-  };
-  const eventHash = hashCanonicalJSON(eventData);
-  await client.query(
-    `insert into "vasi_engine"."evidence_event"
-      ("id", "tenantId", "requestId", "assignmentId", "sequence", "eventType",
-       "actorPrincipalId", "eventData", "previousHash", "eventHash", "receivedAt", "engineVersion")
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-    [
-      eventId,
-      tenantId,
-      requestId,
-      assignmentId,
-      sequence,
-      eventType,
-      actor.principalId,
-      eventData,
-      previousHash,
-      eventHash,
-      receivedAt,
-      ENGINE_VERSION,
-    ],
-  );
-  await client.query(
-    `update "vasi_engine"."evidence_chain_head"
-     set "lastSequence" = $2, "lastHash" = $3 where "assignmentId" = $1`,
-    [assignmentId, sequence, eventHash],
-  );
-  return { eventData, eventHash, previousHash, sequence };
 }
 
 async function evidenceEvents(client, assignmentId) {
@@ -1611,18 +1574,6 @@ function optionalBounded(value, maximum) {
     throw new EvidenceStoreError("invalid_client_context", 400);
   }
   return value;
-}
-
-function actorSnapshot(actor) {
-  return {
-    authenticatedAt: actor.authenticatedAt,
-    authentication: actor.authentication,
-    email: actor.email,
-    gatewaySessionId: actor.gatewaySessionId,
-    principalId: actor.principalId,
-    requestContext: actor.requestContext,
-    roles: actor.roles,
-  };
 }
 
 function requireActor(actor) {

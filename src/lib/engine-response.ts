@@ -35,6 +35,11 @@ export function friendlyEngineError(code?: string) {
     case "artifact_chunk_sequence_conflict": return "The document upload sequence was interrupted; upload it again.";
     case "artifact_finalized": return "That document artifact has already been finalized.";
     case "document_not_presented": return "Open or download the document before acknowledging its review.";
+    case "media_playback_incomplete": return "The configured playback threshold has not been met yet. Continue the media and wait for evidence to synchronize.";
+    case "media_activity_unavailable": return "This hosted-media activity is no longer available.";
+    case "media_event_limit_reached": return "The hosted-media evidence limit was reached. Contact the requesting company before continuing.";
+    case "media_event_sequence_conflict": return "Playback evidence arrived out of order. Reload the request before continuing.";
+    case "media_batch_replay_conflict": return "A playback evidence batch was replayed with different content and was rejected.";
     case "content_unavailable": return "The company’s access policy no longer makes this document available.";
     case "not_found": return "The requested record was not found or is not available to this account.";
     case "forbidden": return "This account is not authorized for that company or record.";

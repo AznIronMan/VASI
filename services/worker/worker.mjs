@@ -11,7 +11,7 @@ import {
 } from "../../scripts/settings-core.mjs";
 import { createNotificationDispatcher } from "./notification-adapters.mjs";
 
-const ENGINE_VERSION = "0.7.0";
+const ENGINE_VERSION = "0.8.0";
 const GENESIS_HASH = "0".repeat(64);
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });

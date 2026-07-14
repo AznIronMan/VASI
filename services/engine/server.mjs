@@ -17,9 +17,10 @@ import { readRequestBody, sendJSON } from "../shared/http.mjs";
 import { createArtifactStore } from "./artifact-store.mjs";
 import { createEvidenceStore, EvidenceStoreError } from "./evidence-store.mjs";
 import { EngineStoreError } from "./errors.mjs";
+import { createMediaStore } from "./media-store.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.7.0";
+const ENGINE_VERSION = "0.8.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -30,7 +31,8 @@ const assertionPublicKey = await importJWK(
 const database = createSettingsPool(bootstrap);
 const evidence = createEvidenceStore(database, settings);
 const artifacts = createArtifactStore(database, settings);
-const workflows = createWorkflowStore(database);
+const media = createMediaStore(database, settings);
+const workflows = createWorkflowStore(database, settings);
 const seenServiceRequests = new Map();
 
 const server = createServer(async (request, response) => {
@@ -205,6 +207,8 @@ function dispatchEvidence(action, actor, payload) {
     case "record.read": return evidence.ownerRecord(actor, payload);
     case "participant.open": return evidence.openAssignment(actor, payload);
     case "participant.respond": return evidence.respond(actor, payload);
+    case "participant.media.open": return media.openParticipantMedia(actor, payload);
+    case "participant.media.events": return media.recordParticipantEvents(actor, payload);
     case "participant.receipt": return evidence.participantReceipt(actor, payload);
     default: throw new EvidenceStoreError("not_found", 404);
   }
@@ -222,6 +226,7 @@ function errorCode(error) {
   if (error?.code === "INVALID_WORKFLOW") return "invalid_workflow";
   if (error?.code === "INVALID_ARTIFACT") return "invalid_artifact";
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
+  if (error?.code === "INVALID_MEDIA_TELEMETRY") return "invalid_media_telemetry";
   if (error?.code === "AUTHORIZATION_FAILED" || String(error?.code || "").startsWith("ERR_JWT")) {
     return "authorization_failed";
   }
@@ -234,6 +239,7 @@ function errorStatus(error) {
   if (error?.code === "INVALID_WORKFLOW") return 400;
   if (error?.code === "INVALID_ARTIFACT") return 400;
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return 400;
+  if (error?.code === "INVALID_MEDIA_TELEMETRY") return 400;
   if (error instanceof EngineStoreError) return error.status;
   if (error?.code === "AUTHORIZATION_FAILED" || String(error?.code || "").startsWith("ERR_JWT")) return 401;
   return 500;
@@ -243,6 +249,7 @@ function publicErrorCode(error, status) {
   if (error instanceof EngineStoreError) return error.code;
   if (error?.code === "INVALID_ARTIFACT") return "invalid_artifact";
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
+  if (error?.code === "INVALID_MEDIA_TELEMETRY") return "invalid_media_telemetry";
   if (error?.code === "INVALID_WORKFLOW") return "invalid_workflow";
   if (status === 413) return "request_too_large";
   if (status === 400) return "invalid_request";

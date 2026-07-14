@@ -25,6 +25,8 @@ const engineRoutes = Object.freeze([
   { action: "record.read", method: "POST", path: "/v1/owner/records" },
   { action: "participant.open", method: "POST", path: "/v1/participant/open" },
   { action: "participant.respond", method: "POST", path: "/v1/participant/respond" },
+  { action: "participant.media.open", method: "POST", path: "/v1/participant/media-open" },
+  { action: "participant.media.events", method: "POST", path: "/v1/participant/media-events" },
   { action: "participant.receipt", method: "POST", path: "/v1/participant/receipt" },
   { action: "artifact.participant.open", method: "POST", path: "/v1/participant/artifact-open" },
   { action: "artifact.participant.read", method: "POST", path: "/v1/participant/artifact-read" },

@@ -79,7 +79,8 @@ never forwarded to the engine.
 ## Current limits
 
 PostgreSQL documents, questions/tests, typed/drawn signatures, and append-only
-response revisions are implemented in VASI 0.7.0. Media telemetry, reports,
-retention/legal hold, and participant data requests remain separate milestones.
+response revisions are implemented in VASI 0.7.0. Provider-hosted media and
+duration evidence are implemented in VASI 0.8.0. Reports, retention/legal hold,
+and participant data requests remain separate milestones.
 The standard integrity seal still does not claim an external CA identity,
 trusted timestamp, or legal conclusion.

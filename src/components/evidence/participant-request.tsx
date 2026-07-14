@@ -2,6 +2,7 @@
 
 import { FormEvent, PointerEvent, useRef, useState } from "react";
 
+import { ExternalMediaActivity } from "@/components/evidence/external-media-activity";
 import type { OpenParticipantAssignment } from "@/lib/evidence-types";
 import type { WorkflowActivityContent } from "@/lib/owner-types";
 
@@ -109,10 +110,11 @@ function ActivityPresentation({ assignment, handle }: {
     const inline = content.artifact.mediaType === "application/pdf" || content.artifact.mediaType.startsWith("text/");
     return <section className="participant-document"><h2>{content.displayName}</h2><dl><div><dt>Revision</dt><dd>{content.artifact.revision}</dd></div><div><dt>Fingerprint</dt><dd>{content.artifact.sha256}</dd></div></dl><div className="participant-document-actions"><a href={url} target="_blank" rel="noreferrer">Open document</a><a href={downloadable}>Download original</a></div>{inline && <iframe src={url} title={content.displayName || content.artifact.originalFilename} />}</section>;
   }
+  if (type === "external_media") return null;
   return <section className="participant-terms"><h2>Activity presented to you</h2><p>{content.instructions || content.prompt}</p><small>Activity fingerprint: {assignment.contentHash}</small></section>;
 }
 
-function ActivityResponseFields({ assignment, strokes, setStrokes }: {
+function ActivityResponseFields({ assignment, handle, strokes, setStrokes }: {
   assignment: OpenParticipantAssignment;
   handle: string;
   strokes: SignatureStroke[];
@@ -127,6 +129,7 @@ function ActivityResponseFields({ assignment, strokes, setStrokes }: {
   if (type === "document_review") return <><legend>{content.prompt}</legend><label><input type="checkbox" name="reviewed" required /><span>{content.responseLabel || "I reviewed this document."}</span><input type="hidden" name="response" value="reviewed" /></label><p className="participant-limit">VASI records presentation/download access, but does not claim that route access alone proves every page was read.</p></>;
   if (type === "electronic_signature") return <SignatureFields content={content} setStrokes={setStrokes} strokes={strokes} />;
   if (type === "questionnaire") return <><legend>{content.instructions || "Complete the questionnaire."}</legend><div className="participant-questionnaire">{content.questions?.map((question, index) => <fieldset key={question.id}><legend>{index + 1}. {question.prompt}</legend>{question.choices.map((choice) => { const saved = assignment.savedResponse && typeof assignment.savedResponse === "object" && !Array.isArray(assignment.savedResponse) ? (assignment.savedResponse as Record<string, unknown>)[question.id] : undefined; return <label key={choice.id}><input type={question.type === "single_choice" ? "radio" : "checkbox"} name={`question:${question.id}`} value={choice.id} defaultChecked={question.type === "single_choice" ? saved === choice.id : Array.isArray(saved) && saved.includes(choice.id)} required={question.required && question.type === "single_choice"} /><span>{choice.label}</span></label>; })}</fieldset>)}</div></>;
+  if (type === "external_media") return <ExternalMediaActivity assignment={assignment} handle={handle} />;
   return <legend>Complete this activity.</legend>;
 }
 
@@ -191,6 +194,14 @@ function responseFromForm(type: string, content: WorkflowActivityContent, form: 
       if (!values.length) return [];
       return [[question.id, question.type === "single_choice" ? values[0] : values]];
     }));
+  }
+  if (type === "external_media") {
+    const method = String(form.get("mediaMethod") || "");
+    if (method === "playback") return { method };
+    if (method === "acknowledgement" && form.get("mediaAcknowledged") === "on") {
+      return { acknowledged: true, method };
+    }
+    throw new Error("Choose a completion method and provide the required acknowledgement.");
   }
   return String(form.get("response") || "");
 }

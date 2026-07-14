@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.7.0`
+Version: `0.8.0`
 
 A CNB project maintained by Street Kings Productions.
 
@@ -50,10 +50,21 @@ single/multiple choice, free-form responses, typed/drawn electronic signatures,
 document review, and deterministic questionnaires/tests. Saved responses are
 append-only revisions included in the version 3 sealed evidence manifest.
 
+Version 0.8.0 adds immutable provider-hosted media descriptors and bounded
+duration evidence without moving authoritative media bytes into VASI. YouTube
+and Vimeo use instrumented player adapters; SharePoint/OneDrive, Google Drive,
+Dropbox, installation-allowlisted embeds, and external links degrade to the
+presentation or departure evidence each provider can actually expose. The
+engine records strict idempotent event batches, rejects seeks/gaps and hidden or
+implausible playback from credited duration, unions unique intervals across
+sessions, preserves every calculation revision, and seals raw media evidence
+in the version 4 manifest. Browser telemetry remains explicitly supporting
+evidence rather than proof of attention or comprehension.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. It is not yet an independent
 CA identity, trusted timestamp, legal conclusion, or long-term validation
-profile. External media evidence, reports/bundles, retention, participant data
+profile. Reports/bundles, retention, participant data
 requests, productized owner/integration gateways, comprehensive replaceable
 malware scanning, and optional CA/TSA adapters remain subsequent milestones.
 
@@ -101,6 +112,10 @@ malware scanning, and optional CA/TSA adapters remain subsequent milestones.
 - Declarative approvals, questions, free-form answers, typed/drawn electronic
   signatures, document review, and server-scored questionnaires/tests with
   append-only response revisions and participant answer-key redaction.
+- Provider-independent external media activities with immutable descriptors,
+  YouTube/Vimeo playback telemetry, honest generic-frame/external-link
+  downgrades, strict replay-safe event batches, unique-duration calculations,
+  accessibility acknowledgement, and version 4 sealed evidence.
 
 ## Configuration model
 

@@ -76,6 +76,11 @@ function ReceiptActivity({ activity, handle }: {
     const url = `/r/${handle}/artifacts/${content.artifact.id}?activityId=${encodeURIComponent(activity.id)}`;
     return <article><h3>{activity.title}</h3><p>{content.displayName}</p><a href={url} target="_blank" rel="noreferrer">Open retained document revision {content.artifact.revision}</a><small className="receipt-hash">{content.artifact.sha256}</small></article>;
   }
+  if (activity.type === "external_media" && content.descriptor) {
+    const descriptor = content.descriptor;
+    const version = descriptor.version?.checksum || descriptor.version?.eTag || descriptor.version?.cTag || descriptor.version?.id;
+    return <article><h3>{activity.title}</h3><p>{descriptor.title} · {descriptor.provider.replaceAll("_", " ")}</p><a href={descriptor.sourceUrl} target="_blank" rel="noreferrer">Open retained provider reference</a>{version && <small className="receipt-hash">Provider version: {version}</small>}<small>External provider availability and current bytes can change independently of the immutable VASI descriptor.</small></article>;
+  }
   if (activity.type === "terms_response") return <article><h3>{activity.title}</h3><div>{content.terms}</div><p><strong>Prompt:</strong> {content.prompt}</p></article>;
   if (activity.type === "approval" || activity.type === "electronic_signature") return <article><h3>{activity.title}</h3><div>{content.statement}</div><p><strong>Prompt:</strong> {content.prompt}</p></article>;
   if (activity.type === "questionnaire") return <article><h3>{activity.title}</h3><p>{content.instructions}</p><p>{content.questions?.length} question(s) in the immutable revision.</p></article>;

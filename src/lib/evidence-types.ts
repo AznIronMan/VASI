@@ -21,6 +21,7 @@ export type ParticipantAssignment = {
   contentHash?: string;
   expiresAt?: string;
   interaction?: { id: string; startedAt: string };
+  mediaSummary?: import("@/lib/owner-types").MediaSummary;
   instructions?: string;
   progress?: { current: number; total: number };
   purpose?: string;

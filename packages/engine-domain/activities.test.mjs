@@ -17,6 +17,33 @@ function activity(type, content, responseMode = type) {
 }
 
 describe("electronic activity contracts", () => {
+  it("normalizes provider-hosted media and validates completion methods", () => {
+    const definition = activity("external_media", {
+      completionPolicy: { mode: "playback_or_acknowledgement", thresholdPercent: 85 },
+      descriptor: {
+        durationSeconds: 60,
+        kind: "video",
+        provider: "vimeo",
+        sourceUrl: "https://vimeo.com/76979871",
+        title: "Safety training",
+      },
+      prompt: "Watch the safety training.",
+    });
+    expect(definition.content.descriptor).toMatchObject({
+      capability: "instrumented_player",
+      itemId: "76979871",
+      provider: "vimeo",
+    });
+    expect(validateActivityResponse(definition, { method: "playback" })).toMatchObject({
+      outcome: "completed",
+      result: { completionMethod: "playback" },
+    });
+    expect(validateActivityResponse(definition, {
+      acknowledged: true,
+      method: "acknowledgement",
+    }).display).toMatch(/reviewed/);
+  });
+
   it("validates choices and preserves exact presented labels", () => {
     const definition = activity("single_choice", {
       choices: [{ id: "a", label: "Alpha" }, { id: "b", label: "Beta" }],

@@ -14,8 +14,10 @@ const serviceActions = Object.freeze({
     "membership.list",
     "membership.update",
     "participant.open",
+    "participant.media.open",
     "participant.receipt",
     "participant.respond",
+    "participant.media.events",
     "record.read",
     "request.issue",
     "request.list",
@@ -36,3 +38,5 @@ export function authorizeServiceAction(serviceId, action) {
   }
   return Object.freeze({ action, serviceId });
 }
+
+export * from "./media.mjs";

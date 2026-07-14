@@ -27,6 +27,10 @@ const migrations = [
     name: "0005_engine_document_activities",
     path: path.join(repositoryRoot, "database", "engine-document-activities.sql"),
   },
+  {
+    name: "0006_engine_media_evidence",
+    path: path.join(repositoryRoot, "database", "engine-media-evidence.sql"),
+  },
 ];
 
 export async function runEngineMigrations(bootstrap = loadBootstrapSettings()) {

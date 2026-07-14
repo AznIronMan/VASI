@@ -12,8 +12,12 @@ import {
   resolveWorkflowArtifactBindings,
 } from "./artifact-store.mjs";
 import { EvidenceStoreError } from "./evidence-store.mjs";
+import {
+  persistWorkflowMediaBindings,
+  resolveWorkflowMediaBindings,
+} from "./media-store.mjs";
 
-export function createWorkflowStore(database) {
+export function createWorkflowStore(database, settings) {
   return Object.freeze({
     async listTenants(actor) {
       requireActorEmail(actor);
@@ -150,7 +154,8 @@ export function createWorkflowStore(database) {
         const revision = Number(revisionResult.rows[0].revision);
         const revisionId = randomUUID();
         const document = draft.rows[0].document;
-        const resolved = await resolveWorkflowArtifactBindings(client, input.tenantId, document);
+        const artifactResolved = await resolveWorkflowArtifactBindings(client, input.tenantId, document);
+        const resolved = resolveWorkflowMediaBindings(artifactResolved.snapshot, settings);
         const firstActivity = resolved.snapshot.activities[0];
         const publishedAt = new Date();
         await client.query(
@@ -178,6 +183,13 @@ export function createWorkflowStore(database) {
           ],
         );
         await persistWorkflowArtifactBindings(
+          client,
+          input.tenantId,
+          revisionId,
+          artifactResolved.bindings,
+          publishedAt,
+        );
+        await persistWorkflowMediaBindings(
           client,
           input.tenantId,
           revisionId,

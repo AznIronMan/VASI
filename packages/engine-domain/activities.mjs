@@ -1,3 +1,5 @@
+import { normalizeExternalMediaContent } from "./media.mjs";
+
 export const ACTIVITY_TYPES = Object.freeze([
   "terms_response",
   "approval",
@@ -7,6 +9,7 @@ export const ACTIVITY_TYPES = Object.freeze([
   "electronic_signature",
   "document_review",
   "questionnaire",
+  "external_media",
 ]);
 
 export function normalizeActivityDefinition(value, index = 0) {
@@ -49,6 +52,7 @@ export function branchValuesForActivity(activity) {
     case "electronic_signature": return ["signed"];
     case "document_review": return ["reviewed"];
     case "questionnaire": return ["passed", "failed"];
+    case "external_media": return ["completed"];
     default: return [];
   }
 }
@@ -194,6 +198,31 @@ export function validateActivityResponse(activity, response) {
       });
       break;
     }
+    case "external_media": {
+      const mediaResponse = strictResponseObject(response, "external media response", ["acknowledged", "method"]);
+      const method = oneOf(mediaResponse.method, ["playback", "acknowledgement"], "media completion method");
+      const mode = activity.content.completionPolicy.mode;
+      if (method === "playback" && mode === "acknowledgement") {
+        invalidResponse("This activity does not allow playback-based completion.");
+      }
+      if (method === "acknowledgement" && mode === "playback") {
+        invalidResponse("This activity requires validated playback completion.");
+      }
+      if (method === "acknowledgement" && mediaResponse.acknowledged !== true) {
+        invalidResponse("Media-review acknowledgement is required.");
+      }
+      value = Object.freeze({ acknowledged: method === "acknowledgement" ? true : undefined, method });
+      display = method === "playback"
+        ? `Playback met the configured ${activity.content.completionPolicy.thresholdPercent}% threshold.`
+        : activity.content.acknowledgementLabel;
+      outcome = "completed";
+      result = Object.freeze({
+        capability: activity.content.descriptor.capability,
+        completionMethod: method,
+        completionPolicy: activity.content.completionPolicy,
+      });
+      break;
+    }
     default:
       invalidResponse("The activity response contract is unavailable.");
   }
@@ -237,6 +266,7 @@ function normalizeContent(type, value) {
     case "electronic_signature": return normalizeSignature(value);
     case "document_review": return normalizeDocument(value);
     case "questionnaire": return normalizeQuestionnaire(value);
+    case "external_media": return normalizeExternalMediaContent(value);
     default: invalidDefinition("The activity content contract is unavailable.");
   }
 }
