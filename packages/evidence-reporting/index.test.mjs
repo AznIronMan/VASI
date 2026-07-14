@@ -11,11 +11,22 @@ describe("deterministic evidence reports", () => {
     for (const report of Object.values(reports)) {
       expect(report.generatedFrom.manifestHash).toBe(record.seal.manifestHash);
       expect(report.eventReferences).toHaveLength(record.events.length);
-      expect(report.eventReferences.map((event) => event.eventId)).toEqual(["event-1", "event-2", "event-3"]);
+      expect(report.eventReferences.map((event) => event.eventId)).toEqual([
+        "event-1",
+        "event-2",
+        "event-3",
+        "event-4",
+      ]);
     }
     expect(JSON.stringify(reports.participant)).not.toContain("192.0.2.20");
+    expect(reports.participant.activityTiming[0]).toMatchObject({
+      activityId: "terms",
+      confidence: "medium",
+    });
     expect(JSON.stringify(reports.technical)).toContain("192.0.2.20");
-    expect(renderEvidenceReport(reports.nontechnical, "text").toString()).toContain("CHRONOLOGY");
+    const plainText = renderEvidenceReport(reports.nontechnical, "text").toString();
+    expect(plainText).toContain("CHRONOLOGY");
+    expect(plainText).toContain("ACTIVITY PRESENCE (BROWSER-REPORTED SUPPORTING EVIDENCE)");
     expect(renderEvidenceReport(reports.nontechnical, "html").toString()).toContain("<!doctype html>");
     expect(evidenceReportHash(buildEvidenceReports(record).technical)).toBe(evidenceReportHash(reports.technical));
   });

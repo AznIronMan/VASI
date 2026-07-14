@@ -21,6 +21,7 @@ import {
 } from "../../packages/engine-domain/workflow.mjs";
 import { validateActivityResponse } from "../../packages/engine-domain/activities.mjs";
 import { validateParticipantArtifactInput } from "../../packages/engine-domain/artifacts.mjs";
+import { activityInteractionPolicy } from "../../packages/engine-domain/interaction.mjs";
 import { readArtifactChunk } from "./artifact-store.mjs";
 import { appendEvent } from "./evidence-events.mjs";
 import { EngineStoreError } from "./errors.mjs";
@@ -30,6 +31,7 @@ import {
   assertLifecycleHistoryAvailable,
   bindRecordLifecycle,
 } from "./lifecycle-store.mjs";
+import { loadActivityInteractionEvidence } from "./interaction-store.mjs";
 import {
   assertMediaCompletion,
   loadMediaEvidence,
@@ -44,6 +46,7 @@ export class EvidenceStoreError extends EngineStoreError {}
 
 export function createEvidenceStore(database, settings) {
   const signingProvider = createSigningProvider(settings);
+  const interactionEvidencePolicy = activityInteractionPolicy(settings);
   const outboxEncryptionSecret = requiredSetting(settings, "ENGINE_OUTBOX_ENCRYPTION_SECRET");
 
   return Object.freeze({
@@ -283,7 +286,12 @@ export function createEvidenceStore(database, settings) {
 
         if (record.snapshot) {
           const activity = await currentActivity(client, record.assignmentId, now);
-          return workflowParticipantProjection(record, interaction.rows[0], activity);
+          return workflowParticipantProjection(
+            record,
+            interaction.rows[0],
+            activity,
+            interactionEvidencePolicy,
+          );
         }
         return participantProjection(record, interaction.rows[0]);
       });
@@ -310,6 +318,7 @@ export function createEvidenceStore(database, settings) {
             clientContext,
             commandId,
             interactionId,
+            interactionEvidencePolicy,
             payload,
             record,
             signingProvider,
@@ -760,7 +769,7 @@ async function currentActivity(client, assignmentId, now) {
   const result = await client.query(
     `select i."id", i."activityId", i."ordinal", i."definition", i."definitionHash", i."openedAt",
             saved."responseValue" as "savedResponse", saved."responseLabel" as "savedResponseLabel",
-            media."summary" as "mediaSummary"
+            media."summary" as "mediaSummary", interaction."summary" as "interactionSummary"
      from "vasi_engine"."activity_instance" i
      left join lateral (
        select "responseValue", "responseLabel"
@@ -772,6 +781,10 @@ async function currentActivity(client, assignmentId, now) {
        select "summary" from "vasi_engine"."media_activity_summary_revision"
        where "activityInstanceId" = i."id" order by "revision" desc limit 1
      ) media on true
+     left join lateral (
+       select "summary" from "vasi_engine"."activity_interaction_summary_revision"
+       where "activityInstanceId" = i."id" order by "revision" desc limit 1
+     ) interaction on true
      where i."assignmentId" = $1 and i."status" = 'available'
      order by i."ordinal" limit 1 for update of i`,
     [assignmentId],
@@ -787,7 +800,7 @@ async function currentActivity(client, assignmentId, now) {
   return result.rows[0];
 }
 
-function workflowParticipantProjection(record, interaction, activity) {
+function workflowParticipantProjection(record, interaction, activity, interactionEvidencePolicy) {
   const projection = participantActivityProjection(activity.definition);
   return {
     activityId: activity.activityId,
@@ -801,6 +814,10 @@ function workflowParticipantProjection(record, interaction, activity) {
     interaction: {
       id: interaction.id,
       startedAt: new Date(interaction.startedAt).toISOString(),
+    },
+    interactionEvidence: {
+      policy: interactionEvidencePolicy,
+      summary: activity.interactionSummary,
     },
     progress: {
       current: Number(activity.ordinal) + 1,
@@ -824,6 +841,7 @@ async function respondToWorkflowActivity({
   clientContext,
   commandId,
   interactionId,
+  interactionEvidencePolicy,
   payload,
   record,
   signingProvider,
@@ -923,7 +941,12 @@ async function respondToWorkflowActivity({
     activity.savedResponse = response.value;
     activity.savedResponseLabel = response.display;
     return {
-      assignment: workflowParticipantProjection(record, interaction.rows[0], activity),
+      assignment: workflowParticipantProjection(
+        record,
+        interaction.rows[0],
+        activity,
+        interactionEvidencePolicy,
+      ),
       completed: false,
       saved: true,
     };
@@ -1024,7 +1047,12 @@ async function respondToWorkflowActivity({
 
   if (nextActivity) {
     return {
-      assignment: workflowParticipantProjection(record, interaction.rows[0], nextActivity),
+      assignment: workflowParticipantProjection(
+        record,
+        interaction.rows[0],
+        nextActivity,
+        interactionEvidencePolicy,
+      ),
       completed: false,
     };
   }
@@ -1070,9 +1098,11 @@ async function respondToWorkflowActivity({
   );
   const events = await evidenceEvents(client, record.assignmentId);
   const media = await loadMediaEvidence(client, record.assignmentId);
+  const activityInteraction = await loadActivityInteractionEvidence(client, record.assignmentId);
   const manifestId = randomUUID();
   const manifest = buildWorkflowManifest({
     actor,
+    activityInteraction,
     completedAt,
     events,
     interaction: interaction.rows[0],
@@ -1111,8 +1141,19 @@ async function respondToWorkflowActivity({
   return participantReceipt(sealedRecord);
 }
 
-function buildWorkflowManifest({ actor, completedAt, events, interaction, manifestId, media, record, responses }) {
+function buildWorkflowManifest({
+  actor,
+  activityInteraction,
+  completedAt,
+  events,
+  interaction,
+  manifestId,
+  media,
+  record,
+  responses,
+}) {
   return {
+    activityInteraction,
     assignment: {
       id: record.assignmentId,
       participantEmail: actor.email,
@@ -1149,7 +1190,7 @@ function buildWorkflowManifest({ actor, completedAt, events, interaction, manife
       purpose: record.purpose,
       scheduledFor: record.scheduledFor ? new Date(record.scheduledFor).toISOString() : undefined,
     },
-    schema: "vasi-evidence-manifest/v4",
+    schema: "vasi-evidence-manifest/v5",
     tenant: tenantEvidenceProjection(record),
     timestamps: {
       completedAt: completedAt.toISOString(),

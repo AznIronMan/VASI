@@ -17,5 +17,6 @@ describe("engine migration ledger", () => {
     expect(source.match(/public\.\"_vasi_engine_migrations\"/g)).toHaveLength(3);
     expect(source).toContain("0008_engine_lifecycle_governance");
     expect(source).toContain("0009_engine_productization");
+    expect(source).toContain("0010_engine_activity_interaction");
   });
 });

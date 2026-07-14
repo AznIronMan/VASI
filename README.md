@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.16.0`
+Version: `0.17.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -152,6 +152,19 @@ bounded JSON and exit status omit origins, paths, certificate identities,
 settings, topology, credentials, and customer data so installations can attach
 their own scheduler and alert transport without changing VASI.
 
+Version 0.17.0 adds privacy-bounded generalized activity-interaction evidence
+to every workflow step. The participant browser emits only fixed presentation,
+visibility, focus, heartbeat, coarse-interaction, and disconnect events—never
+keys, input contents, pointer coordinates, plugins, or invasive fingerprinting
+signals. The private engine enforces participant/activity/session binding,
+strict event shapes, idempotent batch hashes, ordering, and installation
+bounds; PostgreSQL retains immutable raw batches, events, and deterministic
+summary revisions. Open, foreground-visible, engaged, idle, background, and
+uncredited-gap durations are sealed in manifest version 5, shown with honest
+confidence limits in human reports, included in approved participant data
+exports, independently recalculated by the offline verifier, and removed only
+through the existing controlled retention purge.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -217,6 +230,11 @@ milestones.
   YouTube/Vimeo playback telemetry, honest generic-frame/external-link
   downgrades, strict replay-safe event batches, unique-duration calculations,
   accessibility acknowledgement, and version 4 sealed evidence.
+- Privacy-bounded presentation, visibility, focus, heartbeat, coarse
+  interaction, idle, gap, and disconnect evidence for every activity, with
+  replay-safe batch envelopes, immutable deterministic revisions, version 5
+  sealing, human-readable timing summaries, offline recalculation, participant
+  data access, and controlled purge.
 - Deterministic human and machine evidence reports, immutable PostgreSQL export
   chunks, portable sealed ZIP bundles with authoritative document revisions,
   an offline verifier, a privacy-minimized public fingerprint verifier, key
@@ -394,6 +412,10 @@ duration calculations, and version 4 sealing. `npm run engine:probe:reports`
 verifies deterministic report reuse, PostgreSQL export streaming, certificate
 and standard seals when configured, portable offline verification, public
 lookup privacy, isolation, and tamper rejection.
+`npm run engine:probe:interaction` verifies generalized activity presence,
+strict privacy bounds, idempotency and changed-replay denial, deterministic
+open/visible/engaged/idle/gap calculations, resumed sessions, version 5 sealing,
+and offline tamper rejection.
 `npm run engine:probe:lifecycle` verifies named retention-policy binding,
 legal-hold enforcement and release, sealed purge tombstones, retired public
 verification, participant history, reviewed data export, controlled expiry,
@@ -420,6 +442,10 @@ the company roles, state machine, publication, lifecycle, and outbox contracts.
 The [document and electronic activity decision](docs/architecture/document-artifacts-and-activities.md)
 defines the PostgreSQL artifact lifecycle, supported contracts, streaming
 boundary, assurance language, and inspection limitations.
+The [generalized activity interaction evidence decision](docs/architecture/generalized-activity-interaction-evidence.md)
+defines its fixed privacy-bounded events, authorization and replay controls,
+deterministic duration model, PostgreSQL evidence, report and verifier
+behavior, lifecycle integration, and assurance limits.
 The [evidence report and verification decision](docs/architecture/evidence-reports-and-verification.md)
 defines deterministic report profiles, portable bundle contents, offline and
 online verification, PostgreSQL persistence, key rotation, certificate seals,

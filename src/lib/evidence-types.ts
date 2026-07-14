@@ -29,6 +29,10 @@ export type ParticipantAssignment = {
   contentHash?: string;
   expiresAt?: string;
   interaction?: { id: string; startedAt: string };
+  interactionEvidence?: {
+    policy: import("@/lib/owner-types").ActivityInteractionPolicy;
+    summary?: import("@/lib/owner-types").ActivityInteractionSummary;
+  };
   mediaSummary?: import("@/lib/owner-types").MediaSummary;
   instructions?: string;
   progress?: { current: number; total: number };

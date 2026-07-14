@@ -2,6 +2,7 @@
 
 import { FormEvent, PointerEvent, useRef, useState } from "react";
 
+import { useActivityInteractionRecorder } from "@/components/evidence/activity-interaction-recorder";
 import { ExternalMediaActivity } from "@/components/evidence/external-media-activity";
 import type { OpenParticipantAssignment } from "@/lib/evidence-types";
 import type { WorkflowActivityContent } from "@/lib/owner-types";
@@ -14,6 +15,8 @@ export function ParticipantRequest({ assignment, handle }: {
   handle: string;
 }) {
   const clientStartedAt = useRef(new Date().toISOString());
+  const participantCard = useRef<HTMLElement>(null);
+  const interactionEvidence = useActivityInteractionRecorder(assignment, handle, participantCard);
   const [pending, setPending] = useState<"save" | "submit">();
   const [message, setMessage] = useState<string>();
   const [strokes, setStrokes] = useState<SignatureStroke[]>([]);
@@ -35,6 +38,8 @@ export function ParticipantRequest({ assignment, handle }: {
     setPending(intent);
     setMessage(undefined);
     try {
+      if (intent === "submit") await interactionEvidence.disconnectAndFlush();
+      else await interactionEvidence.flush();
       const request = await fetch("/api/evidence/respond", {
         body: JSON.stringify({
           activityId: assignment.activityId,
@@ -61,13 +66,14 @@ export function ParticipantRequest({ assignment, handle }: {
       }
       window.location.assign(result.completed === false ? `/r/${handle}` : `/r/${handle}/receipt`);
     } catch (error) {
+      if (intent === "submit") interactionEvidence.resume();
       setMessage(error instanceof Error ? error.message : "Your response could not be recorded.");
       setPending(undefined);
     }
   }
 
   return (
-    <article className="participant-card" style={branding ? {
+    <article className="participant-card" ref={participantCard} style={branding ? {
       borderTopColor: branding.primaryColor,
       borderTopWidth: 4,
     } : undefined}>
@@ -86,8 +92,9 @@ export function ParticipantRequest({ assignment, handle }: {
             setStrokes={setStrokes}
           />
         </fieldset>
-        <p>Submitting records your authenticated account, exact response and labels, server timing, available browser/network context, and the immutable activity revision in a tamper-evident VASI record.</p>
+        <p>Submitting records your authenticated account, exact response and labels, server timing, available browser/network context, coarse browser-reported presence timing, and the immutable activity revision in a tamper-evident VASI record. Presence evidence does not record keys or input contents and does not prove attention or comprehension.</p>
         {assignment.savedResponseLabel && <p className="form-message">Last saved revision: {assignment.savedResponseLabel}</p>}
+        {interactionEvidence.error && <p className="form-message form-message--error" role="status">{interactionEvidence.error} Your response can still be submitted.</p>}
         {message && <p className={message.includes("could not") ? "form-message form-message--error" : "form-message"} role="status">{message}</p>}
         <div className="participant-actions">
           <button className="secondary-button" disabled={Boolean(pending)} name="intent" type="submit" value="save">{pending === "save" ? "Saving…" : "Save progress"}</button>

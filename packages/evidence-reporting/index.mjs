@@ -53,6 +53,7 @@ function buildReport(profile, context) {
         authentication: context.identity.authentication,
         email: context.identity.email,
       },
+      activityTiming: context.activityTiming,
       outcomes: context.outcomes,
       requester: context.requester,
     });
@@ -61,6 +62,7 @@ function buildReport(profile, context) {
     return Object.freeze({
       ...common,
       explanation: "This report explains who requested the activity, who completed it, what occurred, when it occurred, and how the integrity record can be checked.",
+      activityTiming: context.activityTiming,
       identity: context.identity,
       limitations: context.limitations,
       outcomes: context.outcomes,
@@ -71,7 +73,7 @@ function buildReport(profile, context) {
   if (profile === "technical") {
     return Object.freeze({
       ...common,
-      explanation: "This forensic report preserves complete event, manifest, authentication, client-context, media, artifact, response-revision, and seal data available in the sealed record.",
+      explanation: "This forensic report preserves complete event, manifest, authentication, client-context, generalized activity-interaction, media, artifact, response-revision, and seal data available in the sealed record.",
       events: context.record.events,
       limitations: context.limitations,
       manifest: context.manifest,
@@ -106,6 +108,13 @@ function reportContext(record) {
     sequence: event.sequence,
   })));
   const limitations = evidenceLimitations(manifest);
+  const activityTiming = latestActivityInteractionSummaries(manifest).map((entry) => Object.freeze({
+    activityId: entry.activityId,
+    confidence: entry.summary?.confidence?.level,
+    limitations: entry.summary?.confidence?.limitations || [],
+    revision: entry.revision,
+    timing: entry.summary?.timing,
+  }));
   const outcomes = manifest.outcome?.activities?.length
     ? manifest.outcome.activities
     : manifest.outcome?.response !== undefined
@@ -118,6 +127,7 @@ function reportContext(record) {
         }]
       : [];
   return {
+    activityTiming: Object.freeze(activityTiming),
     completedAt,
     eventReferences,
     identity: {
@@ -195,6 +205,13 @@ function evidenceLimitations(manifest) {
   for (const summary of manifest.media?.summaries || []) {
     for (const limitation of summary.summary?.confidence?.limitations || []) limitations.push(limitation);
   }
+  for (const summary of manifest.activityInteraction?.summaries || []) {
+    for (const limitation of summary.summary?.confidence?.limitations || []) limitations.push(limitation);
+  }
+  if (manifest.schema === "vasi-evidence-manifest/v5" &&
+      !(manifest.activityInteraction?.events || []).length) {
+    limitations.push("No browser-reported generalized activity-presence events were available when the record was sealed.");
+  }
   return Object.freeze([...new Set(limitations)]);
 }
 
@@ -205,6 +222,7 @@ function eventDescription(eventType, payload) {
     case "participant.responded": return `The participant recorded a response${payload?.activityId ? ` for ${payload.activityId}` : ""}.`;
     case "activity.completed": return `The participant completed activity ${payload?.activityId || "(unspecified)"}.`;
     case "media.telemetry.recorded": return `VASI accepted a bounded media telemetry batch${payload?.activityId ? ` for ${payload.activityId}` : ""}.`;
+    case "activity.interaction.recorded": return `VASI accepted a privacy-bounded activity-presence batch${payload?.activityId ? ` for ${payload.activityId}` : ""}.`;
     case "request.completed": return "All required activities completed and VASI sealed the transaction.";
     case "request.revoked": return "The company revoked the request.";
     case "request.reissued": return "The company reissued the request as a new transaction.";
@@ -250,6 +268,19 @@ function reportText(report) {
       lines.push(`${outcome.activityId}: ${outcome.responseLabel || printable(outcome.response)}${outcome.outcome ? ` (${outcome.outcome})` : ""}`);
     }
   }
+  if (report.activityTiming?.length) {
+    lines.push("", "ACTIVITY PRESENCE (BROWSER-REPORTED SUPPORTING EVIDENCE)");
+    for (const activity of report.activityTiming) {
+      lines.push(
+        `${activity.activityId}: open ${durationText(activity.timing?.openMilliseconds)}, ` +
+        `foreground-visible ${durationText(activity.timing?.foregroundVisibleMilliseconds)}, ` +
+        `engaged ${durationText(activity.timing?.engagedMilliseconds)}, ` +
+        `idle foreground ${durationText(activity.timing?.idleForegroundMilliseconds)}, ` +
+        `uncredited gaps ${durationText(activity.timing?.uncreditedGapMilliseconds)}; ` +
+        `confidence ${activity.confidence || "unavailable"}`,
+      );
+    }
+  }
   if (report.timeline) {
     lines.push("", "CHRONOLOGY");
     for (const entry of report.timeline) lines.push(`${entry.sequence}. ${entry.at || "time unavailable"} — ${entry.description} [${entry.eventId}]`);
@@ -284,6 +315,21 @@ function printable(value) {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value.join(", ");
   return JSON.stringify(value);
+}
+
+function latestActivityInteractionSummaries(manifest) {
+  const latest = new Map();
+  for (const entry of manifest.activityInteraction?.summaries || []) {
+    const previous = latest.get(entry.activityId);
+    if (!previous || Number(entry.revision) > Number(previous.revision)) {
+      latest.set(entry.activityId, entry);
+    }
+  }
+  return [...latest.values()];
+}
+
+function durationText(value) {
+  return Number.isFinite(value) && value >= 0 ? `${Math.round(value)} ms` : "unavailable";
 }
 
 function escapeHTML(value) {

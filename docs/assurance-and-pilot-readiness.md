@@ -34,7 +34,8 @@ Primary protected assets are:
 
 - authentication identities, sessions, provider links, and invitation tokens;
 - tenant membership, workflow definitions, participant assignments, answers,
-  signatures, documents, media telemetry, and lifecycle decisions;
+  signatures, documents, generalized activity/media telemetry, and lifecycle
+  decisions;
 - evidence event chains, reports, bundles, public verification fingerprints,
   integrity seals, and signing-key history;
 - PostgreSQL credentials, runtime-settings encryption keys, service TLS and
@@ -70,12 +71,13 @@ legal enforceability by itself.
 | EVID-2 | Signing-key mismatch, loss, unsafe rotation, or certificate misconfiguration | Startup private/public key proof; key-ID fingerprint conflict rejection; historical public-key records; optional certificate configuration is all-or-nothing; offline verification needs no private key | Custody, backup, rotation approval, revocation, HSM/KMS, and TSA profiles require operator policy |
 | ART-1 | Malicious or oversized document upload, loose-file persistence, or parser exploit | Bounded streaming into quarantined PostgreSQL chunks; exact hashes; media-type/structure and EICAR checks; atomic publish/reject; no authoritative loose document | Built-in inspection is not comprehensive malware detection; a replaceable scanner is required for higher-risk pilots |
 | MEDIA-1 | False playback/attention claim or hostile embed | Exact provider/origin descriptors; sandboxed frames; capability-specific adapters; visibility/gap/seek limits; raw telemetry and confidence statements; accessibility alternatives | Provider/browser telemetry cannot prove attention or comprehension |
+| ACT-1 | False activity-presence claim, replay, or privacy-invasive browser capture | Fixed no-detail event vocabulary; no keys, input contents, coordinates, plugins, or fingerprinting signals; participant/activity/session binding; strict batch hashes, sequence and count bounds; immutable raw evidence and deterministic revisions; offline recalculation; explicit confidence limits | Browser events can be absent, automated, or spoofed and cannot prove attention or comprehension |
 | OUT-1 | SSRF, credential disclosure, duplicate delivery, or provider response leakage | Installation exact Graph tenant/application/sender and SMTP/webhook host allowlists; fixed Graph origins; encrypted revisioned credentials; isolated integration process; bounded response handling; strict delivery contract; redaction; idempotency key; immutable attempts | Graph and SMTP are at-least-once and webhook consumers must enforce idempotency |
 | CFG-1 | Secret leakage through source, environment, logs, exports, or settings tools | No environment files; mode-0600 SQLite bootstrap; AES-256-GCM PostgreSQL runtime settings; value-redacting CLI; no application secrets in container environments; tracked-source secret gate; export redaction | Host memory, database administrator, and backup custody remain trusted boundaries |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
 | SUP-1 | Vulnerable or unaccounted dependency/image content | Lockfile builds; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; minimal non-root runtime images without npm | Vulnerability data changes over time, so every release and periodic rescan are required |
 | AVAIL-1 | Resource exhaustion or dependency outage | Bounded payloads/chunks/batches; PostgreSQL pool limits; request timeouts; retry ceilings; health checks; read-only readiness load gate; external provider isolation | Customer-specific capacity, RTO/RPO, and denial-of-service protection require measured pilot targets |
-| PRIV-1 | Excess collection, fingerprinting, or misleading evidence interpretation | Purpose-limited fields; unavailable values remain absent; raw telemetry labeled supporting; participant history and reviewed data request; redacted public verification and participant reports | Legal/privacy owners must approve notices, lawful basis, retention, and subject-right handling |
+| PRIV-1 | Excess collection, fingerprinting, or misleading evidence interpretation | Purpose-limited fixed fields; unavailable values remain absent; generalized telemetry excludes interaction detail and is labeled supporting; participant history and reviewed data request; redacted public verification and participant reports | Legal/privacy owners must approve notices, lawful basis, retention, and subject-right handling |
 
 ## Repeatable release evidence
 

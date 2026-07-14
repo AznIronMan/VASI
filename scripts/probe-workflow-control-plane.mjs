@@ -110,7 +110,7 @@ const record = await call(auditor, "POST", "/v1/owner/records", {
 });
 expectStatus(record, 200, "auditor record access");
 if (
-  record.body.manifest?.schema !== "vasi-evidence-manifest/v4" ||
+  record.body.manifest?.schema !== "vasi-evidence-manifest/v5" ||
   record.body.manifest.workflow.snapshot.title !== "Published revision one" ||
   record.body.manifest.outcome.activities.length !== 2 ||
   !verifyEvidenceRecord(record.body)

@@ -40,6 +40,11 @@ export function friendlyEngineError(code?: string) {
     case "media_event_limit_reached": return "The hosted-media evidence limit was reached. Contact the requesting company before continuing.";
     case "media_event_sequence_conflict": return "Playback evidence arrived out of order. Reload the request before continuing.";
     case "media_batch_replay_conflict": return "A playback evidence batch was replayed with different content and was rejected.";
+    case "activity_interaction_unavailable": return "Activity-presence evidence is no longer available for this step.";
+    case "activity_interaction_event_limit_reached": return "The activity-presence evidence limit was reached. Contact the requesting company before continuing.";
+    case "activity_interaction_event_sequence_conflict": return "Activity-presence evidence arrived out of order. Reload the request before continuing.";
+    case "activity_interaction_batch_replay_conflict": return "An activity-presence evidence batch was replayed with different content and was rejected.";
+    case "activity_interaction_state_conflict": return "The activity-presence session no longer matches this workflow step.";
     case "content_unavailable": return "The company’s access policy no longer makes this document available.";
     case "participant_history_unavailable": return "This record is no longer available in participant history.";
     case "retention_policy_version_conflict": return "That retention policy changed after it was loaded. Refresh before saving.";

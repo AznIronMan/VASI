@@ -90,7 +90,8 @@ open an export while any scope remains pending. Approved exports:
 
 - include the participant's matching assignments, responses, authentication
   provenance, participant-related evidence events, access events, lifecycle
-  policy, available media telemetry, fingerprints, and public seal material;
+  policy, generalized activity summary revisions, approved raw generalized
+  activity/media telemetry, fingerprints, and public seal material;
 - exclude requesting-organization secrets and internal-only metadata, workflow
   answer keys and source content, and unrelated third-party personal data;
 - use canonical JSON, bounded PostgreSQL chunks, SHA-256 integrity, and detached

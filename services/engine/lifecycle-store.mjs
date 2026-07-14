@@ -23,7 +23,7 @@ import { hasTenantPermission } from "../../packages/engine-domain/workflow.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { createSigningProvider } from "./signing-provider.mjs";
 
-const ENGINE_VERSION = "0.16.0";
+const ENGINE_VERSION = "0.17.0";
 const GENESIS_HASH = "0".repeat(64);
 const DATA_EXPORT_SCHEMA = "vasi-participant-data-export/v1";
 
@@ -889,8 +889,45 @@ async function loadParticipantDataRecord(client, {
      where m."assignmentId" = $1 order by s."sealRole", s."keyId"`,
     [assignmentId],
   );
+  const interactionSummariesResult = await client.query(
+    `select i."activityId", s."revision", s."policy", s."summary", s."summaryHash", s."calculatedAt"
+     from "vasi_engine"."activity_interaction_summary_revision" s
+     join "vasi_engine"."activity_instance" i on i."id" = s."activityInstanceId"
+     where s."assignmentId" = $1 order by i."ordinal", s."revision"`,
+    [assignmentId],
+  );
+  let activityInteractionBatches = [];
+  let activityInteractionEvents = [];
   let media = [];
   if (includeTechnicalTelemetry) {
+    const interactionBatchResult = await client.query(
+      `select i."activityId", b."id", b."interactionId", b."telemetrySessionId",
+              b."actorPrincipalId", b."eventCount", b."payloadHash", b."receivedAt"
+       from "vasi_engine"."activity_interaction_event_batch" b
+       join "vasi_engine"."activity_instance" i on i."id" = b."activityInstanceId"
+       where b."assignmentId" = $1 order by i."ordinal", b."receivedAt", b."id"`,
+      [assignmentId],
+    );
+    activityInteractionBatches = interactionBatchResult.rows.map((entry) => ({
+      ...entry,
+      eventCount: Number(entry.eventCount),
+      receivedAt: new Date(entry.receivedAt).toISOString(),
+    }));
+    const interactionResult = await client.query(
+      `select i."activityId", e."id", e."telemetrySessionId", e."sequence",
+              e."eventType", e."monotonicMs", e."eventData", e."receivedAt"
+       from "vasi_engine"."activity_interaction_event" e
+       join "vasi_engine"."activity_instance" i on i."id" = e."activityInstanceId"
+       where e."assignmentId" = $1
+       order by i."ordinal", e."telemetrySessionId", e."sequence"`,
+      [assignmentId],
+    );
+    activityInteractionEvents = interactionResult.rows.map((entry) => ({
+      ...entry,
+      monotonicMs: Number(entry.monotonicMs),
+      receivedAt: new Date(entry.receivedAt).toISOString(),
+      sequence: Number(entry.sequence),
+    }));
     const mediaResult = await client.query(
       `select e."id", e."activityInstanceId", e."telemetrySessionId", e."sequence",
               e."eventType", e."monotonicMs", e."eventData", e."receivedAt"
@@ -920,6 +957,16 @@ async function loadParticipantDataRecord(client, {
       participantEmail: row.participantEmail,
       principalId: row.principalId,
       status: row.assignmentStatus,
+    },
+    activityInteractionEvidence: {
+      batches: activityInteractionBatches,
+      events: activityInteractionEvents,
+      summaries: interactionSummariesResult.rows.map((entry) => ({
+        ...entry,
+        calculatedAt: new Date(entry.calculatedAt).toISOString(),
+        revision: Number(entry.revision),
+      })),
+      telemetryIncluded: includeTechnicalTelemetry,
     },
     evidence: {
       eventCount: eventsResult.rowCount,

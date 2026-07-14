@@ -171,6 +171,44 @@ export type MediaSummary = {
   sessionIntegrity: { disconnectCount: number; incompleteSessionCount: number };
 };
 
+export type ActivityInteractionPolicy = {
+  heartbeatSeconds: number;
+  idleSeconds: number;
+  maxCreditedGapSeconds: number;
+  version: "vasi-activity-interaction-policy/v1";
+};
+
+export type ActivityInteractionSummary = {
+  calculation: {
+    clock: "browser_monotonic";
+    policyVersion: string;
+    telemetryPolicy: Omit<ActivityInteractionPolicy, "version">;
+  };
+  confidence: { level: "low" | "medium"; limitations: string[] };
+  events: {
+    count: number;
+    firstClientOccurredAt?: string;
+    firstReceivedAt?: string;
+    focusCount: number;
+    heartbeatCount: number;
+    interactionCount: number;
+    lastClientOccurredAt?: string;
+    lastReceivedAt?: string;
+    presentedCount: number;
+    visibleCount: number;
+  };
+  schema: "vasi-activity-interaction-summary/v1";
+  sessions: { count: number; disconnectCount: number; incompleteCount: number };
+  timing: {
+    backgroundOrHiddenMilliseconds: number;
+    engagedMilliseconds: number;
+    foregroundVisibleMilliseconds: number;
+    idleForegroundMilliseconds: number;
+    openMilliseconds: number;
+    uncreditedGapMilliseconds: number;
+  };
+};
+
 export type WorkflowActivityContent = {
   artifact?: OwnerArtifact;
   artifactId?: string;

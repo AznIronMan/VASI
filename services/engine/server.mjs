@@ -18,6 +18,7 @@ import { createArtifactStore } from "./artifact-store.mjs";
 import { createEvidenceStore, EvidenceStoreError } from "./evidence-store.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { createLifecycleStore } from "./lifecycle-store.mjs";
+import { createInteractionStore } from "./interaction-store.mjs";
 import { createMediaStore } from "./media-store.mjs";
 import { createOperationsStore } from "./operations-store.mjs";
 import { createProductStore } from "./product-store.mjs";
@@ -25,7 +26,7 @@ import { createReportStore } from "./report-store.mjs";
 import { initializeSigningKeys } from "./signing-provider.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.16.0";
+const ENGINE_VERSION = "0.17.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -36,6 +37,7 @@ const assertionPublicKey = await importJWK(
 const database = createSettingsPool(bootstrap);
 const evidence = createEvidenceStore(database, settings);
 const artifacts = createArtifactStore(database, settings);
+const interactions = createInteractionStore(database, settings);
 const media = createMediaStore(database, settings);
 const lifecycle = createLifecycleStore(database, settings);
 const reports = createReportStore(database, settings);
@@ -239,6 +241,7 @@ function dispatchEvidence(action, actor, payload) {
     case "participant.data_export.open": return lifecycle.openParticipantDataExport(actor, payload);
     case "participant.data_export.read": return lifecycle.readParticipantDataExportChunk(actor, payload);
     case "participant.respond": return evidence.respond(actor, payload);
+    case "participant.interaction.events": return interactions.recordParticipantEvents(actor, payload);
     case "participant.media.open": return media.openParticipantMedia(actor, payload);
     case "participant.media.events": return media.recordParticipantEvents(actor, payload);
     case "participant.receipt": return evidence.participantReceipt(actor, payload);
@@ -261,6 +264,7 @@ function errorCode(error) {
   if (error?.code === "INVALID_WORKFLOW") return "invalid_workflow";
   if (error?.code === "INVALID_ARTIFACT") return "invalid_artifact";
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
+  if (error?.code === "INVALID_ACTIVITY_INTERACTION") return "invalid_activity_interaction";
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return "invalid_media_telemetry";
   if (error?.code === "INVALID_LIFECYCLE") return "invalid_lifecycle";
   if (error?.code === "INVALID_PRODUCT_CONFIGURATION") return "invalid_product_configuration";
@@ -290,6 +294,7 @@ function errorStatus(error) {
   if (error?.code === "INVALID_WORKFLOW") return 400;
   if (error?.code === "INVALID_ARTIFACT") return 400;
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return 400;
+  if (error?.code === "INVALID_ACTIVITY_INTERACTION") return 400;
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return 400;
   if (error?.code === "INVALID_LIFECYCLE") return 400;
   if (error?.code === "INVALID_PRODUCT_CONFIGURATION") return 400;
@@ -302,6 +307,7 @@ function publicErrorCode(error, status) {
   if (error instanceof EngineStoreError) return error.code;
   if (error?.code === "INVALID_ARTIFACT") return "invalid_artifact";
   if (error?.code === "INVALID_ACTIVITY_RESPONSE") return "invalid_activity_response";
+  if (error?.code === "INVALID_ACTIVITY_INTERACTION") return "invalid_activity_interaction";
   if (error?.code === "INVALID_MEDIA_TELEMETRY") return "invalid_media_telemetry";
   if (error?.code === "INVALID_LIFECYCLE") return "invalid_lifecycle";
   if (error?.code === "INVALID_PRODUCT_CONFIGURATION") return "invalid_product_configuration";

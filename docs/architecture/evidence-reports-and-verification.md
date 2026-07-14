@@ -28,11 +28,14 @@ format for the same manifest reuses the same immutable PostgreSQL export.
 The supported profiles are:
 
 - `participant`: identity method, requester, outcomes, material times, event
-  references, and integrity information without forensic IP/user-agent detail;
+  references, latest browser-reported activity timing, and integrity
+  information without forensic IP/user-agent or raw interaction-event detail;
 - `nontechnical`: a plain-language chronology, requester and participant
-  identity, outcomes, limitations, and integrity explanation;
+  identity, outcomes, latest activity timing, limitations, and integrity
+  explanation;
 - `technical`: the complete available sealed events, manifest, response and
-  media detail, authentication/client context, seals, and verification data;
+  generalized activity/media detail, authentication/client context, seals, and
+  verification data;
 - `structured`: the sealed record without interpretive additions.
 
 Reports are available as canonical JSON-derived JSON, UTF-8 text, and printable
@@ -62,7 +65,8 @@ settings; the default complete bundle limit is 64 MiB.
 `npm run evidence:verify -- <bundle.zip>` verifies ZIP structure, CRC values,
 every declared entry length and SHA-256 digest, absence of undeclared entries,
 the bundle root, every bundle seal, the evidence event chain, manifest binding,
-every record seal, and regenerated report bytes. It needs no private key, LLM,
+generalized activity batch hashes and latest summaries, every record seal, and
+regenerated report bytes. It needs no private key, LLM,
 network service, or database. `--json` produces a machine-readable result. A
 sealed record JSON can be verified directly with the same command.
 

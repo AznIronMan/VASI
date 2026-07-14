@@ -13,4 +13,14 @@ describe("portable evidence record verification", () => {
     expect(result.verified).toBe(false);
     expect(result.errors).toContain("event_2_hash_invalid");
   });
+
+  it("recalculates generalized activity-interaction evidence and rejects sealed telemetry tampering", () => {
+    const { record } = sealedTestRecord();
+    expect(verifyEvidenceRecord(record).checks.activityInteraction).toBe(true);
+    const altered = structuredClone(record);
+    altered.manifest.activityInteraction.events[3].event.monotonicMs = 9_000;
+    const result = verifyEvidenceRecord(altered);
+    expect(result.verified).toBe(false);
+    expect(result.errors).toContain("activity_interaction_summary_calculation_invalid");
+  });
 });

@@ -161,7 +161,7 @@ const approval = outcomes.find((entry) => entry.activityId === "approval");
 const freeform = outcomes.find((entry) => entry.activityId === "freeform");
 const test = outcomes.find((entry) => entry.activityId === "test");
 if (
-  record.body.manifest.schema !== "vasi-evidence-manifest/v4" ||
+  record.body.manifest.schema !== "vasi-evidence-manifest/v5" ||
   record.body.manifest.workflow.snapshot.activities[0].content.artifact.sha256 !== artifact.sha256 ||
   outcomes.length !== 7 || approval.revisions.length !== 2 || freeform.revisions.length !== 3 ||
   !test.result?.passed || !verifyEvidenceRecord(record.body)

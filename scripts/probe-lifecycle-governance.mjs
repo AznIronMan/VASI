@@ -176,12 +176,15 @@ async function proveHoldSafeRetentionPurge() {
        (select count(*) from "vasi_engine"."evidence_event" where "assignmentId" = $1) as "events",
        (select count(*) from "vasi_engine"."activity_instance" where "assignmentId" = $1) as "activities",
        (select count(*) from "vasi_engine"."activity_response_revision" where "assignmentId" = $1) as "responses",
+       (select count(*) from "vasi_engine"."activity_interaction_event" where "assignmentId" = $1) as "interactionEvents",
+       (select count(*) from "vasi_engine"."activity_interaction_summary_revision" where "assignmentId" = $1) as "interactionSummaries",
        (select count(*) from "vasi_engine"."record_lifecycle_event" where "assignmentId" = $1) as "lifecycleEvents"`,
     [completed.assignmentId],
   );
   if (
     Number(sourceRows.rows[0].assignments) || Number(sourceRows.rows[0].events) ||
     Number(sourceRows.rows[0].activities) || Number(sourceRows.rows[0].responses) ||
+    Number(sourceRows.rows[0].interactionEvents) || Number(sourceRows.rows[0].interactionSummaries) ||
     Number(sourceRows.rows[0].lifecycleEvents) < 5
   ) {
     throw new Error("Retention purge did not remove source rows while preserving its lifecycle audit.");
@@ -214,7 +217,7 @@ async function proveHoldSafeRetentionPurge() {
 
 async function proveReviewedParticipantDataExport() {
   const tenant = await createTenant("VASI Participant Data Proof", "participant-data");
-  const completed = await issueAndComplete(tenant.id, participant, "Participant data export proof");
+  const completed = await issueAndCompleteWorkflow(tenant.id, participant, "Participant data export proof");
   const history = await call(participant, "GET", "/v1/participant/history");
   expectStatus(history, 200, "participant history");
   if (!history.body.some((entry) => entry.assignmentId === completed.assignmentId)) {
@@ -258,7 +261,11 @@ async function proveReviewedParticipantDataExport() {
     payload.profile !== DATA_EXPORT_PROFILE ||
     payload.request.requester.email !== participant.email ||
     !payload.scopes.some((scope) => scope.records.some(
-      (entry) => entry.assignment.id === completed.assignmentId && entry.events.length > 0,
+      (entry) => entry.assignment.id === completed.assignmentId && entry.events.length > 0 &&
+        entry.activityInteractionEvidence.telemetryIncluded &&
+        entry.activityInteractionEvidence.batches.length > 0 &&
+        entry.activityInteractionEvidence.events.length > 0 &&
+        entry.activityInteractionEvidence.summaries.length > 0,
     ))
   ) throw new Error("The reviewed participant data export omitted expected participant data.");
   const serialized = bytes.toString("utf8");
@@ -344,33 +351,6 @@ async function proveExpiredExportCleanup() {
   await assertHashChain("participant_data_request_event", "requestId", requestId);
 }
 
-async function issueAndComplete(tenantId, participantActor, title) {
-  const issued = await call(owner, "POST", "/v1/owner/requests", {
-    intendedEmail: participantActor.email,
-    prompt: "Do you acknowledge this lifecycle governance proof?",
-    purpose: "Lifecycle and privacy conformance",
-    responseMode: "yes_no",
-    tenantId,
-    terms: "This disposable proof verifies lifecycle governance behavior.",
-    title,
-  });
-  expectStatus(issued, 200, `${title} issue`);
-  const handle = issued.body.participantPath.split("/").at(-1);
-  const opened = await call(participantActor, "POST", "/v1/participant/open", { handle });
-  expectStatus(opened, 200, `${title} open`);
-  const completed = await call(participantActor, "POST", "/v1/participant/respond", {
-    commandId: randomUUID(),
-    handle,
-    interactionId: opened.body.interaction.id,
-    response: "yes",
-  });
-  expectStatus(completed, 200, `${title} completion`);
-  return {
-    assignmentId: issued.body.assignmentId,
-    manifestHash: completed.body.integrity.manifestHash,
-  };
-}
-
 async function issueAndCompleteWorkflow(tenantId, participantActor, title) {
   const created = await call(owner, "POST", "/v1/owner/workflows", {
     document: {
@@ -417,6 +397,7 @@ async function issueAndCompleteWorkflow(tenantId, participantActor, title) {
   const handle = issued.body.participantPath.split("/").at(-1);
   let opened = await call(participantActor, "POST", "/v1/participant/open", { handle });
   expectStatus(opened, 200, `${title} first activity open`);
+  await recordActivityInteraction(participantActor, handle, opened.body, `${title} first activity`);
   const first = await call(participantActor, "POST", "/v1/participant/respond", {
     commandId: randomUUID(),
     handle,
@@ -426,6 +407,7 @@ async function issueAndCompleteWorkflow(tenantId, participantActor, title) {
   expectStatus(first, 200, `${title} first activity completion`);
   opened = await call(participantActor, "POST", "/v1/participant/open", { handle });
   expectStatus(opened, 200, `${title} second activity open`);
+  await recordActivityInteraction(participantActor, handle, opened.body, `${title} second activity`);
   const completed = await call(participantActor, "POST", "/v1/participant/respond", {
     commandId: randomUUID(),
     handle,
@@ -436,6 +418,74 @@ async function issueAndCompleteWorkflow(tenantId, participantActor, title) {
   return {
     assignmentId: issued.body.assignmentId,
     manifestHash: completed.body.integrity.manifestHash,
+  };
+}
+
+async function recordActivityInteraction(participantActor, handle, assignment, label) {
+  const telemetrySessionId = randomUUID();
+  const batch = {
+    activityId: assignment.activityId,
+    batchId: randomUUID(),
+    events: [
+      interactionEvent(1, "presented", 0),
+      interactionEvent(2, "visible", 0),
+      interactionEvent(3, "focus", 0),
+      interactionEvent(4, "interaction", 1_000),
+      interactionEvent(5, "heartbeat", 10_000),
+      interactionEvent(6, "disconnect", 12_000),
+    ],
+    handle,
+    interactionId: assignment.interaction.id,
+    telemetrySessionId,
+  };
+  const denied = await call(outsider, "POST", "/v1/participant/interaction-events", batch);
+  expectStatus(denied, 404, `${label} cross-participant interaction denial`);
+  const result = await call(participantActor, "POST", "/v1/participant/interaction-events", batch);
+  expectStatus(result, 200, `${label} interaction telemetry`);
+  if (
+    result.body.accepted !== 6 || result.body.duplicate ||
+    result.body.summary.events.count !== 6 ||
+    result.body.summary.timing.openMilliseconds !== 12_000 ||
+    result.body.summary.timing.foregroundVisibleMilliseconds !== 12_000 ||
+    result.body.summary.timing.engagedMilliseconds !== 11_000 ||
+    result.body.summary.timing.idleForegroundMilliseconds !== 1_000 ||
+    result.body.summary.confidence.level !== "medium"
+  ) throw new Error(`${label} deterministic interaction summary failed.`);
+  const duplicate = await call(participantActor, "POST", "/v1/participant/interaction-events", batch);
+  expectStatus(duplicate, 200, `${label} interaction idempotency`);
+  if (!duplicate.body.duplicate || duplicate.body.accepted !== 0) {
+    throw new Error(`${label} interaction idempotency failed.`);
+  }
+  const changed = {
+    ...batch,
+    events: [
+      ...batch.events.slice(0, -1),
+      interactionEvent(6, "disconnect", 11_000),
+    ],
+  };
+  expectStatus(
+    await call(participantActor, "POST", "/v1/participant/interaction-events", changed),
+    409,
+    `${label} changed interaction replay denial`,
+  );
+  expectStatus(
+    await call(participantActor, "POST", "/v1/participant/interaction-events", {
+      ...batch,
+      batchId: randomUUID(),
+      events: [interactionEvent(6, "heartbeat", 13_000)],
+    }),
+    409,
+    `${label} interaction sequence replay denial`,
+  );
+}
+
+function interactionEvent(sequence, type, monotonicMs) {
+  return {
+    clientOccurredAt: new Date(Date.now() + sequence).toISOString(),
+    id: randomUUID(),
+    monotonicMs,
+    sequence,
+    type,
   };
 }
 
