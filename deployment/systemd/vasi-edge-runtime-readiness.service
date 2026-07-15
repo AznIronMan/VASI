@@ -4,6 +4,7 @@ Documentation=file:/opt/vasi-edge/current/docs/architecture/recurring-public-edg
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
+OnFailure=vasi-edge-alert-record@%n.service
 
 [Service]
 Type=oneshot

@@ -85,7 +85,7 @@ legal enforceability by itself.
 | CUST-1 | Matched backup disclosure, copy corruption, unsafe pruning, lost recipient key, or false off-host confidence | Verified matched source; no plaintext aggregate archive; streaming fixed-size independently authenticated AES-256-GCM chunks; ephemeral X25519/HKDF and per-recipient authenticated key wraps; application stores public recipients only; whole-package copy digest; strict structure/freshness checks; verified-candidate retention; authenticated offline extraction with no partial output | Installation must prove remote transfer, geographic/organizational separation, private-key custody and recovery, deletion/legal-hold policy, restore drills, and RPO/RTO; a compromised authorized source host can create a false backup |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
 | SUP-1 | Vulnerable, unaccounted, or non-executable image content | Exact-lock production installs omit development/optional packages and lifecycle scripts; source assurance pins that build contract; physical image inspection rejects npm/npx plus every declared-development or lock-marked development/optional path outside the role-specific reviewed `sharp` exception; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial; daily exact-live-edge-image rescan with atomic digest-bound retained evidence and independent finding recount | Vulnerability intelligence and scanner behavior remain external inputs; installations still require response ownership and independent assessment; the runtime-package exception is architecture-specific and must be reviewed when the supported image platform changes |
-| AVAIL-1 | Resource exhaustion, dependency outage, or silently stopped recurring control | Pre-parser 64 KiB gateway/authentication body bounds with independent private-engine limits; bounded payloads/chunks/batches; PostgreSQL pool limits; durable public-verification and provider-detection throttling; bounded/cancellable DNS work; retry ceilings; canonical edge body/header/connection/request/upstream-time limits and no automatic retry; health checks; read-only readiness load gate; external provider isolation; independent persistent hardened backup, capacity, deployment, operational, egress, exact-edge-image, and edge-runtime timers; recurring effective-config/public/retired/scan-drift proof; release-time exact scheduler contract validation | Customer-specific capacity, RTO/RPO, external alert delivery, volumetric protection, and upstream infrastructure policy require measured pilot targets |
+| AVAIL-1 | Resource exhaustion, dependency outage, or silently stopped recurring control | Pre-parser 64 KiB gateway/authentication body bounds with independent private-engine limits; bounded payloads/chunks/batches; PostgreSQL pool limits; durable public-verification and provider-detection throttling; bounded/cancellable DNS work; retry ceilings; canonical edge body/header/connection/request/upstream-time limits and no automatic retry; health checks; read-only readiness load gate; external provider isolation; independent persistent hardened backup, capacity, deployment, operational, egress, exact-edge-image, and edge-runtime timers; recurring effective-config/public/retired/scan-drift proof; root-owned bounded alert spools with non-recursive one-minute readiness and explicit acknowledgement; release-time exact scheduler contract validation | Customer-specific capacity, RTO/RPO, off-host alert delivery and host-loss detection, volumetric protection, and upstream infrastructure policy require measured pilot targets |
 | PRIV-1 | Excess collection, fingerprinting, or misleading evidence interpretation | Purpose-limited fixed fields; unavailable values remain absent; generalized telemetry excludes interaction detail; participant context rejects plugin/font enumeration, invasive fingerprints, precise location, hardware IDs, hidden media, keys/content/coordinates, and secrets; every browser value is labeled supporting; participant history and reviewed data request; redacted public verification and participant reports | Legal/privacy owners must approve notices, lawful basis, retention, and subject-right handling |
 
 ## Repeatable release evidence
@@ -220,8 +220,10 @@ tenant/binding counts, query latency, and connection-pool pressure. Contract
 tests and the live service proof reject participant, email, request, content,
 response, link, payload, recipient, and credential fields. The host probe
 applies the versioned thresholds in `config/assurance-policy.json` and exits
-nonzero on failure so an installation-selected scheduler can alert without
-making VASI depend on a proprietary monitoring product.
+nonzero on failure. The packaged recurring scheduler and durable local handoff
+keep that failure pending until explicit acknowledgement, while an
+installation-selected external dispatcher can alert without making VASI depend
+on a proprietary monitoring product.
 
 VASI 0.15.0 implements the host-backup portion without moving host topology or
 backup credentials into the engine. `backup-continuity.mjs create` atomically
@@ -280,8 +282,11 @@ and timer, so source assurance now enumerates all 24 units and rejects missing o
 extra files, weakened sandbox/persistence/recurrence, environment files,
 customer origins or home paths, ignored live overrides, Docker-socket mounts,
 privileged mode, and host networking. Target-host `systemd-analyze verify` and
-manual first runs remain mandatory. Alert delivery and named response ownership
-remain installation gates.
+manual first runs remain mandatory. VASI 0.42.0 expands the exact contract to
+37 units and wires every monitored failure into a bounded, root-owned durable
+spool with a non-recursive one-minute readiness check and explicit
+acknowledgement. External delivery and named response ownership remain
+installation gates.
 
 VASI 0.40.0 expands that exact contract from 24 to 28 units with independent
 public-edge image and runtime schedules. The daily control exports and scans
@@ -292,8 +297,9 @@ rollback containers, restart policy, configured listeners, Nginx syntax and
 effective policy, certificate-verified public/retired behavior, and a fresh
 byte-identical scan manifest for the exact live image. Its digest-pinned Node
 auditor runs no-network in a hardened container, so the edge host gains no
-general Node runtime. Alert transport and independent host compromise
-detection remain installation responsibilities.
+general Node runtime. The product-owned durable handoff prevents transient
+edge failures from disappearing, while external alert transport and
+independent host compromise detection remain installation responsibilities.
 
 VASI 0.41.0 makes release selection a fail-closed production boundary. The
 gateway and engine activator rejects missing or loose protected configuration,

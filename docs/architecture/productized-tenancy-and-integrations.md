@@ -205,8 +205,11 @@ hardened maintenance images. It reads only the selected gateway or engine
 settings scope, checks public health/version and trusted TLS, parses public
 service-certificate material, and measures an explicitly mounted filesystem.
 The command outputs no origin, path, certificate identity/material, setting,
-credential, topology, installation identity, or customer data. Scheduling and
-alert transport remain installation-owned.
+credential, topology, installation identity, or customer data. Recurring
+scheduling and a bounded durable local failure handoff are product-owned.
+External alert transport, destination, escalation, and independent host-loss
+detection remain installation-owned; see the
+[operational-alert handoff decision](durable-operational-alert-handoff.md).
 
 For recovery onto a replacement PostgreSQL endpoint, first restore with a
 temporary destination bootstrap. Then replace that temporary file with a copy

@@ -1,6 +1,6 @@
 # Recurring operational scheduler contract
 
-Status: implemented in VASI 0.24.0 and extended through VASI 0.41.1.
+Status: implemented in VASI 0.24.0 and extended through VASI 0.42.0.
 
 VASI ships the recurring host controls needed to keep a healthy release from
 silently degrading after deployment. The portable contract uses hardened
@@ -22,6 +22,7 @@ customer-specific path.
 | Engine | Egress boundary verification | 5 minutes | Private denial, integration egress, listener replies, health, or database transport failed |
 | Public edge | Exact live-image assurance | 24 hours | The live image drifted or its fresh SBOM/vulnerability evidence is missing, mismatched, corrupt, or blocking |
 | Public edge | Runtime and evidence readiness | 15 minutes | Container/rollback/listener/Nginx/public/retired-route state drifted or exact scan evidence is stale |
+| Gateway, engine, and public edge | Durable alert-spool readiness | 1 minute | A recurring-control failure remains unacknowledged, the bounded spool overflowed, or protected state is malformed |
 
 Every timer has boot-relative and activation-relative first runs plus an
 `OnUnitInactiveSec` recurrence. `Persistent=yes` makes missed wall-clock work
@@ -39,12 +40,16 @@ filesystem roots:
 - engine release: `/opt/vasi-engine/current` with releases under
   `/opt/vasi-engine/releases`;
 - gateway backups: `/var/lib/vasi/backups/maintenance/scheduled`;
-- engine backups: `/var/lib/vasi-engine/backups/maintenance/scheduled`; and
+- engine backups: `/var/lib/vasi-engine/backups/maintenance/scheduled`;
 - an empty capacity sentinel at `/var/lib/vasi-capacity`;
 - edge release: `/opt/vasi-edge/current` with exact releases under
-  `/opt/vasi-edge/releases`; and
+  `/opt/vasi-edge/releases`;
 - root-owned edge monitor state under `/var/lib/vasi-edge` and scanner cache
-  under `/var/cache/vasi-edge`.
+  under `/var/cache/vasi-edge`; and
+- role-specific root-owned operational-alert state under
+  `/var/lib/vasi/operations-alerts`,
+  `/var/lib/vasi-engine/operations-alerts`, or
+  `/var/lib/vasi-edge/operations-alerts`.
 
 Deployment readiness accepts an explicit credential-free HTTPS origin for
 interactive use. When the origin is omitted, it reads `BETTER_AUTH_URL` for the
@@ -76,6 +81,9 @@ sentinel must be empty and search-only.
 ```bash
 sudo install -d -o 1000 -g 1000 -m 0700 /var/lib/vasi/backups/maintenance/scheduled
 sudo install -d -o root -g root -m 0111 /var/lib/vasi-capacity
+sudo install -d -o root -g root -m 0755 /usr/local/libexec/vasi
+sudo install -o root -g root -m 0555 scripts/operational-alert-spool.sh \
+  /usr/local/libexec/vasi/operational-alert-spool.sh
 sudo install -m 0644 deployment/systemd/vasi-gateway-* /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemd-analyze verify /etc/systemd/system/vasi-gateway-*.service \
@@ -121,11 +129,13 @@ sudo systemctl start vasi-gateway-backup-check.service
 sudo systemctl start vasi-gateway-capacity-readiness.service
 sudo systemctl start vasi-gateway-deployment-readiness.service
 sudo systemctl start vasi-gateway-operational-readiness.service
+sudo systemctl start vasi-gateway-alert-readiness.service
 sudo systemctl enable --now vasi-gateway-backup-create.timer \
   vasi-gateway-backup-check.timer \
   vasi-gateway-capacity-readiness.timer \
   vasi-gateway-deployment-readiness.timer \
-  vasi-gateway-operational-readiness.timer
+  vasi-gateway-operational-readiness.timer \
+  vasi-gateway-alert-readiness.timer
 ```
 
 Repeat with the applicable engine services and timers, including operational
@@ -178,15 +188,22 @@ manual run on the target distribution.
 The probes emit only their existing bounded aggregate JSON. Backup results do
 not disclose paths or database identity; readiness results do not disclose
 participants, tenants, requests, content, credentials, endpoints, or private
-topology. Forward service failure and bounded output to an installation-chosen
-monitor without adding sensitive labels.
+topology. VASI 0.42.0 wires every monitored one-shot failure into the
+role-specific, root-owned durable alert handoff. Pending failures remain
+visible through one stable readiness unit until explicitly acknowledged; the
+spool contains no customer context, destination, or credential. Its exact
+record, dispatcher, capacity, acknowledgement, privacy, installation, and
+failure limits are defined by the
+[durable operational-alert decision](durable-operational-alert-handoff.md).
+Forward that stable unit and bounded records to an installation-chosen monitor
+without adding sensitive labels.
 
 Same-host backups do not satisfy encrypted off-host custody. VASI 0.35.0
 provides recipient-encrypted packaging, structural/freshness checking, and
 custodian-side authentication, but deliberately does not add that command to
 the sanitized timer set: no portable unit can prove its destination mount is
 actually off-host. An installation-reviewed custody scheduler, destination,
-private-key owner, and alert route remain required. First-party scheduling does
-not select an incident owner, support window, RPO/RTO, customer-specific
-threshold, or independent assessor. Those remain explicit pilot-admission
-decisions.
+private-key owner, and alert route remain required. First-party scheduling and
+durable handoff do not select or prove an external transport, recipient,
+incident owner, support window, RPO/RTO, customer-specific threshold, or
+independent assessor. Those remain explicit pilot-admission decisions.

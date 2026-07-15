@@ -115,6 +115,9 @@ and packaged units:
 sudo install -d -o root -g root -m 0700 /var/lib/vasi-edge /var/cache/vasi-edge
 sudo install -o root -g root -m 0600 /protected/monitor.json \
   /var/lib/vasi-edge/monitor.json
+sudo install -d -o root -g root -m 0755 /usr/local/libexec/vasi
+sudo install -o root -g root -m 0555 scripts/operational-alert-spool.sh \
+  /usr/local/libexec/vasi/operational-alert-spool.sh
 sudo install -o root -g root -m 0644 deployment/systemd/vasi-edge-* \
   /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -122,21 +125,27 @@ sudo systemd-analyze verify /etc/systemd/system/vasi-edge-*.service \
   /etc/systemd/system/vasi-edge-*.timer
 sudo systemctl start vasi-edge-image-assurance.service
 sudo systemctl start vasi-edge-runtime-readiness.service
+sudo systemctl start vasi-edge-alert-readiness.service
 sudo systemctl enable --now vasi-edge-image-assurance.timer \
-  vasi-edge-runtime-readiness.timer
+  vasi-edge-runtime-readiness.timer \
+  vasi-edge-alert-readiness.timer
 ```
 
 Do not enable the runtime timer until both manual runs pass. Confirm both
 timers are enabled and active, have future triggers, and continue to point at
 the current exact release. Image assurance runs daily after an initial
-activation-relative delay; runtime readiness runs every 15 minutes. A
-nonzero service exit must reach the installation's approved alert route.
+activation-relative delay; runtime readiness runs every 15 minutes. Every
+failure is written to the
+[durable operational-alert handoff](durable-operational-alert-handoff.md),
+whose stable readiness service runs every minute and remains nonzero until the
+record is explicitly acknowledged. An independent dispatcher must still carry
+that record to the installation's approved alert route.
 
 ## Limits
 
 These controls detect reviewed edge drift; they do not prevent a trusted root
 or Docker administrator from replacing both runtime and evidence. External
 log anchoring, host intrusion detection, certificate renewal, volumetric
-protection, independent scanning, vulnerability response ownership, and alert
-delivery remain installation responsibilities. Retain the exact rollback image
-and launch contract independently of the scan retention window.
+protection, independent scanning, vulnerability response ownership, and
+external alert delivery remain installation responsibilities. Retain the exact
+rollback image and launch contract independently of the scan retention window.

@@ -455,6 +455,64 @@ export async function validateOperationalSchedulerContract(repositoryRoot = root
     active: "3min", boot: "3min", inactive: "5min",
   });
 
+  const monitoredByRole = {
+    edge: [
+      "vasi-edge-image-assurance.service",
+      "vasi-edge-runtime-readiness.service",
+    ],
+    engine: [
+      "vasi-engine-backup-check.service",
+      "vasi-engine-backup-create.service",
+      "vasi-engine-capacity-readiness.service",
+      "vasi-engine-database-egress-policy.service",
+      "vasi-engine-deployment-readiness.service",
+      "vasi-engine-egress-boundary.service",
+      "vasi-engine-operational-readiness.service",
+    ],
+    gateway: [
+      "vasi-gateway-backup-check.service",
+      "vasi-gateway-backup-create.service",
+      "vasi-gateway-capacity-readiness.service",
+      "vasi-gateway-deployment-readiness.service",
+      "vasi-gateway-operational-readiness.service",
+    ],
+  };
+  const alertState = {
+    edge: "/var/lib/vasi-edge/operations-alerts",
+    engine: "/var/lib/vasi-engine/operations-alerts",
+    gateway: "/var/lib/vasi/operations-alerts",
+  };
+  for (const role of ["edge", "engine", "gateway"]) {
+    for (const filename of monitoredByRole[role]) {
+      requirements[filename].push(`OnFailure=vasi-${role}-alert-record@%n.service`);
+    }
+    const stateDirectory = alertState[role].replace("/var/lib/", "");
+    const alertCommon = [
+      "CapabilityBoundingSet=",
+      "InaccessiblePaths=/run",
+      "PrivateNetwork=yes",
+      "ProtectProc=invisible",
+      "ProcSubset=pid",
+      `StateDirectory=${stateDirectory}`,
+      "StateDirectoryMode=0700",
+      `ReadWritePaths=${alertState[role]}`,
+      "RestrictAddressFamilies=AF_UNIX",
+      "RestrictNamespaces=yes",
+      "RestrictRealtime=yes",
+    ];
+    addService(`vasi-${role}-alert-record@.service`, [
+      ...alertCommon,
+      `ExecStart=/bin/sh /usr/local/libexec/vasi/operational-alert-spool.sh record ${role} %i`,
+    ]);
+    addService(`vasi-${role}-alert-readiness.service`, [
+      ...alertCommon,
+      `ExecStart=/bin/sh /usr/local/libexec/vasi/operational-alert-spool.sh status ${role}`,
+    ]);
+    addTimer(`vasi-${role}-alert-readiness.timer`, `vasi-${role}-alert-readiness.service`, {
+      active: "30s", boot: "30s", inactive: "1min",
+    });
+  }
+
   const failures = [];
   let actual = [];
   try {
@@ -489,12 +547,86 @@ export async function validateOperationalSchedulerContract(repositoryRoot = root
       failures.push(`${filename} cannot deny executable memory to the direct Node runtime`);
     }
     if (
+      filename.includes("-alert-") &&
+      contents.split("\n").some((line) => line.startsWith("OnFailure="))
+    ) {
+      failures.push(`${filename} must not recursively trigger operational alerts`);
+    }
+    if (
       /Environment(?:File)?=|compose\.live\.yaml|\.private|\.tasks|VASI-\d|https?:\/\/|\/home\/|docker\.sock|--privileged|--network(?:=|\s+)host/.test(contents)
     ) {
       failures.push(`${filename} contains a prohibited privilege or configuration path`);
     }
   }
   return { failures, unitsChecked: Object.keys(requirements) };
+}
+
+export async function validateOperationalAlertHandoffContract(repositoryRoot = root) {
+  const failures = [];
+  let source = "";
+  try {
+    source = await readFile(
+      path.join(repositoryRoot, "scripts", "operational-alert-spool.sh"),
+      "utf8",
+    );
+  } catch {
+    failures.push("the durable operational-alert handoff is missing");
+  }
+  const lines = source.split("\n");
+  for (const required of [
+    "set -eu",
+    "umask 077",
+    "MAX_PENDING=256",
+    "MAX_ACKNOWLEDGED=1024",
+    "    gateway) printf '%s' /var/lib/vasi/operations-alerts ;;",
+    "    engine) printf '%s' /var/lib/vasi-engine/operations-alerts ;;",
+    "    edge) printf '%s' /var/lib/vasi-edge/operations-alerts ;;",
+    "  [ \"$(id -u)\" -eq 0 ] || fail",
+    "  [ \"$(file_uid \"$directory\")\" = \"$EXPECTED_UID\" ] || fail",
+    "  [ \"$(file_mode \"$directory\")\" = 700 ] || fail",
+    "  [ \"$(file_mode \"$filename\")\" = 600 ] || return 1",
+    "  acquire_lock",
+    "  sync_state",
+    "    validate_record \"$source\" || fail",
+  ]) {
+    if (!lines.includes(required)) failures.push(`the durable operational-alert handoff is missing ${required}`);
+  }
+  for (const schema of [
+    "vasi-operational-alert/v1",
+    "vasi-operational-alert-overflow/v1",
+    "vasi-operational-alert-spool/v1",
+    "vasi-operational-alert-acknowledgement/v1",
+  ]) {
+    if (!source.includes(schema)) failures.push(`the durable operational-alert handoff is missing ${schema}`);
+  }
+  const expectedUnits = [
+    "gateway:vasi-gateway-backup-check.service",
+    "gateway:vasi-gateway-backup-create.service",
+    "gateway:vasi-gateway-capacity-readiness.service",
+    "gateway:vasi-gateway-deployment-readiness.service",
+    "gateway:vasi-gateway-operational-readiness.service",
+    "engine:vasi-engine-backup-check.service",
+    "engine:vasi-engine-backup-create.service",
+    "engine:vasi-engine-capacity-readiness.service",
+    "engine:vasi-engine-database-egress-policy.service",
+    "engine:vasi-engine-deployment-readiness.service",
+    "engine:vasi-engine-egress-boundary.service",
+    "engine:vasi-engine-operational-readiness.service",
+    "edge:vasi-edge-image-assurance.service",
+    "edge:vasi-edge-runtime-readiness.service",
+  ].sort();
+  const actualUnits = [...source.matchAll(/(?:gateway|engine|edge):vasi-(?:gateway|engine|edge)-[a-z0-9-]+\.service/g)]
+    .map((match) => match[0])
+    .sort();
+  if (JSON.stringify(actualUnits) !== JSON.stringify(expectedUnits)) {
+    failures.push("the durable operational-alert source-unit allowlist is not exact");
+  }
+  if (
+    /\b(?:curl|wget|nc|ssh|mailx?)\b|https?:\/\/|EnvironmentFile=|\.env\b|\beval\b|rm\s+-rf|chmod\s+(?:0?777|a\+w)/.test(source)
+  ) {
+    failures.push("the durable operational-alert handoff contains transport, ambient configuration, or destructive behavior");
+  }
+  return { failures, filesChecked: 1 };
 }
 
 export async function validateEngineHostRuntimeContract(repositoryRoot = root) {
@@ -862,6 +994,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const compose = await validateComposeContracts(root);
   const automation = await validateAutomationContract(root);
   const engineHostRuntime = await validateEngineHostRuntimeContract(root);
+  const operationalAlertHandoff = await validateOperationalAlertHandoffContract(root);
   const operationalSchedulers = await validateOperationalSchedulerContract(root);
   const publicIngress = await validatePublicIngressContract(root);
   const edgeMonitor = await validateEdgeMonitorContract(root);
@@ -884,6 +1017,9 @@ async function sourceAssurance(output, { allowDirty }) {
   }
   if (operationalSchedulers.failures.length) {
     throw new Error(`Operational scheduler hardening failed: ${operationalSchedulers.failures.join("; ")}.`);
+  }
+  if (operationalAlertHandoff.failures.length) {
+    throw new Error(`Operational alert handoff hardening failed: ${operationalAlertHandoff.failures.join("; ")}.`);
   }
   if (publicIngress.failures.length) {
     throw new Error(`Public ingress hardening failed: ${publicIngress.failures.join("; ")}.`);
@@ -919,6 +1055,7 @@ async function sourceAssurance(output, { allowDirty }) {
     dirty,
     edgeMonitor,
     engineHostRuntime,
+    operationalAlertHandoff,
     operationalSchedulers,
     productionActivation,
     publicIngress,

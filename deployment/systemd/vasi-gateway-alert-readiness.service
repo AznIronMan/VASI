@@ -1,0 +1,36 @@
+[Unit]
+Description=Verify the durable VASI gateway operational-alert handoff
+Documentation=file:/opt/vasi/current/docs/architecture/durable-operational-alert-handoff.md
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/bin/sh /usr/local/libexec/vasi/operational-alert-spool.sh status gateway
+TimeoutStartSec=30s
+StateDirectory=vasi/operations-alerts
+StateDirectoryMode=0700
+CapabilityBoundingSet=
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectProc=invisible
+ProtectSystem=strict
+ProcSubset=pid
+InaccessiblePaths=/run
+ReadWritePaths=/var/lib/vasi/operations-alerts
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native

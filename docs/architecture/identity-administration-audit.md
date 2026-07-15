@@ -83,8 +83,10 @@ The default policy fails on any migration or chain/head mismatch, a database
 read over 2,000 ms, or an incomplete command older than 300 seconds. Recent
 incomplete or ambiguous commands remain warnings. The packaged gateway service
 and persistent timer execute this probe every five minutes after an initial
-three-minute delay. Alert transport, retention, escalation, and named response
-ownership remain installation decisions.
+three-minute delay. Its recurring failure uses the durable, bounded local
+[operational-alert handoff](durable-operational-alert-handoff.md). External
+transport, off-host retention, escalation, and named response ownership remain
+installation decisions.
 
 ## Migration, rollback, and assurance
 

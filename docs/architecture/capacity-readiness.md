@@ -4,10 +4,10 @@
 
 VASI provides a vendor-neutral, privacy-safe capacity probe for Linux hosts and
 the PostgreSQL database identified by the protected `VASI.settings` bootstrap.
-It emits bounded JSON plus a deterministic exit status for an
-installation-selected scheduler and alert transport. It adds no public route,
-monitoring vendor, environment file, process enumeration, or host topology to
-PostgreSQL.
+It emits bounded JSON plus a deterministic exit status. VASI packages its
+recurring scheduler and durable local failure handoff; the installation selects
+the external alert transport. The probe adds no public route, monitoring
+vendor, environment file, process enumeration, or host topology to PostgreSQL.
 
 The hardened maintenance container receives only four aggregate Linux proc
 inputs: `stat`, `loadavg`, `meminfo`, and the `pressure` directory. The Compose

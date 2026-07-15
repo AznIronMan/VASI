@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.41.1`
+Version: `0.42.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -530,6 +530,19 @@ One explicit numeric UID in the mode-`0600` activation configuration permits a
 root-only Docker host to validate deployment-account-owned release files
 without granting that account Docker access or broadly trusting local users.
 
+Version 0.42.0 makes recurring-control failures durable without coupling the
+portable product to a provider. Every monitored gateway, private-engine, and
+public-edge one-shot has a role-specific, network-incapable systemd failure
+recorder. It atomically appends a root-owned, privacy-bounded record, preserves
+up to 256 unacknowledged failures without pruning, exposes bounded overflow,
+and keeps one stable readiness unit nonzero until an operator or external
+dispatcher explicitly acknowledges the exact record with an opaque reference.
+The stable script validates ownership, modes, physical paths, record schemas,
+source-unit allowlists, and systemd metadata; alert units cannot recursively
+alert. The exact scheduler contract expands from 28 to 37 units. VASI supplies
+the reliable idempotent handoff while external delivery, recipient, escalation,
+and total-host-loss monitoring remain installation proofs.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -669,7 +682,9 @@ assessment remain installation or pilot gates.
 - A tracked hardened scheduler suite with independent persistent timers for
   gateway/engine backup creation and checks, capacity, deployment perimeter,
   gateway identity operations, private-engine operational readiness, and
-  private outbound enforcement, plus exact edge-image and runtime readiness.
+  private outbound enforcement, plus exact edge-image and runtime readiness;
+  all monitored failures feed a bounded durable local handoff with independent
+  one-minute readiness and explicit acknowledgement.
 - A fail-closed gateway/engine release activator with protected listener-only
   configuration, exact merged-Compose/image/hardening proof, atomic selection,
   bounded runtime reconciliation, and automatic prior-release recovery.
@@ -816,12 +831,14 @@ After each gateway migration, run `npm run assurance:gateway-operations`; its
 aggregate result must pass before enabling or re-enabling the gateway identity
 operational-readiness timer.
 Recurring safeguards are explicit but packaged: create the protected backup
-and capacity sentinel directories, install the applicable tracked units under
+and capacity sentinel directories, install the stable root-owned
+`operational-alert-spool.sh` plus the applicable tracked units under
 `deployment/systemd`, validate them with `systemd-analyze verify`, manually run
 every service once, and then enable its timer. The sanitized units select only
 portable `/opt` and `/var/lib` defaults; installations using other roots must
 apply reviewed systemd drop-ins. The repository never attaches a backup volume
-to a long-running container or chooses external custody.
+to a long-running container, chooses external custody, or embeds an alert
+destination or credential.
 
 For a one-time migration from an older container, stream its configuration to
 `settings import-env -`; no temporary environment file is required. A protected
@@ -978,6 +995,10 @@ threshold, sentinel-mount, and scheduler handoff contracts.
 The [recurring operations decision](docs/architecture/recurring-operational-schedulers.md)
 defines the packaged unit set, independent schedules, hardening, path override,
 PostgreSQL-origin, installation, validation, and alerting contract.
+The [durable operational-alert decision](docs/architecture/durable-operational-alert-handoff.md)
+defines the bounded records, protected spool, overflow behavior, dispatcher
+interface, acknowledgement, privacy boundary, and remaining external-delivery
+limits.
 The [fail-closed production activation decision](docs/architecture/fail-closed-release-activation.md)
 defines protected listener configuration, exact candidate and merged-runtime
 proof, atomic selection, automatic recovery, privacy-bounded output, and the

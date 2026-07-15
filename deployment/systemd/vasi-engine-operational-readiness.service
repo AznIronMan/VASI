@@ -4,6 +4,7 @@ Documentation=file:/opt/vasi-engine/current/docs/architecture/operational-readin
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
+OnFailure=vasi-engine-alert-record@%n.service
 
 [Service]
 Type=oneshot

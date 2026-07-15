@@ -5,8 +5,9 @@
 VASI provides a vendor-neutral, privacy-safe probe for deployment state that
 cannot be derived inside the private evidence engine. The same packaged command
 runs in the hardened gateway maintenance image or from the trusted engine host
-and emits bounded JSON plus a deterministic exit status for an
-installation-selected alert transport.
+and emits bounded JSON plus a deterministic exit status. VASI packages its
+recurring scheduler and durable local failure handoff; the installation selects
+and proves the external alert transport.
 
 The probe does not introduce a public monitoring endpoint, contact an alerting
 vendor, or add host topology and credentials to PostgreSQL. The operator passes

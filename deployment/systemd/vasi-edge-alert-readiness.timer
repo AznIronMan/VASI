@@ -1,0 +1,14 @@
+[Unit]
+Description=Continuously expose pending VASI public-edge operational alerts
+
+[Timer]
+OnBootSec=30s
+OnActiveSec=30s
+OnUnitInactiveSec=1min
+AccuracySec=15s
+RandomizedDelaySec=15s
+Persistent=yes
+Unit=vasi-edge-alert-readiness.service
+
+[Install]
+WantedBy=timers.target

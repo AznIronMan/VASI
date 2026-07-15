@@ -390,18 +390,26 @@ allows established replies and rejects new forwarded traffic. It prints no
 subnet, address, hostname, URL, or credential. Do not start the persistent
 services if it fails.
 
-For a systemd installation using `/opt/vasi-engine/current`, install the two
-egress service/timer pairs before engine startup. VASI 0.24.0 also ships the
-engine backup, capacity, deployment, and operational service/timer pairs; the
+For a systemd installation using `/opt/vasi-engine/current`, install the exact
+role unit set and stable alert-spool script before engine startup. VASI 0.24.0
+ships the engine backup, capacity, deployment, operational, and egress
+service/timer pairs; VASI 0.42.0 wires their failures to a separate durable
+handoff and readiness timer. The
 [recurring scheduler contract](architecture/recurring-operational-schedulers.md)
 defines their directories, validation, first-run, and enablement sequence.
 
 ```bash
-sudo install -m 0644 deployment/systemd/vasi-engine-database-egress-policy.* /etc/systemd/system/
-sudo install -m 0644 deployment/systemd/vasi-engine-egress-boundary.* /etc/systemd/system/
+sudo install -d -o root -g root -m 0755 /usr/local/libexec/vasi
+sudo install -o root -g root -m 0555 scripts/operational-alert-spool.sh \
+  /usr/local/libexec/vasi/operational-alert-spool.sh
+sudo install -m 0644 deployment/systemd/vasi-engine-* /etc/systemd/system/
 sudo systemctl daemon-reload
+sudo systemd-analyze verify /etc/systemd/system/vasi-engine-*.service \
+  /etc/systemd/system/vasi-engine-*.timer
 sudo systemctl enable --now vasi-engine-database-egress-policy.timer
 sudo systemctl start vasi-engine-database-egress-policy.service
+sudo systemctl start vasi-engine-alert-readiness.service
+sudo systemctl enable --now vasi-engine-alert-readiness.timer
 ```
 
 If the release symlink is elsewhere, change `WorkingDirectory` and the matching

@@ -14,6 +14,7 @@ import {
   validateEdgeMonitorContract,
   validateEngineHostRuntimeContract,
   validateOperationalSchedulerContract,
+  validateOperationalAlertHandoffContract,
   validateProductionActivationContract,
   validatePublicIngressContract,
   validateRuntimeImageBuildContract,
@@ -62,12 +63,20 @@ describe("release assurance policy", () => {
   it("packages every persistent least-privileged operational scheduler", async () => {
     const result = await validateOperationalSchedulerContract(root);
     expect(result.failures).toEqual([]);
-    expect(result.unitsChecked).toHaveLength(28);
+    expect(result.unitsChecked).toHaveLength(37);
+    expect(result.unitsChecked).toContain("vasi-edge-alert-readiness.timer");
+    expect(result.unitsChecked).toContain("vasi-engine-alert-record@.service");
+    expect(result.unitsChecked).toContain("vasi-gateway-alert-readiness.timer");
     expect(result.unitsChecked).toContain("vasi-edge-image-assurance.timer");
     expect(result.unitsChecked).toContain("vasi-edge-runtime-readiness.timer");
     expect(result.unitsChecked).toContain("vasi-engine-operational-readiness.timer");
     expect(result.unitsChecked).toContain("vasi-gateway-operational-readiness.timer");
     expect(result.unitsChecked).toContain("vasi-gateway-backup-check.timer");
+  });
+
+  it("keeps the durable operational-alert handoff bounded and transport-neutral", async () => {
+    const result = await validateOperationalAlertHandoffContract(root);
+    expect(result).toEqual({ failures: [], filesChecked: 1 });
   });
 
   it("keeps the direct engine host runtime exact and lifecycle-script-free", async () => {
@@ -285,7 +294,23 @@ describe("release assurance policy", () => {
       const timer = path.join(fixture, "deployment", "systemd", "vasi-engine-operational-readiness.timer");
       await writeFile(timer, (await readFile(timer, "utf8")).replace("Persistent=yes", "Persistent=no"));
       const service = path.join(fixture, "deployment", "systemd", "vasi-gateway-backup-create.service");
-      await writeFile(service, `${await readFile(service, "utf8")}\nEnvironmentFile=/home/customer/.env\n`);
+      await writeFile(
+        service,
+        `${(await readFile(service, "utf8")).replace(
+          "OnFailure=vasi-gateway-alert-record@%n.service\n",
+          "",
+        )}\nEnvironmentFile=/home/customer/.env\n`,
+      );
+      const alertReadiness = path.join(
+        fixture,
+        "deployment",
+        "systemd",
+        "vasi-gateway-alert-readiness.service",
+      );
+      await writeFile(
+        alertReadiness,
+        `${await readFile(alertReadiness, "utf8")}\nOnFailure=vasi-gateway-alert-record@%n.service\n`,
+      );
       const nodeService = path.join(
         fixture,
         "deployment",
@@ -305,6 +330,12 @@ describe("release assurance policy", () => {
         "vasi-gateway-backup-create.service contains a prohibited privilege or configuration path",
       );
       expect(result.failures).toContain(
+        "vasi-gateway-backup-create.service is missing OnFailure=vasi-gateway-alert-record@%n.service",
+      );
+      expect(result.failures).toContain(
+        "vasi-gateway-alert-readiness.service must not recursively trigger operational alerts",
+      );
+      expect(result.failures).toContain(
         "vasi-engine-deployment-readiness.service cannot deny executable memory to the direct Node runtime",
       );
       expect(result.failures).toContain(
@@ -315,8 +346,36 @@ describe("release assurance policy", () => {
     }
   });
 
+  it("rejects a transport-coupled or expanded operational-alert recorder", async () => {
+    const fixture = await mkdtemp(path.join(tmpdir(), "vasi-alert-handoff-assurance-"));
+    try {
+      await mkdir(path.join(fixture, "scripts"));
+      const target = path.join(fixture, "scripts", "operational-alert-spool.sh");
+      await cp(path.join(root, "scripts", "operational-alert-spool.sh"), target);
+      await writeFile(
+        target,
+        `${(await readFile(target, "utf8"))
+          .replace("MAX_PENDING=256", "MAX_PENDING=10000")
+          .replace("gateway:vasi-gateway-backup-check.service|\\\n", "")}
+curl https://monitor.example.test\n`,
+      );
+      const result = await validateOperationalAlertHandoffContract(fixture);
+      expect(result.failures).toContain(
+        "the durable operational-alert handoff is missing MAX_PENDING=256",
+      );
+      expect(result.failures).toContain(
+        "the durable operational-alert source-unit allowlist is not exact",
+      );
+      expect(result.failures).toContain(
+        "the durable operational-alert handoff contains transport, ambient configuration, or destructive behavior",
+      );
+    } finally {
+      await rm(fixture, { force: true, recursive: true });
+    }
+  });
+
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.41.1")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.42.0")).toMatchObject({
       allowedOptionalPackagePaths: [
         "node_modules/@img/colour",
         "node_modules/@img/sharp-libvips-linuxmusl-x64",
@@ -329,7 +388,7 @@ describe("release assurance policy", () => {
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.41.1")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.42.0")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -350,7 +409,7 @@ describe("release assurance policy", () => {
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.41.1")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.42.0")).toMatchObject({
       entrypoints: [
         "scripts/backup-custody.mjs",
         "scripts/backup-continuity.mjs",
@@ -364,7 +423,7 @@ describe("release assurance policy", () => {
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.41.1")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.42.0")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",
@@ -381,7 +440,7 @@ describe("release assurance policy", () => {
   it("derives a bounded physical prohibition inventory from the exact lock graph", async () => {
     const packageJSON = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
     const packageLock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
-    const allowed = runtimeContractForImage("vasi:0.41.1").allowedOptionalPackagePaths;
+    const allowed = runtimeContractForImage("vasi:0.42.0").allowedOptionalPackagePaths;
     const result = runtimeDependencyAuditPaths(packageJSON, packageLock, allowed);
     expect(result.lockPackageCount).toBeGreaterThan(400);
     expect(result.prohibitedPackagePaths).toContain("node_modules/vitest");

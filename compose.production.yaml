@@ -5,7 +5,7 @@ services:
     build:
       context: .
       target: migrator
-    image: vasi-settings:0.41.1
+    image: vasi-settings:0.42.0
     volumes:
       - ./data:/app/data
     entrypoint: ["node", "scripts/settings.mjs"]
@@ -29,7 +29,7 @@ services:
     build:
       context: .
       target: migrator
-    image: vasi-settings:0.41.1
+    image: vasi-settings:0.42.0
     volumes:
       - ./data:/app/data:ro
     user: "1000:1000"
@@ -48,7 +48,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-maintenance
-    image: vasi-engine-maintenance:0.41.1
+    image: vasi-engine-maintenance:0.42.0
     command: ["scripts/backup.mjs"]
     user: "1000:1000"
     volumes:
@@ -68,7 +68,7 @@ services:
       context: .
       dockerfile: Dockerfile.engine
       target: engine-maintenance
-    image: vasi-engine-maintenance:0.41.1
+    image: vasi-engine-maintenance:0.42.0
     entrypoint: ["node", "scripts/probe-capacity-readiness.mjs"]
     user: "1000:1000"
     volumes:
@@ -111,7 +111,7 @@ services:
     build:
       context: .
       target: runner
-    image: vasi:0.41.1
+    image: vasi:0.42.0
     restart: unless-stopped
     init: true
     ports:

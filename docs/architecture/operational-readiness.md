@@ -84,11 +84,14 @@ fail.
 
 VASI emits vendor-neutral JSON and a deterministic exit status. VASI 0.24.0
 ships an independent hardened systemd service/timer pair that executes the
-engine probe every five minutes by default. The deployment still chooses its
-alert transport, on-call destination, result retention, and escalation policy.
-This keeps the deployable product independent from a proprietary monitoring
-service and prevents application credentials from being copied into an
-alerting SDK.
+engine probe every five minutes by default. VASI 0.42.0 makes a failure durable
+in a root-owned, privacy-bounded alert spool and exposes pending state through
+an independent one-minute readiness service until explicit acknowledgement.
+The [durable handoff contract](durable-operational-alert-handoff.md) gives an
+installation-selected dispatcher a stable, idempotent interface without
+copying application credentials into an alerting SDK. The deployment still
+chooses and proves its external alert transport, on-call destination, result
+retention, and escalation policy.
 
 VASI 0.34.0 adds a deliberately separate gateway identity-operations probe.
 It verifies the gateway migration ledger, immutable administrator audit chain,
@@ -107,5 +110,6 @@ does not duplicate those probes, because the engine must not receive host
 paths, storage credentials, or public-topology configuration. These contracts
 still do not replace encrypted off-host backup custody, sustained customer
 capacity tests, network/replica-lag monitoring, external alert delivery, or an
-incident-response owner. Those remain deployment responsibilities and pilot
-admission evidence.
+incident-response owner. Durable local handoff closes the transient-signal gap
+but cannot report destruction or total loss of its own host. Those external
+controls remain deployment responsibilities and pilot-admission evidence.
