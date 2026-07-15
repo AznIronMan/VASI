@@ -233,8 +233,15 @@ available only while the credential account is enabled.
 Disabling a user uses Better Auth's administrative ban operation, prevents new
 sign-in, and revokes existing sessions. Invitations expire after seven days,
 store only a SHA-256 token digest, and are single-use. Administrative changes
-are recorded in `vasi_admin_audit`; audit metadata never contains invitation
-tokens, provider tokens, credentials, or message bodies.
+are recorded in the immutable, serialized `vasi_admin_audit` hash chain. Every
+privileged command records a server-generated command/request pair and a
+`started` event followed by `succeeded`, `failed`, or `ambiguous`. Local
+database mutations commit their terminal event in the same transaction;
+external provider uncertainty remains explicit and must be reviewed before a
+retry. Bounded actor/session, trusted-proxy source, and user-agent context is
+visible only in the internal console. Audit metadata never contains invitation
+tokens, provider tokens, credentials, message bodies, or secret-like fields.
+See the [identity-administration audit decision](architecture/identity-administration-audit.md).
 
 The main `/admin` console is the supported company-provisioning surface. It
 requires an initial owner email and reports the durable private-engine owner
@@ -328,7 +335,8 @@ PostgreSQL.
 7. Exercise registration, verification, recovery, sign-out, and session expiry.
 8. For Graph email, confirm the mailer is authorized for the sender mailbox and
    denied for a second mailbox outside its Exchange management scope.
-9. Run `npm run check`, `npm run build`, and `npm audit` in CI.
+9. Run `npm run check`, `npm run build`, and `npm audit` in CI. After migration,
+   run `npm run assurance:gateway-operations` and require a passing result.
 10. Require MFA at the operator's identity provider before granting internal
     administration access, and keep the internal hostname off public ingress.
 11. Confirm `/admin` and `/api/admin/*` return 404 on the public hostname and

@@ -1900,6 +1900,226 @@ input::placeholder {
   margin: 14px 0 0;
 }
 
+.admin-audit {
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid #d7d8d2;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.admin-audit__heading,
+.admin-audit__event summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-audit__heading {
+  justify-content: space-between;
+}
+
+.admin-audit__heading h2 {
+  margin: 0;
+  font: 400 28px/1.2 Georgia, "Times New Roman", serif;
+  letter-spacing: -0.035em;
+}
+
+.admin-audit__heading p:last-child,
+.admin-audit__footnote,
+.admin-audit__empty {
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.admin-audit__heading p:last-child {
+  max-width: 720px;
+  margin: 7px 0 0;
+}
+
+.admin-audit__status,
+.admin-audit__phase {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.admin-audit__status {
+  padding: 8px 11px;
+}
+
+.admin-audit__status--verified,
+.admin-audit__phase--succeeded,
+.admin-audit__phase--event {
+  color: #1d6045;
+  background: #daf0e5;
+}
+
+.admin-audit__status--critical,
+.admin-audit__phase--failed {
+  color: #8a302b;
+  background: #f7d8d5;
+}
+
+.admin-audit__phase--ambiguous,
+.admin-audit__phase--started {
+  color: #76550c;
+  background: #fff0bd;
+}
+
+.admin-audit__metrics {
+  display: grid;
+  margin-top: 18px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.admin-audit__metrics article {
+  display: grid;
+  padding: 13px 15px;
+  border: 1px solid #e0dfda;
+  border-radius: 10px;
+  background: #f8f7f4;
+}
+
+.admin-audit__metrics span {
+  color: #78817d;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-audit__metrics strong {
+  margin-top: 4px;
+  color: var(--green-950);
+  font: 400 25px/1.1 Georgia, "Times New Roman", serif;
+}
+
+.admin-audit__incomplete {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #ead59d;
+  border-radius: 10px;
+  color: #76550c;
+  background: #fffaf0;
+  font-size: 11px;
+}
+
+.admin-audit__incomplete summary,
+.admin-audit__event summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.admin-audit__incomplete ul {
+  display: grid;
+  margin: 10px 0 0;
+  padding: 0;
+  gap: 7px;
+  list-style: none;
+}
+
+.admin-audit__incomplete li {
+  display: grid;
+  grid-template-columns: 1fr auto minmax(180px, auto);
+  gap: 12px;
+}
+
+.admin-audit__events {
+  margin-top: 18px;
+}
+
+.admin-audit__events h3 {
+  margin: 0 0 9px;
+  color: var(--green-950);
+  font: 600 15px/1.3 Georgia, "Times New Roman", serif;
+}
+
+.admin-audit__event {
+  border-top: 1px solid #e2e1dc;
+}
+
+.admin-audit__event:last-child {
+  border-bottom: 1px solid #e2e1dc;
+}
+
+.admin-audit__event summary {
+  min-height: 46px;
+  padding: 8px 3px;
+  font-size: 10px;
+  list-style-position: outside;
+}
+
+.admin-audit__phase {
+  width: 78px;
+  padding: 5px 7px;
+  text-align: center;
+}
+
+.admin-audit__event summary strong {
+  min-width: 160px;
+  color: #38453f;
+  text-transform: capitalize;
+}
+
+.admin-audit__event summary > span:nth-of-type(2) {
+  min-width: 0;
+  margin-right: auto;
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+}
+
+.admin-audit__event time,
+.admin-audit__event code,
+.admin-audit__incomplete code {
+  color: #6e7773;
+  font-size: 9px;
+}
+
+.admin-audit__event dl {
+  display: grid;
+  margin: 0 0 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 22px;
+}
+
+.admin-audit__event dl div {
+  display: grid;
+  grid-template-columns: 85px minmax(0, 1fr);
+  gap: 9px;
+}
+
+.admin-audit__event dt,
+.admin-audit__event dd {
+  color: var(--ink-soft);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.admin-audit__event dt {
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.admin-audit__event dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-audit__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.admin-audit__footnote {
+  margin: 14px 0 0;
+}
+
 .pending-invitations {
   display: flex;
   margin: 10px 0 0;
@@ -2401,6 +2621,25 @@ input:disabled {
     flex-direction: column;
   }
 
+  .admin-audit__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-audit__metrics,
+  .admin-audit__event dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-audit__event summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .admin-audit__event summary > span:nth-of-type(2) {
+    width: 100%;
+  }
+
   .admin-invite form {
     grid-template-columns: 1fr;
   }
@@ -2438,6 +2677,15 @@ input:disabled {
 }
 
 @media (max-width: 520px) {
+  .admin-audit__metrics,
+  .admin-audit__event dl {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-audit__incomplete li {
+    grid-template-columns: 1fr;
+  }
+
   .portal-panel {
     padding-inline: 18px;
   }

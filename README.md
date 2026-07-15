@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.33.0`
+Version: `0.34.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -408,6 +408,19 @@ authentication gate before any ready artifact can open. The isolated integration
 gateway independently binds every delivery to the exact running outbox job and
 locks the current source status through provider submission.
 
+Version 0.34.0 makes identity administration tamper-evident and operationally
+observable. Gateway migration 0007 deterministically backfills the existing
+administrator history into an immutable SHA-256 chain and serializes all later
+appends at the database boundary. Privileged commands now carry server-generated
+command/request IDs, actor-session and bounded request context, and explicit
+started plus succeeded, failed, or ambiguous outcomes. Local mutations commit
+their terminal evidence atomically; provider-side uncertainty remains visible
+instead of being reported as a clean failure. The internal console independently
+recomputes integrity and exposes recent evidence and unfinished commands only to
+allowlisted administrators. A separate privacy-safe gateway probe and persistent
+timer detect exact migration drift, chain/head mismatch, slow reads, and stale
+incomplete commands without emitting identity or request details.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -425,7 +438,8 @@ assessment remain installation or pilot gates.
   SSO-first participant experience.
 - Internal-host-only identity administration, operator allowlisting,
   invitations, connector health/disconnection, password controls, account
-  disablement, session revocation, and audit records.
+  disablement, session revocation, command-correlated immutable audit evidence,
+  independent chain verification, and bounded internal forensic context.
 - Administrator-only company provisioning with a transactionally durable
   initial-owner grant, separately reported login invitation outcome, and an
   explicit pending-production handoff to the eight assurance gates.
@@ -518,6 +532,9 @@ assessment remain installation or pilot gates.
 - An administrator-only operational snapshot and host probe with explicit
   migration, queue, delivery, document-scanning, signing, lifecycle, and
   database thresholds that exclude customer evidence and identity data.
+- A separate aggregate-only gateway identity-operations probe that verifies
+  exact migration checksums, the administrator audit chain/head, incomplete
+  command age, ambiguous-command count, and database latency.
 - Concurrency-safe recurring matched backups with post-create verification,
   bounded retention, freshness assessment, and hardened gateway/engine
   maintenance containers.
@@ -529,7 +546,8 @@ assessment remain installation or pilot gates.
   PostgreSQL size, latency, connection, transaction, and replication posture.
 - A tracked hardened scheduler suite with independent persistent timers for
   gateway/engine backup creation and checks, capacity, deployment perimeter,
-  private-engine operational readiness, and private outbound enforcement.
+  gateway identity operations, private-engine operational readiness, and
+  private outbound enforcement.
 
 ## Configuration model
 
@@ -637,6 +655,9 @@ docker compose -f compose.production.yaml --profile tools run --rm settings set 
 The app publishes only `127.0.0.1:3000` and expects a trusted HTTPS reverse
 proxy. The liveness endpoint is `GET /api/health`. Database migrations are an
 explicit, repeatable release step and never run automatically at app startup.
+After each gateway migration, run `npm run assurance:gateway-operations`; its
+aggregate result must pass before enabling or re-enabling the gateway identity
+operational-readiness timer.
 Recurring safeguards are explicit but packaged: create the protected backup
 and capacity sentinel directories, install the applicable tracked units under
 `deployment/systemd`, validate them with `systemd-analyze verify`, manually run
@@ -770,6 +791,10 @@ backup/restore, and tenant transfer constraints.
 The [operational readiness decision](docs/architecture/operational-readiness.md)
 defines the aggregate-only snapshot, authorization boundary, host-probe
 thresholds, privacy exclusions, and external-alerting handoff.
+The [identity-administration audit decision](docs/architecture/identity-administration-audit.md)
+defines privileged command correlation, atomic/ambiguous outcomes, immutable
+gateway chaining, bounded internal context, independent verification, and the
+aggregate gateway monitor.
 The [backup continuity decision](docs/architecture/backup-continuity.md)
 defines atomic matched creation, verification, concurrency, retention,
 freshness monitoring, scheduler handoff, and off-host custody limits.

@@ -4,6 +4,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+import { AdminAuditPanel } from "@/components/admin/admin-audit-panel";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { InstallationProfilePanel } from "@/components/admin/installation-profile-panel";
 import { OperationalReadinessPanel } from "@/components/admin/operational-readiness-panel";
@@ -17,12 +18,15 @@ import type {
   AdminUser,
   PendingInvitation,
 } from "@/lib/admin-users";
+import type { AdminAuditOverview } from "@/lib/admin-audit";
 
 export function AdminConsole({
+  audit,
   invitations,
   operatorId,
   users,
 }: {
+  audit: AdminAuditOverview;
   invitations: PendingInvitation[];
   operatorId: string;
   users: AdminUser[];
@@ -139,6 +143,8 @@ export function AdminConsole({
       <TenantAdmissionPanel />
 
       <OperationalReadinessPanel />
+
+      <AdminAuditPanel audit={audit} />
 
       <section className="admin-invite" aria-labelledby="invite-title">
         <div>

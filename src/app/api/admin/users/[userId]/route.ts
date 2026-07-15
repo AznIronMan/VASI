@@ -1,7 +1,11 @@
 import { randomBytes } from "node:crypto";
 
 import { authorizeAdminMutation } from "@/lib/admin-access";
-import { writeAdminAudit } from "@/lib/admin-users";
+import {
+  beginAdminAuditCommand,
+  finishAdminAuditCommand,
+  type AdminAuditCommand,
+} from "@/lib/admin-audit";
 import { getAuth } from "@/lib/auth";
 import {
   authProviderIds,
@@ -37,34 +41,6 @@ export async function POST(
   }
 
   try {
-    if (action.action === "set-active") {
-      if (typeof action.enabled !== "boolean") {
-        return Response.json({ error: "Invalid account state." }, { status: 400 });
-      }
-      if (!action.enabled && userId === authorization.session.user.id) {
-        return Response.json(
-          { error: "The current administrator cannot disable their own account." },
-          { status: 409 },
-        );
-      }
-
-      const auth = await getAuth();
-      if (action.enabled) {
-        await auth.api.unbanUser({ body: { userId }, headers: request.headers });
-      } else {
-        await auth.api.banUser({
-          body: { userId, banReason: "Disabled by a V·Sign administrator" },
-          headers: request.headers,
-        });
-      }
-      await writeAdminAudit({
-        action: action.enabled ? "user.enabled" : "user.disabled",
-        actorUserId: authorization.session.user.id,
-        targetUserId: userId,
-      });
-      return Response.json({ success: true });
-    }
-
     const target = await database.query<{
       email: string;
       manualPassword: boolean;
@@ -84,6 +60,37 @@ export async function POST(
     const user = target.rows[0];
     if (!user) return Response.json({ error: "User not found." }, { status: 404 });
 
+    if (action.action === "set-active") {
+      if (typeof action.enabled !== "boolean") {
+        return Response.json({ error: "Invalid account state." }, { status: 400 });
+      }
+      if (!action.enabled && userId === authorization.session.user.id) {
+        return Response.json(
+          { error: "The current administrator cannot disable their own account." },
+          { status: 409 },
+        );
+      }
+
+      const command = await beginAdminAuditCommand({
+        action: "user.set_active",
+        metadata: { desiredEnabled: action.enabled },
+        request,
+        session: authorization.session,
+        targetUserId: userId,
+      });
+      return externalMutation(command, async () => {
+        const auth = await getAuth();
+        if (action.enabled) {
+          await auth.api.unbanUser({ body: { userId }, headers: request.headers });
+        } else {
+          await auth.api.banUser({
+            body: { userId, banReason: "Disabled by a V·Sign administrator" },
+            headers: request.headers,
+          });
+        }
+      });
+    }
+
     if (action.action === "reset-password") {
       if (!user.manualPassword) {
         return Response.json(
@@ -91,13 +98,13 @@ export async function POST(
           { status: 409 },
         );
       }
-      await sendPublicPasswordReset(user.email);
-      await writeAdminAudit({
-        action: "password.reset_requested",
-        actorUserId: authorization.session.user.id,
+      const command = await beginAdminAuditCommand({
+        action: "password.reset_request",
+        request,
+        session: authorization.session,
         targetUserId: userId,
       });
-      return Response.json({ success: true });
+      return externalMutation(command, () => sendPublicPasswordReset(user.email));
     }
 
     if (action.action === "set-password") {
@@ -112,34 +119,56 @@ export async function POST(
       }
 
       if (action.enabled) {
-        const auth = await getAuth();
-        if (!user.manualPassword) {
-          await auth.api.setUserPassword({
-            body: {
-              newPassword: randomBytes(48).toString("base64url"),
-              userId,
-            },
-            headers: request.headers,
-          });
-        }
-        await sendPublicPasswordReset(user.email);
-      } else {
-        await disableManualPassword(userId);
+        const command = await beginAdminAuditCommand({
+          action: "password.set_enabled",
+          metadata: { desiredEnabled: true },
+          request,
+          session: authorization.session,
+          targetUserId: userId,
+        });
+        return externalMutation(command, async () => {
+          const auth = await getAuth();
+          if (!user.manualPassword) {
+            await auth.api.setUserPassword({
+              body: {
+                newPassword: randomBytes(48).toString("base64url"),
+                userId,
+              },
+              headers: request.headers,
+            });
+          }
+          await sendPublicPasswordReset(user.email);
+        });
       }
 
-      await writeAdminAudit({
-        action: action.enabled ? "password.enabled" : "password.disabled",
-        actorUserId: authorization.session.user.id,
+      const command = await beginAdminAuditCommand({
+        action: "password.set_enabled",
+        metadata: { desiredEnabled: false },
+        request,
+        session: authorization.session,
         targetUserId: userId,
       });
-      return Response.json({ success: true });
+      try {
+        await disableManualPassword(userId, command);
+        return Response.json({ success: true });
+      } catch {
+        await finishAdminAuditCommand(
+          command,
+          "failed",
+          { failureCode: "local_transaction_rolled_back" },
+        ).catch(() => undefined);
+        return Response.json(
+          { error: "The password setting was not changed." },
+          { status: 409 },
+        );
+      }
     }
 
     return Response.json({ error: "Unsupported action." }, { status: 400 });
   } catch {
     return Response.json(
       { error: "The user update could not be completed." },
-      { status: 400 },
+      { status: 503 },
     );
   }
 }
@@ -157,7 +186,7 @@ async function sendPublicPasswordReset(email: string) {
   });
 }
 
-async function disableManualPassword(userId: string) {
+async function disableManualPassword(userId: string, command: AdminAuditCommand) {
   const settings = await getRuntimeSettings();
   const client = await database.connect();
   try {
@@ -187,11 +216,42 @@ async function disableManualPassword(userId: string) {
       [userId],
     );
     await client.query('delete from "session" where "userId" = $1', [userId]);
+    await finishAdminAuditCommand(command, "succeeded", {}, client);
     await client.query("commit");
   } catch (error) {
     await client.query("rollback").catch(() => undefined);
     throw error;
   } finally {
     client.release();
+  }
+}
+
+async function externalMutation(command: AdminAuditCommand, operation: () => Promise<unknown>) {
+  try {
+    await operation();
+  } catch {
+    const recorded = await finishAdminAuditCommand(
+      command,
+      "ambiguous",
+      { outcomeCode: "external_operation_outcome_unknown" },
+    ).then(() => true).catch(() => false);
+    return Response.json(
+      {
+        error: recorded
+          ? "The operation may have completed. Review the administrator audit before retrying."
+          : "The operation may have completed, and its final audit outcome is unavailable. Do not retry until an operator reviews current state.",
+      },
+      { status: 502 },
+    );
+  }
+
+  try {
+    await finishAdminAuditCommand(command, "succeeded");
+    return Response.json({ success: true });
+  } catch {
+    return Response.json(
+      { error: "The change completed, but its terminal audit event is unavailable. Review the incomplete command before taking another action." },
+      { status: 503 },
+    );
   }
 }

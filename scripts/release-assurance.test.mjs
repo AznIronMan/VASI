@@ -55,8 +55,9 @@ describe("release assurance policy", () => {
   it("packages every persistent least-privileged operational scheduler", async () => {
     const result = await validateOperationalSchedulerContract(root);
     expect(result.failures).toEqual([]);
-    expect(result.unitsChecked).toHaveLength(22);
+    expect(result.unitsChecked).toHaveLength(24);
     expect(result.unitsChecked).toContain("vasi-engine-operational-readiness.timer");
+    expect(result.unitsChecked).toContain("vasi-gateway-operational-readiness.timer");
     expect(result.unitsChecked).toContain("vasi-gateway-backup-check.timer");
   });
 
@@ -89,12 +90,12 @@ describe("release assurance policy", () => {
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.33.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.34.0")).toMatchObject({
       entrypoints: ["server.js"],
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.33.0")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.34.0")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -115,19 +116,20 @@ describe("release assurance policy", () => {
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.33.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.34.0")).toMatchObject({
       entrypoints: [
         "scripts/backup-continuity.mjs",
         "scripts/backup.mjs",
         "scripts/probe-capacity-readiness.mjs",
         "scripts/probe-deployment-readiness.mjs",
+        "scripts/probe-gateway-operational-readiness.mjs",
         "scripts/probe-operational-readiness.mjs",
         "scripts/tenant-transfer.mjs",
       ],
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.33.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.34.0")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",

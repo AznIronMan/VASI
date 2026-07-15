@@ -2,12 +2,12 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 
 import { database } from "@/lib/database";
+import { writeAdminAudit } from "@/lib/admin-audit";
 import { resolveProductBrand } from "@/lib/branding";
 import { AuthEmailDeliveryError, sendAuthEmail } from "@/lib/email";
 import { emailDomain } from "@/lib/provider-recommendation";
 import { getRuntimeSettings } from "@/lib/runtime-settings";
 import { resolveServerSettings } from "@/lib/server-settings";
-import { writeAdminAudit } from "@/lib/admin-users";
 
 const INVITATION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1_000;
 
@@ -157,12 +157,12 @@ async function recordInvitationUncertainty(
   invitationId: string,
   actorUserId: string,
 ) {
-  await client.query(
-    `insert into "vasi_admin_audit"
-      ("id", "actorUserId", "action", "metadata")
-     values ($1, $2, 'invitation.delivery_unknown', $3::jsonb)`,
-    [randomUUID(), actorUserId, JSON.stringify({ invitationId })],
-  );
+  await writeAdminAudit({
+    action: "invitation.delivery_unknown",
+    actorUserId,
+    client,
+    metadata: { invitationId },
+  });
 }
 
 function replayInvitation(row: InvitationRow, email: string, actorUserId: string) {
@@ -212,17 +212,12 @@ async function recordInvitationDelivery(
       [invitationId, status],
     );
     if (updated.rowCount !== 1) throw new Error("Invitation delivery state changed unexpectedly.");
-    await client.query(
-      `insert into "vasi_admin_audit"
-        ("id", "actorUserId", "action", "metadata")
-       values ($1, $2, $3, $4::jsonb)`,
-      [
-        randomUUID(),
-        actorUserId,
-        status === "provider_accepted" ? "invitation.sent" : "invitation.delivery_failed",
-        JSON.stringify({ invitationId }),
-      ],
-    );
+    await writeAdminAudit({
+      action: status === "provider_accepted" ? "invitation.sent" : "invitation.delivery_failed",
+      actorUserId,
+      client,
+      metadata: { invitationId },
+    });
     await client.query("commit");
   } catch (error) {
     await client.query("rollback").catch(() => undefined);
@@ -265,25 +260,38 @@ export async function acceptInvitation(
     return false;
   }
 
-  const result = await database.query(
-    `update "vasi_invitation"
-     set "acceptedAt" = CURRENT_TIMESTAMP,
-         "acceptedBy" = $2,
-         "updatedAt" = CURRENT_TIMESTAMP
-     where "id" = $1
-       and "acceptedAt" is null
-       and "revokedAt" is null
-       and "expiresAt" > CURRENT_TIMESTAMP`,
-    [invitation.id, user.id],
-  );
-  if (!result.rowCount) return false;
-
-  await writeAdminAudit({
-    action: "invitation.accepted",
-    targetUserId: user.id,
-    metadata: { invitationId: invitation.id },
-  });
-  return true;
+  const client = await database.connect();
+  try {
+    await client.query("begin");
+    const result = await client.query(
+      `update "vasi_invitation"
+       set "acceptedAt" = CURRENT_TIMESTAMP,
+           "acceptedBy" = $2,
+           "updatedAt" = CURRENT_TIMESTAMP
+       where "id" = $1
+         and "acceptedAt" is null
+         and "revokedAt" is null
+         and "expiresAt" > CURRENT_TIMESTAMP`,
+      [invitation.id, user.id],
+    );
+    if (!result.rowCount) {
+      await client.query("rollback");
+      return false;
+    }
+    await writeAdminAudit({
+      action: "invitation.accepted",
+      client,
+      metadata: { invitationId: invitation.id },
+      targetUserId: user.id,
+    });
+    await client.query("commit");
+    return true;
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 function hashInvitationToken(token: string) {

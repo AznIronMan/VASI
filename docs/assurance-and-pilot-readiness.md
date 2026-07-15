@@ -67,7 +67,7 @@ legal enforceability by itself.
 
 | ID | Threat | Enforced controls and evidence | Residual risk / required owner |
 |---|---|---|---|
-| AUTH-1 | Account takeover, provider confusion, or manual-password downgrade | Verified provider subject/email binding; SSO-first UI; password controls hidden under Other methods; session-specific provenance; connector and session revocation; provider callback allowlists | Customer identity/MFA policy and recovery-channel security remain operator/provider responsibilities |
+| AUTH-1 | Account takeover, provider confusion, manual-password downgrade, or privileged identity change without trustworthy history | Verified provider subject/email binding; SSO-first UI; password controls hidden under Other methods; session-specific provenance; connector and session revocation; provider callback allowlists; command-correlated immutable administrator audit chain; atomic local outcomes; explicit provider ambiguity; internal-only verifier and independent aggregate monitor | Customer identity/MFA policy and recovery-channel security remain operator/provider responsibilities; host/database owners remain trusted without external anchoring |
 | AUTH-2 | Open redirect, forged origin, CSRF, or host-header confusion | Bounded same-origin return paths; configured public/private origins; origin checks on state-changing routes; Better Auth CSRF/session controls; restrictive response headers | Reverse proxy must preserve the validated host/scheme contract |
 | GATE-1 | Public access to the evidence engine | Engine, worker, and integration gateway publish no host ports; only private ingress is reachable; TLS 1.3 client authentication, certificate fingerprint pinning, HMAC request authentication, one-minute EdDSA actor assertions, and persisted replay rejection | Host/network administrators remain trusted; independent network validation is required |
 | TEN-1 | Cross-tenant read, write, role escalation, or quota bypass | Engine-owned roles; tenant ID derived from authorized context; transactional capacity checks; tenant isolation probes; immutable tenant profile revisions and evidence-bound snapshots | Independent adversarial tenant-isolation review remains required |
@@ -240,11 +240,12 @@ new-flow denial, and the bounded probe also requires the published listener to
 accept a host TCP connection. Both chains are installed and refreshed as one
 host operation.
 
-VASI 0.24.0 packages all first-party recurring controls as a single reviewed
+VASI 0.24.0 packages the initial first-party recurring controls as a single reviewed
 systemd contract. Gateway and engine backup creation/checking, capacity, and
 deployment-perimeter checks run on independent persistent timers; the engine
 also schedules operational readiness alongside its existing egress refresh and
-boundary proof. Source assurance enumerates all 22 units and rejects missing or
+boundary proof. VASI 0.34.0 adds a separate gateway identity-operations probe
+and timer, so source assurance now enumerates all 24 units and rejects missing or
 extra files, weakened sandbox/persistence/recurrence, environment files,
 customer origins or home paths, ignored live overrides, Docker-socket mounts,
 privileged mode, and host networking. Target-host `systemd-analyze verify` and
@@ -342,6 +343,19 @@ integrity. The worker and isolated integration gateway independently reject
 obsolete or substituted jobs, and the gateway holds source status stable
 through provider submission. Provider acceptance remains explicitly weaker than
 inbox delivery or participant receipt.
+
+VASI 0.34.0 converts gateway identity-administration history into a serialized,
+immutable SHA-256 chain and correlates each privileged mutation from start to a
+truthful succeeded, failed, ambiguous, or visibly incomplete outcome. Local
+database changes and terminal evidence commit together; externally committed
+operations preserve uncertainty. Disposable PostgreSQL proof covers legacy
+backfill, concurrent append, old-runtime inserts, deleted-user history,
+duplicate-terminal and context rejection, immutability, and head-substitution
+detection. The internal console recomputes the chain, while a separate
+aggregate-only probe fails on exact migration drift, integrity failure, slow
+reads, or stale incomplete commands without exporting identities or request
+context. External log anchoring, alert delivery, and database-owner distrust
+remain deployment/customer trust-profile decisions.
 
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and

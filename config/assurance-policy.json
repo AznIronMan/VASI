@@ -96,6 +96,7 @@
           "scripts/backup.mjs",
           "scripts/probe-capacity-readiness.mjs",
           "scripts/probe-deployment-readiness.mjs",
+          "scripts/probe-gateway-operational-readiness.mjs",
           "scripts/probe-operational-readiness.mjs",
           "scripts/tenant-transfer.mjs"
         ],
@@ -124,6 +125,10 @@
     "maximumP95Milliseconds": 1000,
     "requests": 200,
     "timeoutMilliseconds": 5000
+  },
+  "gatewayOperations": {
+    "maximumDatabaseQueryMilliseconds": 2000,
+    "maximumIncompleteCommandSeconds": 300
   },
   "operations": {
     "maximumDatabaseQueryMilliseconds": 2000,

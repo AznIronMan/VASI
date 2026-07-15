@@ -1,6 +1,6 @@
 # Recurring operational scheduler contract
 
-Status: implemented in VASI 0.24.0.
+Status: implemented in VASI 0.24.0 and extended through VASI 0.34.0.
 
 VASI ships the recurring host controls needed to keep a healthy release from
 silently degrading after deployment. The portable contract uses hardened
@@ -16,6 +16,7 @@ customer-specific path.
 | Gateway and engine | Backup freshness check | 12 hours | The newest managed pair is missing, stale, malformed, future-dated, or corrupt |
 | Gateway and engine | Capacity readiness | 1 hour | A bounded host, filesystem, PostgreSQL, or configured replication threshold failed |
 | Gateway and engine | Deployment perimeter | 6 hours | Public health/version, public TLS, service certificates, or selected storage failed |
+| Gateway | Identity operational readiness | 5 minutes | Gateway migration drift, administrator audit-chain failure, slow database read, or stale incomplete command |
 | Engine | Operational readiness | 5 minutes | Migration, signing, queue, delivery, scanning, lifecycle, or database thresholds failed |
 | Engine | Exact egress policy refresh | 2 minutes | The fixed database/private-ingress host policy could not be applied |
 | Engine | Egress boundary verification | 5 minutes | Private denial, integration egress, listener replies, health, or database transport failed |
@@ -78,10 +79,12 @@ sudo systemctl start vasi-gateway-backup-create.service
 sudo systemctl start vasi-gateway-backup-check.service
 sudo systemctl start vasi-gateway-capacity-readiness.service
 sudo systemctl start vasi-gateway-deployment-readiness.service
+sudo systemctl start vasi-gateway-operational-readiness.service
 sudo systemctl enable --now vasi-gateway-backup-create.timer \
   vasi-gateway-backup-check.timer \
   vasi-gateway-capacity-readiness.timer \
-  vasi-gateway-deployment-readiness.timer
+  vasi-gateway-deployment-readiness.timer \
+  vasi-gateway-operational-readiness.timer
 ```
 
 Repeat with the applicable engine services and timers, including operational

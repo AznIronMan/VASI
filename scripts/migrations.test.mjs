@@ -43,4 +43,22 @@ describe("gateway migration ledger", () => {
     expect(migration).toContain('s."authenticationMethod" = \'federated\'');
     expect(migration).toContain('s."authenticationAccountId" = a."accountId"');
   });
+
+  it("makes identity-administration evidence immutable and hash chained", async () => {
+    const ledger = await readFile(path.join(root, "scripts", "migrations.mjs"), "utf8");
+    const migration = await readFile(
+      path.join(root, "database", "admin-audit-chain.sql"),
+      "utf8",
+    );
+
+    expect(ledger.indexOf("0007_admin_audit_chain"))
+      .toBeGreaterThan(ledger.indexOf("0006_connector_authentication_health"));
+    expect(migration).toContain('"vasi_admin_audit_chain_head"');
+    expect(migration).toContain("pg_advisory_xact_lock");
+    expect(migration).toContain("sha256(convert_to");
+    expect(migration).toContain('"vasi_admin_audit_command_phase_idx"');
+    expect(migration).toContain("VASI administrator audit events are immutable");
+    expect(migration).toContain("before truncate on \"vasi_admin_audit\"");
+    expect(migration).toContain('drop constraint if exists "vasi_admin_audit_actorUserId_fkey"');
+  });
 });

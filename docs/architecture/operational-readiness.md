@@ -90,6 +90,13 @@ This keeps the deployable product independent from a proprietary monitoring
 service and prevents application credentials from being copied into an
 alerting SDK.
 
+VASI 0.34.0 adds a deliberately separate gateway identity-operations probe.
+It verifies the gateway migration ledger, immutable administrator audit chain,
+and incomplete-command age without sending identity or request context to the
+private engine snapshot. Its design, thresholds, privacy exclusions, and timer
+are defined by the
+[identity-administration audit decision](identity-administration-audit.md).
+
 VASI 0.15.0 adds a separate scheduler-neutral matched-backup freshness and
 verification probe. VASI 0.16.0 adds a separate deployment-perimeter probe for
 public HTTPS/version, public and service-certificate windows, and one

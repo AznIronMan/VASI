@@ -364,6 +364,14 @@ export async function validateOperationalSchedulerContract(repositoryRoot = root
   addTimer("vasi-gateway-deployment-readiness.timer", "vasi-gateway-deployment-readiness.service", {
     active: "10min", boot: "10min", inactive: "6h",
   });
+  addService("vasi-gateway-operational-readiness.service", [
+    "WorkingDirectory=/opt/vasi/current",
+    "ExecStart=/usr/bin/docker compose -f compose.production.yaml --profile tools run --rm -T --no-deps maintenance scripts/probe-gateway-operational-readiness.mjs",
+    "RestrictAddressFamilies=AF_UNIX",
+  ]);
+  addTimer("vasi-gateway-operational-readiness.timer", "vasi-gateway-operational-readiness.service", {
+    active: "3min", boot: "3min", inactive: "5min",
+  });
   addService("vasi-engine-deployment-readiness.service", [
     "WorkingDirectory=/opt/vasi-engine/current",
     "ExecStart=/usr/bin/env node scripts/probe-deployment-readiness.mjs --scope engine --storage /opt/vasi-engine/releases",

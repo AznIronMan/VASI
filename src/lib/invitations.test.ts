@@ -22,7 +22,7 @@ vi.mock("@/lib/email", async (importOriginal) => {
 vi.mock("@/lib/runtime-settings", () => ({ getRuntimeSettings: mocks.getRuntimeSettings }));
 vi.mock("@/lib/server-settings", () => ({ resolveServerSettings: mocks.resolveServerSettings }));
 vi.mock("@/lib/branding", () => ({ resolveProductBrand: mocks.resolveProductBrand }));
-vi.mock("@/lib/admin-users", () => ({ writeAdminAudit: mocks.writeAdminAudit }));
+vi.mock("@/lib/admin-audit", () => ({ writeAdminAudit: mocks.writeAdminAudit }));
 
 import { createInvitation } from "@/lib/invitations";
 import { AuthEmailDeliveryError } from "@/lib/email";
@@ -36,6 +36,11 @@ describe("command-bound invitation delivery", () => {
     mocks.resolveServerSettings.mockReturnValue({ baseURL: "https://vsign.example.test" });
     mocks.resolveProductBrand.mockReturnValue({ displayName: "V·Sign", productName: "V·Sign" });
     mocks.sendAuthEmail.mockResolvedValue(undefined);
+    mocks.writeAdminAudit.mockResolvedValue({
+      eventHash: "a".repeat(64),
+      id: "audit-1",
+      sequence: 1,
+    });
   });
 
   it("returns the committed invitation on retry without sending a second message", async () => {

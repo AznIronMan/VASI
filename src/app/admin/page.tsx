@@ -34,6 +34,7 @@ export default async function AdminPage() {
   const dashboard = await loadAdminDashboard();
   return (
     <AdminConsole
+      audit={dashboard.audit}
       invitations={dashboard.invitations}
       operatorId={authorization.session.user.id}
       users={dashboard.users}

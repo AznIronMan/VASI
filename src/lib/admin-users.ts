@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import {
   authProviderIds,
   getAuthProviderAvailability,
@@ -10,6 +8,7 @@ import {
   type ConnectorAuthenticationProvenance,
 } from "@/lib/connector-authentication-health";
 import { database } from "@/lib/database";
+import { loadAdminAuditOverview } from "@/lib/admin-audit";
 import { getRuntimeSettings, type RuntimeSettings } from "@/lib/runtime-settings";
 
 export type ConnectorHealth = "active" | "stale" | "error" | "disconnected";
@@ -91,7 +90,7 @@ type UserRow = {
 };
 
 export async function loadAdminDashboard() {
-  const [usersResult, invitationResult, settings] = await Promise.all([
+  const [usersResult, invitationResult, settings, audit] = await Promise.all([
     database.query<UserRow>(`
       select
         u."id",
@@ -135,9 +134,11 @@ export async function loadAdminDashboard() {
       limit 25
     `),
     getRuntimeSettings(),
+    loadAdminAuditOverview(),
   ]);
 
   return {
+    audit,
     invitations: invitationResult.rows.map((invitation) => ({
       ...invitation,
       createdAt: new Date(invitation.createdAt).toISOString(),
@@ -208,23 +209,4 @@ export function resolveAuthenticationEvidence(
     default:
       return null;
   }
-}
-
-export async function writeAdminAudit({
-  action,
-  actorUserId,
-  metadata = {},
-  targetUserId,
-}: {
-  action: string;
-  actorUserId?: string | null;
-  metadata?: Record<string, unknown>;
-  targetUserId?: string | null;
-}) {
-  await database.query(
-    `insert into "vasi_admin_audit"
-      ("id", "actorUserId", "targetUserId", "action", "metadata")
-     values ($1, $2, $3, $4, $5::jsonb)`,
-    [randomUUID(), actorUserId ?? null, targetUserId ?? null, action, JSON.stringify(metadata)],
-  );
 }

@@ -6,7 +6,7 @@ import path from "node:path";
 import { createSettingsPool, loadBootstrapSettings } from "./settings-core.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const migrations = [
+export const GATEWAY_MIGRATIONS = Object.freeze([
   {
     name: "0001_auth_foundation",
     path: path.join(repositoryRoot, "database", "auth-schema.sql"),
@@ -31,7 +31,11 @@ const migrations = [
     name: "0006_connector_authentication_health",
     path: path.join(repositoryRoot, "database", "connector-authentication-health.sql"),
   },
-];
+  {
+    name: "0007_admin_audit_chain",
+    path: path.join(repositoryRoot, "database", "admin-audit-chain.sql"),
+  },
+].map((migration) => Object.freeze(migration)));
 
 export async function runMigrations(bootstrap = loadBootstrapSettings()) {
   const pool = createSettingsPool(bootstrap);
@@ -47,7 +51,7 @@ export async function runMigrations(bootstrap = loadBootstrapSettings()) {
       )
     `);
 
-    for (const migration of migrations) {
+    for (const migration of GATEWAY_MIGRATIONS) {
       const sql = await readFile(migration.path, "utf8");
       const checksum = createHash("sha256").update(sql).digest("hex");
       const existing = await client.query(
