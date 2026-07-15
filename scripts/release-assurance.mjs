@@ -20,6 +20,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { parse as parseYAML } from "yaml";
 
 import policy from "../config/assurance-policy.json" with { type: "json" };
+import {
+  auditPublicIngressConfiguration,
+  PUBLIC_INGRESS_EXAMPLE_SETTINGS,
+  renderPublicIngressConfiguration,
+} from "./public-ingress-config.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const forbiddenPathPatterns = [
@@ -566,6 +571,43 @@ export async function validateRuntimeImageBuildContract(repositoryRoot = root) {
   return { failures, filesChecked: 2 };
 }
 
+export async function validatePublicIngressContract(repositoryRoot = root) {
+  const failures = [];
+  let example = "";
+  let packageJSON = {};
+  try {
+    example = await readFile(
+      path.join(repositoryRoot, "deployment", "nginx", "vasi-public.conf.example"),
+      "utf8",
+    );
+  } catch {
+    failures.push("the sanitized public ingress example is missing");
+  }
+  try {
+    packageJSON = JSON.parse(await readFile(path.join(repositoryRoot, "package.json"), "utf8"));
+  } catch {
+    failures.push("package.json is unavailable for public ingress assurance");
+  }
+  if (example) {
+    if (example !== renderPublicIngressConfiguration(PUBLIC_INGRESS_EXAMPLE_SETTINGS)) {
+      failures.push("the sanitized public ingress example differs from canonical rendering");
+    }
+    try {
+      const audit = auditPublicIngressConfiguration(example, PUBLIC_INGRESS_EXAMPLE_SETTINGS);
+      failures.push(...audit.failures.map((failure) => `public ingress: ${failure}`));
+    } catch {
+      failures.push("the sanitized public ingress example cannot be parsed safely");
+    }
+  }
+  if (packageJSON?.scripts?.["ingress:config"] !== "node scripts/public-ingress-config.mjs") {
+    failures.push("package.json is missing the public ingress configuration command");
+  }
+  if (packageJSON?.scripts?.["assurance:ingress"] !== "node scripts/probe-public-ingress.mjs") {
+    failures.push("package.json is missing the public ingress black-box assurance command");
+  }
+  return { failures, filesChecked: 3 };
+}
+
 async function sourceAssurance(output, { allowDirty }) {
   const dirtyOutput = await capture("git", ["status", "--porcelain=v1"], { cwd: root });
   const dirty = Boolean(dirtyOutput.trim());
@@ -577,6 +619,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const automation = await validateAutomationContract(root);
   const engineHostRuntime = await validateEngineHostRuntimeContract(root);
   const operationalSchedulers = await validateOperationalSchedulerContract(root);
+  const publicIngress = await validatePublicIngressContract(root);
   const runtimeImageBuild = await validateRuntimeImageBuildContract(root);
   if (source.forbiddenPaths.length) throw new Error(`Forbidden tracked paths: ${source.forbiddenPaths.join(", ")}.`);
   if (source.secretFindings.length) {
@@ -595,6 +638,9 @@ async function sourceAssurance(output, { allowDirty }) {
   }
   if (operationalSchedulers.failures.length) {
     throw new Error(`Operational scheduler hardening failed: ${operationalSchedulers.failures.join("; ")}.`);
+  }
+  if (publicIngress.failures.length) {
+    throw new Error(`Public ingress hardening failed: ${publicIngress.failures.join("; ")}.`);
   }
   if (runtimeImageBuild.failures.length) {
     throw new Error(`Runtime image build hardening failed: ${runtimeImageBuild.failures.join("; ")}.`);
@@ -621,6 +667,7 @@ async function sourceAssurance(output, { allowDirty }) {
     dirty,
     engineHostRuntime,
     operationalSchedulers,
+    publicIngress,
     runtimeImageBuild,
     sourceFileCount: source.files.length,
     versions: versions.actual,

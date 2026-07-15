@@ -23,8 +23,12 @@ database and login role, a dedicated deployment directory, and a unique
   denies every new outbound flow from that bridge.
 - The tracked Compose binds the facade to loopback. Put a private address in an
   ignored override only after confirming the address and port are reserved.
-- Public reverse proxies must not receive the client certificate or key. A
-  public route that happens to reach the listener must fail the TLS handshake.
+- Public reverse proxies must not receive the client certificate or key and
+  must not target private ingress at all. A historical engine hostname loses
+  DNS or terminates in a content-free no-proxy denial server. Independently
+  validate that edge state with the
+  [public ingress contract](architecture/public-ingress-boundary.md); TLS
+  handshake failure is defense in depth, not an approved public route.
 
 Approved routes are:
 

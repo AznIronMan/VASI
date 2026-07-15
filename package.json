@@ -1,6 +1,6 @@
 {
   "name": "vasi",
-  "version": "0.38.0",
+  "version": "0.39.0",
   "private": true,
   "description": "Verified Authorized Signing Infrastructure",
   "engines": {
@@ -34,6 +34,7 @@
     "assurance:source": "node scripts/release-assurance.mjs source",
     "assurance:images": "node scripts/release-assurance.mjs images",
     "assurance:load": "node scripts/probe-readiness-load.mjs",
+    "assurance:ingress": "node scripts/probe-public-ingress.mjs",
     "assurance:gateway-operations": "node scripts/probe-gateway-operational-readiness.mjs",
     "assurance:operations": "node scripts/probe-operational-readiness.mjs",
     "assurance:capacity": "node scripts/probe-capacity-readiness.mjs",
@@ -49,7 +50,8 @@
     "evidence:verify": "node scripts/vasi-verify.mjs",
     "settings": "node scripts/settings.mjs",
     "settings:init": "node scripts/settings.mjs init",
-    "settings:list": "node scripts/settings.mjs list"
+    "settings:list": "node scripts/settings.mjs list",
+    "ingress:config": "node scripts/public-ingress-config.mjs"
   },
   "dependencies": {
     "better-auth": "1.6.23",

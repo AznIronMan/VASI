@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.38.0`
+Version: `0.39.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -489,6 +489,16 @@ available without spending DNS budget. Saturation degrades to the existing
 provider-choice screen instead of creating unbounded work or forcing a manual
 password.
 
+Version 0.39.0 makes public ingress an explicit release boundary. A canonical
+sanitized Nginx profile replaces client-supplied forwarding chains, bounds
+body/header/connection/rate/timeout behavior, disables automatic upstream
+retry, and provides generic no-store 413/429 responses. A bounded parser audits
+effective `nginx -T` output rather than trusting a template, and a black-box
+probe verifies live identity, headers, body limits, optional rate enforcement,
+and content-free retirement of a former public engine hostname. Fresh
+deployments publish only V·Sign; a retained legacy hostname has no `proxy_pass`
+and returns 404 over HTTP and HTTPS.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -526,6 +536,9 @@ assessment remain installation or pilot gates.
   value-redacting settings CLI.
 - A non-root application image, loopback-only published port, health check,
   read-only application filesystem, and explicit release migration.
+- A canonical sanitized Nginx public-edge profile, effective-configuration
+  audit, and black-box ingress proof; V·Sign is the only public application
+  origin and any retained engine hostname is a content-free denial route.
 - Framework-independent engine contracts, service authorization, request
   signing, actor-assertion validation, and gateway-client packages.
 - Private engine, worker, and integration-gateway containers with no published
@@ -693,6 +706,8 @@ npm run backup:custody -- create /secure/backups /approved/off-host-mount --scop
 npm run backup:custody -- check /approved/off-host-mount
 npm run backup:custody -- authenticate /approved/off-host-mount/PACKAGE.vbc --key-id OPAQUE_KEY_ID --private-key-file /secure/offline/private.jwk
 npm run assurance:deployment -- --scope gateway --storage /secure
+npm run assurance:ingress -- https://vsign.example.com \
+  --retired-origin https://retired-vasi.example.com
 npm run tenant:transfer -- export TENANT_ID /secure/transfers/tenant
 ```
 
@@ -784,6 +799,11 @@ public reverse proxy to supply the V·Sign client certificate. Its dedicated
 listener bridge is externally routable at Docker's network layer only so port
 publication works; the required host chain allows established replies and
 denies every new outbound flow from that bridge.
+
+Do not configure a public proxy to target private ingress even without a
+client certificate. Publish only V·Sign; remove an obsolete engine DNS name or
+terminate it with the tracked content-free 404 profile. See the
+[public ingress decision](docs/architecture/public-ingress-boundary.md).
 
 The engine uses its own PostgreSQL database or role/schema boundary and its own
 `data/VASI.settings`; do not reuse the gateway bootstrap. Service TLS keys,
@@ -898,6 +918,10 @@ threshold, sentinel-mount, and scheduler handoff contracts.
 The [recurring operations decision](docs/architecture/recurring-operational-schedulers.md)
 defines the packaged unit set, independent schedules, hardening, path override,
 PostgreSQL-origin, installation, validation, and alerting contract.
+The [public ingress decision](docs/architecture/public-ingress-boundary.md)
+defines the single public application origin, forwarding replacement, edge
+resource bounds, retired-host denial, canonical rendering, effective
+configuration audit, live proof, and remaining installation responsibilities.
 The [assurance and pilot-readiness contract](docs/assurance-and-pilot-readiness.md)
 defines the threat register, repeatable release evidence, recovery/key drills,
 observability limits, and the first-party, independent, legal, and customer

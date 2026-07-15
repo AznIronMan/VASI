@@ -123,6 +123,14 @@ Overflow returns a generic 413; malformed or inconsistent transport receives a
 generic 400 without exposing body or parser detail. See the
 [gateway request-body decision](architecture/bounded-gateway-request-bodies.md).
 
+The supported Nginx public-edge profile independently applies the same 64 KiB
+ceiling before proxying, uses a lower authentication request rate than the
+general public route, and returns generic no-store 413/429 responses. It
+replaces rather than appends forwarding metadata and clears standardized
+`Forwarded` plus upgrade headers. Validate the effective `nginx -T` state and
+the public black-box behavior as described in the
+[public ingress decision](architecture/public-ingress-boundary.md).
+
 Local callbacks use the same paths on `http://localhost:3000`.
 
 ### Microsoft
