@@ -112,6 +112,15 @@ usual engine-first rollout is required because the gateway workspace consumes
 the expanded response after the engine is replaced. Deployment does not create
 or modify a tenant, request, participant, notification, or evidence record.
 
+VASI 0.31.0 adds no database migration. Authentication-assurance policy is
+stored inside the existing immutable workflow/request JSONB snapshots, while
+accepted evaluations use the existing append-only event payload and sealed
+manifest. Deploy the engine before the gateway so enforcement, manifest v10,
+participant disclosure, and deliberate reauthentication behavior remain
+version-aligned. Existing workflow snapshots normalize to `any_verified` with
+no additional freshness limit; deployment does not rewrite them or create an
+identity, tenant, request, notification, or evidence record.
+
 ## Initialize
 
 Requirements are Docker Engine with Compose, PostgreSQL 15 or newer, an HTTPS

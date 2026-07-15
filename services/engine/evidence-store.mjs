@@ -12,6 +12,7 @@ import {
 } from "../../packages/engine-crypto/index.mjs";
 import { assertEvidenceRecord } from "../../packages/evidence-verifier/index.mjs";
 import {
+  authenticationAssurancePolicy,
   evaluateNextActivity,
   hasTenantPermission,
   participantActivityProjection,
@@ -33,6 +34,7 @@ import {
   validateNotificationDeliveryEvidence,
 } from "../../packages/engine-domain/notifications.mjs";
 import { readArtifactChunk } from "./artifact-store.mjs";
+import { requireAuthenticationAssurance } from "./authentication-assurance.mjs";
 import { loadParticipantContextEvidence } from "./context-store.mjs";
 import { appendEvent } from "./evidence-events.mjs";
 import { EngineStoreError } from "./errors.mjs";
@@ -235,6 +237,11 @@ export function createEvidenceStore(database, settings) {
           return { completed: true, receiptAvailable: true };
         }
         assertAssignmentAvailable(record, now);
+        const authenticationAssurance = requireAuthenticationAssurance(
+          record.accessPolicy,
+          actor,
+          now,
+        );
 
         if (record.requestStatus === "scheduled") {
           await client.query(
@@ -269,11 +276,18 @@ export function createEvidenceStore(database, settings) {
         }
 
         let interaction = await client.query(
-          `select "id", "startedAt" from "vasi_engine"."interaction_session"
+          `select "id", "startedAt", "gatewaySessionId" from "vasi_engine"."interaction_session"
            where "assignmentId" = $1 and "principalId" = $2 and "completedAt" is null
            limit 1`,
           [record.assignmentId, actor.principalId],
         );
+        if (interaction.rowCount && interaction.rows[0].gatewaySessionId !== actor.gatewaySessionId) {
+          await client.query(
+            `update "vasi_engine"."interaction_session" set "completedAt" = $2 where "id" = $1`,
+            [interaction.rows[0].id, now],
+          );
+          interaction = { rowCount: 0, rows: [] };
+        }
         if (!interaction.rowCount) {
           const interactionId = randomUUID();
           await client.query(
@@ -296,6 +310,7 @@ export function createEvidenceStore(database, settings) {
             assignmentId: record.assignmentId,
             eventType: "participant.opened",
             payload: {
+              authenticationAssurance,
               authentication: actor.authentication,
               authenticatedAt: actor.authenticatedAt,
               contentHash: record.contentHash,
@@ -332,13 +347,20 @@ export function createEvidenceStore(database, settings) {
       return transaction(database, async (client) => {
         const record = await assignmentForHandle(client, handleDigest, true);
         authorizeParticipant(record, actor);
-        assertAssignmentAvailable(record, new Date());
+        const now = new Date();
+        assertAssignmentAvailable(record, now);
         if (record.status === "completed") {
           throw new EvidenceStoreError("response_replayed", 409);
         }
+        let authenticationAssurance = requireAuthenticationAssurance(
+          record.accessPolicy,
+          actor,
+          now,
+        );
         if (record.snapshot) {
           return respondToWorkflowActivity({
             actor,
+            authenticationAssurance,
             client,
             clientContext,
             commandId,
@@ -361,6 +383,11 @@ export function createEvidenceStore(database, settings) {
         );
         if (!interaction.rowCount) throw new EvidenceStoreError("interaction_unavailable", 409);
         const completedAt = new Date();
+        authenticationAssurance = requireAuthenticationAssurance(
+          record.accessPolicy,
+          actor,
+          completedAt,
+        );
         const responseId = randomUUID();
         try {
           await client.query(
@@ -389,6 +416,7 @@ export function createEvidenceStore(database, settings) {
           assignmentId: record.assignmentId,
           eventType: "participant.responded",
           payload: {
+            authenticationAssurance,
             clientContext,
             interactionId,
             response,
@@ -497,12 +525,17 @@ export function createEvidenceStore(database, settings) {
       return transaction(database, async (client) => {
         const record = await participantArtifactRecord(client, handleDigest, input, true);
         authorizeParticipant(record, actor);
-        await assertLifecycleContentAvailable(client, record.assignmentId, new Date());
-        assertParticipantContentAccess(record, new Date());
+        const accessedAt = new Date();
+        await assertLifecycleContentAvailable(client, record.assignmentId, accessedAt);
+        assertParticipantContentAccess(record, accessedAt);
+        const authenticationAssurance = requireAuthenticationAssurance(
+          record.accessPolicy,
+          actor,
+          accessedAt,
+        );
         const accessType = input.disposition === "attachment"
           ? "participant_download"
           : "participant_presentation";
-        const accessedAt = new Date();
         const accessId = randomUUID();
         await client.query(
           `insert into "vasi_engine"."document_artifact_access_event"
@@ -531,6 +564,7 @@ export function createEvidenceStore(database, settings) {
             payload: {
               accessId,
               activityId: record.activityId,
+              authenticationAssurance,
               artifact: participantArtifactProjection(record),
               disposition: input.disposition,
               limitation: "Authorized route access does not prove that every page was read.",
@@ -553,8 +587,10 @@ export function createEvidenceStore(database, settings) {
       try {
         const record = await participantArtifactRecord(client, handleDigest, input, false);
         authorizeParticipant(record, actor);
-        await assertLifecycleContentAvailable(client, record.assignmentId, new Date());
-        assertParticipantContentAccess(record, new Date());
+        const accessedAt = new Date();
+        await assertLifecycleContentAvailable(client, record.assignmentId, accessedAt);
+        assertParticipantContentAccess(record, accessedAt);
+        requireAuthenticationAssurance(record.accessPolicy, actor, accessedAt);
         return readArtifactChunk(client, input.artifactId, input.sequence);
       } finally {
         client.release();
@@ -869,6 +905,7 @@ function workflowParticipantProjection(record, interaction, activity, interactio
     },
     purpose: record.purpose,
     requestAccess: {
+      authenticationAssurance: authenticationAssurancePolicy(record.accessPolicy),
       postCompletion: record.accessPolicy?.postCompletion || "receipt_only",
     },
     requester: participantRequesterProjection(record.requesterSnapshot),
@@ -885,6 +922,7 @@ function workflowParticipantProjection(record, interaction, activity, interactio
 
 async function respondToWorkflowActivity({
   actor,
+  authenticationAssurance,
   client,
   clientContext,
   commandId,
@@ -921,6 +959,11 @@ async function respondToWorkflowActivity({
     if (!presented.rowCount) throw new EvidenceStoreError("document_not_presented", 409);
   }
   const completedAt = new Date();
+  authenticationAssurance = requireAuthenticationAssurance(
+    record.accessPolicy,
+    actor,
+    completedAt,
+  );
   if (intent === "submit") {
     response = await assertMediaCompletion(client, record, activity, response, completedAt);
   }
@@ -965,6 +1008,7 @@ async function respondToWorkflowActivity({
     assignmentId: record.assignmentId,
     eventType: intent === "save" ? "activity.response.saved" : "activity.response.submitted",
     payload: {
+      authenticationAssurance,
       activity: {
         definitionHash: activity.definitionHash,
         id: activity.activityId,
@@ -1222,9 +1266,11 @@ function buildWorkflowManifest({
   responses,
 }) {
   const admission = requestAdmissionEvidenceProjection(record);
+  const authenticationAssurance = authenticationAssuranceEvidence(record, events);
   return {
     ...(admission ? { admission } : {}),
     activityInteraction,
+    authenticationAssurance,
     assignment: {
       id: record.assignmentId,
       participantEmail: actor.email,
@@ -1264,7 +1310,7 @@ function buildWorkflowManifest({
       scheduledFor: record.scheduledFor ? new Date(record.scheduledFor).toISOString() : undefined,
     },
     requester: record.requesterSnapshot,
-    schema: admission ? "vasi-evidence-manifest/v9" : "vasi-evidence-manifest/v8",
+    schema: admission ? "vasi-evidence-manifest/v10" : "vasi-evidence-manifest/v8",
     tenant: tenantEvidenceProjection(record),
     timestamps: {
       completedAt: completedAt.toISOString(),
@@ -1280,6 +1326,20 @@ function buildWorkflowManifest({
       title: record.title,
     },
   };
+}
+
+function authenticationAssuranceEvidence(record, events) {
+  return Object.freeze({
+    evaluations: Object.freeze(events
+      .filter((event) => event.eventData?.payload?.authenticationAssurance)
+      .map((event) => Object.freeze({
+        evaluation: event.eventData.payload.authenticationAssurance,
+        eventId: event.eventData.eventId,
+        eventType: event.eventData.eventType,
+      }))),
+    policy: authenticationAssurancePolicy(record.accessPolicy),
+    schema: "vasi-authentication-assurance-evidence/v1",
+  });
 }
 
 async function persistSeal(client, {
@@ -1847,6 +1907,7 @@ function participantProjection(record, interaction) {
     },
     purpose: record.purpose,
     requestAccess: {
+      authenticationAssurance: authenticationAssurancePolicy(record.accessPolicy),
       postCompletion: record.accessPolicy?.postCompletion || "receipt_only",
     },
     requester: participantRequesterProjection(record.requesterSnapshot),

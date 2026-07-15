@@ -25,6 +25,9 @@ type EditableActivity = WorkflowActivity & {
   questionsText?: string;
   stopOn?: string;
 };
+type WorkflowAuthenticationMethod = NonNullable<
+  NonNullable<WorkflowDocument["access"]>["authenticationAssurance"]
+>["acceptedMethods"][number];
 
 const emptyActivity = (index: number): EditableActivity => ({
   content: { prompt: "Do you acknowledge and agree?", terms: "" },
@@ -85,9 +88,14 @@ export function OwnerConsole({ baseURL, initialTenants }: {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+    const maximumAgeMinutes = String(data.get("authenticationMaximumAgeMinutes") || "").trim();
     const document: WorkflowDocument = {
       access: {
         authentication: "verified_email",
+        authenticationAssurance: {
+          acceptedMethods: authenticationMethods(String(data.get("authenticationMode"))),
+          maximumAgeSeconds: maximumAgeMinutes ? Number(maximumAgeMinutes) * 60 : null,
+        },
         postCompletion: String(data.get("postCompletion")) as NonNullable<WorkflowDocument["access"]>["postCompletion"],
       },
       activities: activities.map(toWorkflowActivity),
@@ -340,6 +348,7 @@ export function OwnerConsole({ baseURL, initialTenants }: {
           <button className="secondary-button" type="button" disabled={activities.length >= 50} onClick={() => setActivities((current) => [...current, emptyActivity(current.length)])}>Add ordered step</button>
           <div className="form-row"><label className="field"><span>Default due days</span><input name="defaultDueDays" type="number" min="1" max="365" defaultValue={editing?.document.schedule?.defaultDueDays || 7} required /></label><label className="field"><span>Expiration days</span><input name="defaultExpirationDays" type="number" min="1" max="365" defaultValue={editing?.document.schedule?.defaultExpirationDays || 14} required /></label></div>
           <div className="form-row"><label className="field"><span>Reminder hours before due</span><input name="reminderHours" defaultValue={editing?.document.notifications?.reminderHoursBeforeDue.join(", ") || "24"} /></label><label className="field"><span>After completion</span><select name="postCompletion" defaultValue={editing?.document.access?.postCompletion || "receipt_only"}><option value="receipt_only">Receipt only</option><option value="content_until_expiration">Content until expiration</option><option value="content_always">Content remains available</option></select></label></div>
+          <div className="form-row"><label className="field"><span>Accepted participant sign-in</span><select name="authenticationMode" defaultValue={editing ? authenticationMode(editing.document) : "federated"}><option value="federated">Federated SSO only (recommended)</option><option value="federated_password">Federated SSO or manual password</option><option value="any_verified">Any verified VASI sign-in</option><option value="password">Manual password only</option><option value="email_verification">Email verification only</option></select><small>This is provider-neutral and accepts any active federated connector.</small></label><label className="field"><span>Require sign-in within (minutes)</span><input name="authenticationMaximumAgeMinutes" type="number" min="5" max="43200" step="1" defaultValue={authenticationMaximumAgeMinutes(editing?.document)} placeholder="No additional limit" /><small>Leave blank to accept the current verified session for its normal lifetime.</small></label></div>
           <div className="owner-actions"><button className="primary-button" disabled={pending === "workflow"} type="submit">{pending === "workflow" ? "Saving…" : "Save validated draft"}</button>{editing && <button type="button" onClick={() => { setEditing(undefined); setActivities([emptyActivity(0)]); }}>Cancel edit</button>}</div>
         </form>
         <section className="evidence-panel"><p className="eyebrow eyebrow--green">DEFINITIONS</p><h2>Drafts and revisions</h2>{workflows.map((workflow) => <article className="owner-workflow" key={workflow.definitionId}><div><strong>{workflow.name}</strong><span>{workflow.document.activities.length} step(s) · draft v{workflow.draftVersion}{workflow.publishedRevision ? ` · published r${workflow.publishedRevision}` : ""}</span></div><div><button type="button" onClick={() => edit(workflow)}>Edit draft</button><button type="button" disabled={pending === `publish:${workflow.definitionId}`} onClick={() => void publish(workflow)}>Publish immutable revision</button></div></article>)}</section>
@@ -490,6 +499,27 @@ function outcomesFor(activity: EditableActivity) {
   if (activity.type === "single_choice") return (activity.content.choices || []).map((choice) => ({ label: choice.label, value: choice.id }));
   if (activity.type === "questionnaire") return [{ label: "Failed", value: "failed" }];
   return [];
+}
+
+function authenticationMethods(mode: string): WorkflowAuthenticationMethod[] {
+  if (mode === "federated_password") return ["federated", "password"];
+  if (["any_verified", "federated", "password", "email_verification"].includes(mode)) {
+    return [mode as WorkflowAuthenticationMethod];
+  }
+  return ["federated"];
+}
+
+function authenticationMode(document?: WorkflowDocument) {
+  const methods = document?.access?.authenticationAssurance?.acceptedMethods || ["any_verified"];
+  if (methods.length === 2 && methods.includes("federated") && methods.includes("password")) {
+    return "federated_password";
+  }
+  return methods[0] || "any_verified";
+}
+
+function authenticationMaximumAgeMinutes(document?: WorkflowDocument) {
+  const seconds = document?.access?.authenticationAssurance?.maximumAgeSeconds;
+  return Number.isSafeInteger(seconds) && Number(seconds) >= 300 ? Number(seconds) / 60 : "";
 }
 
 function notificationDeliveryText(request: OwnerRequest) {

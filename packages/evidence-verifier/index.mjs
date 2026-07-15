@@ -14,6 +14,10 @@ import {
 import { validateNotificationDeliveryEvidence } from "../engine-domain/notifications.mjs";
 import { validateRequesterSnapshot } from "../engine-domain/requester.mjs";
 import { validateTenantAdmission } from "../engine-domain/productization.mjs";
+import {
+  authenticationAssurancePolicy,
+  evaluateAuthenticationAssurance,
+} from "../engine-domain/workflow.mjs";
 
 const GENESIS_HASH = "0".repeat(64);
 
@@ -68,20 +72,23 @@ export function verifyEvidenceRecord(record, options = {}) {
     if (JSON.stringify(evidence?.eventHashes) !== JSON.stringify(eventHashes)) {
       errors.push("manifest_event_hashes_invalid");
     }
-    if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema)) {
+    if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9", "vasi-evidence-manifest/v10"].includes(manifest.schema)) {
       verifyActivityInteractionEvidence(manifest.activityInteraction, events, errors);
     }
-    if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema)) {
+    if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9", "vasi-evidence-manifest/v10"].includes(manifest.schema)) {
       verifyParticipantContextEvidence(manifest.participantContext, events, errors);
     }
-    if (["vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema)) {
+    if (["vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9", "vasi-evidence-manifest/v10"].includes(manifest.schema)) {
       verifyNotificationDeliveryEvidence(manifest.notificationDelivery, manifest.timestamps?.completedAt, errors);
     }
-    if (["vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema)) {
+    if (["vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9", "vasi-evidence-manifest/v10"].includes(manifest.schema)) {
       verifyRequesterEvidence(manifest.requester, events, errors);
     }
-    if (manifest.schema === "vasi-evidence-manifest/v9") {
+    if (["vasi-evidence-manifest/v9", "vasi-evidence-manifest/v10"].includes(manifest.schema)) {
       verifyTenantAdmissionEvidence(manifest.admission, events, errors);
+    }
+    if (manifest.schema === "vasi-evidence-manifest/v10") {
+      verifyAuthenticationAssuranceEvidence(manifest.authenticationAssurance, manifest, events, errors);
     }
   }
 
@@ -119,6 +126,7 @@ export function verifyEvidenceRecord(record, options = {}) {
     checks: Object.freeze({
       eventChain: !errors.some((error) => error.startsWith("event_") || error.startsWith("manifest_event") || error === "manifest_head_hash_invalid"),
       activityInteraction: !errors.some((error) => error.startsWith("activity_interaction_")),
+      authenticationAssurance: !errors.some((error) => error.startsWith("authentication_assurance_")),
       notificationDelivery: !errors.some((error) => error.startsWith("notification_delivery_")),
       participantContext: !errors.some((error) => error.startsWith("participant_context_")),
       requester: !errors.some((error) => error.startsWith("requester_")),
@@ -130,6 +138,77 @@ export function verifyEvidenceRecord(record, options = {}) {
     seals: Object.freeze(sealResults),
     verified: errors.length === 0,
   });
+}
+
+const AUTHENTICATION_ASSURANCE_EVENT_TYPES = new Set([
+  "activity.response.saved",
+  "activity.response.submitted",
+  "document.downloaded",
+  "document.presented",
+  "media.telemetry.recorded",
+  "participant.opened",
+  "participant.responded",
+]);
+
+function verifyAuthenticationAssuranceEvidence(value, manifest, events, errors) {
+  if (!value || Array.isArray(value) || typeof value !== "object" ||
+      value.schema !== "vasi-authentication-assurance-evidence/v1" ||
+      !Array.isArray(value.evaluations) || value.evaluations.length > events.length) {
+    errors.push("authentication_assurance_evidence_invalid");
+    return;
+  }
+  let policy;
+  try {
+    policy = authenticationAssurancePolicy(manifest.request?.accessPolicy);
+    const workflowPolicy = authenticationAssurancePolicy(manifest.workflow?.snapshot?.access);
+    if (hashCanonicalJSON(policy) !== hashCanonicalJSON(workflowPolicy) ||
+        hashCanonicalJSON(policy) !== hashCanonicalJSON(value.policy)) {
+      errors.push("authentication_assurance_policy_binding_invalid");
+    }
+  } catch {
+    errors.push("authentication_assurance_policy_invalid");
+    return;
+  }
+
+  const materialEvents = events.filter((event) =>
+    event?.eventData?.actor?.principalId === manifest.assignment?.principalId &&
+    AUTHENTICATION_ASSURANCE_EVENT_TYPES.has(event?.eventData?.eventType)
+  );
+  const eventById = new Map(events.map((event) => [event?.eventData?.eventId, event]));
+  const boundEvents = new Set();
+  for (const entry of value.evaluations) {
+    const eventId = boundedText(entry?.eventId, 128);
+    const eventType = boundedText(entry?.eventType, 64);
+    const event = eventById.get(eventId);
+    if (!eventId || !eventType || !event || boundEvents.has(eventId) ||
+        event.eventData?.eventType !== eventType ||
+        !AUTHENTICATION_ASSURANCE_EVENT_TYPES.has(eventType) ||
+        event.eventData?.actor?.principalId !== manifest.assignment?.principalId) {
+      errors.push("authentication_assurance_event_binding_invalid");
+      continue;
+    }
+    boundEvents.add(eventId);
+    let expected;
+    try {
+      expected = evaluateAuthenticationAssurance(
+        policy,
+        event.eventData.actor,
+        event.eventData.receivedAt,
+      );
+      if (!expected.satisfied) errors.push("authentication_assurance_unsatisfied_event");
+      if (hashCanonicalJSON(expected) !== hashCanonicalJSON(entry.evaluation) ||
+          hashCanonicalJSON(expected) !==
+            hashCanonicalJSON(event.eventData?.payload?.authenticationAssurance)) {
+        errors.push("authentication_assurance_evaluation_invalid");
+      }
+    } catch {
+      errors.push("authentication_assurance_evaluation_invalid");
+    }
+  }
+  if (materialEvents.length !== value.evaluations.length ||
+      materialEvents.some((event) => !boundEvents.has(event.eventData.eventId))) {
+    errors.push("authentication_assurance_material_event_missing");
+  }
 }
 
 function verifyTenantAdmissionEvidence(value, events, errors) {

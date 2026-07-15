@@ -5,8 +5,12 @@ export function gatewayEngineResponse<T>(result: { body?: T | EngineErrorRespons
     return Response.json(result.body ?? {});
   }
   const body = result.body as EngineErrorResponse | undefined;
+  const assuranceCode = body?.error === "authentication_method_not_allowed" ||
+    body?.error === "reauthentication_required"
+    ? body.error
+    : undefined;
   return Response.json(
-    { error: friendlyEngineError(body?.error) },
+    { ...(assuranceCode ? { code: assuranceCode } : {}), error: friendlyEngineError(body?.error) },
     { status: result.status >= 400 && result.status <= 599 ? result.status : 502 },
   );
 }
@@ -19,6 +23,8 @@ export function friendlyEngineError(code?: string) {
     case "assignment_expired": return "This request has expired.";
     case "assignment_revoked": return "This request is no longer available.";
     case "assignment_not_yet_available": return "This request is scheduled but is not available yet.";
+    case "authentication_method_not_allowed": return "This request requires a permitted sign-in method. Sign in again and choose a federated provider if the company requires SSO.";
+    case "reauthentication_required": return "The requesting company requires a more recent sign-in before you continue.";
     case "response_replayed": return "This request has already been completed.";
     case "receipt_unavailable": return "The completed receipt is not available yet.";
     case "activity_state_conflict": return "This workflow step changed state. Reload the request before responding again.";

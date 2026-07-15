@@ -11,6 +11,7 @@ const owner = actor("owner", "workflow-owner@example.test", ["admin"]);
 const manager = actor("manager", "workflow-manager@example.test", ["user"]);
 const auditor = actor("auditor", "workflow-auditor@example.test", ["user"]);
 const participant = actor("participant", "workflow-participant@example.test", ["user"]);
+participant.authentication = { method: "federated", provider: "google" };
 
 const tenant = await call(owner, "POST", "/v1/owner/tenants", {
   name: "VASI Workflow Proof",
@@ -99,6 +100,41 @@ if (lifecycleRecords.body.find((entry) => entry.assignmentId === issued.body.ass
   throw new Error("The workflow did not bind its named retention-policy revision.");
 }
 const handle = issued.body.participantPath.split("/").at(-1);
+const otherParticipant = actor("other-participant", "other-workflow-participant@example.test", ["user"]);
+otherParticipant.authentication = { method: "federated", provider: "microsoft" };
+await expectCall(otherParticipant, "POST", "/v1/participant/open", { handle }, 404, "participant non-disclosure");
+const wrongMethodParticipant = {
+  ...participant,
+  authentication: { method: "password" },
+  gatewaySessionId: "session-participant-password",
+};
+const wrongMethod = await expectCall(
+  wrongMethodParticipant,
+  "POST",
+  "/v1/participant/open",
+  { handle },
+  403,
+  "federated sign-in requirement",
+);
+if (wrongMethod.body?.error !== "authentication_method_not_allowed") {
+  throw new Error("The workflow authentication-method denial was not explicit.");
+}
+const staleParticipant = {
+  ...participant,
+  authenticatedAt: now - 901,
+  gatewaySessionId: "session-participant-stale",
+};
+const stale = await expectCall(
+  staleParticipant,
+  "POST",
+  "/v1/participant/open",
+  { handle },
+  401,
+  "authentication freshness requirement",
+);
+if (stale.body?.error !== "reauthentication_required") {
+  throw new Error("The workflow authentication-freshness denial was not explicit.");
+}
 let opened = await call(participant, "POST", "/v1/participant/open", { handle });
 expectStatus(opened, 200, "first activity open");
 if (opened.body.activityId !== "decision" || opened.body.progress?.total !== 2) {
@@ -127,7 +163,10 @@ const record = await call(auditor, "POST", "/v1/owner/records", {
 });
 expectStatus(record, 200, "auditor record access");
 if (
-  record.body.manifest?.schema !== "vasi-evidence-manifest/v9" ||
+  record.body.manifest?.schema !== "vasi-evidence-manifest/v10" ||
+  record.body.manifest.authenticationAssurance?.policy?.acceptedMethods?.[0] !== "federated" ||
+  record.body.manifest.authenticationAssurance?.policy?.maximumAgeSeconds !== 900 ||
+  record.body.manifest.authenticationAssurance?.evaluations?.length !== 3 ||
   record.body.manifest.requester?.email !== manager.email ||
   record.body.manifest.requester?.principalId !== manager.principalId ||
   record.body.manifest.workflow.snapshot.title !== "Published revision one" ||
@@ -236,11 +275,15 @@ if (history.body.find((entry) => entry.requestId === issued.body.requestId)?.sen
   throw new Error("Participant history changed after the requesting membership was disabled.");
 }
 
-console.info("VASI workflow draft, publication, requester provenance, role, branch, lifecycle, access, outbox, and seal checks passed.");
+console.info("VASI workflow draft, authentication assurance, publication, requester provenance, role, branch, lifecycle, access, outbox, and seal checks passed.");
 
 function workflowDocument(title) {
   return {
-    access: { authentication: "verified_email", postCompletion: "content_until_expiration" },
+    access: {
+      authentication: "verified_email",
+      authenticationAssurance: { acceptedMethods: ["federated"], maximumAgeSeconds: 900 },
+      postCompletion: "content_until_expiration",
+    },
     activities: [
       {
         content: { prompt: "Do you agree?", terms: "Exact decision terms." },

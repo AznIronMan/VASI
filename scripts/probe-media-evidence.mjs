@@ -135,7 +135,7 @@ const playbackRecord = await record(playbackIssue.body.assignmentId);
 const media = playbackRecord.body.manifest.media;
 const outcome = playbackRecord.body.manifest.outcome.activities[0];
 if (
-  playbackRecord.body.manifest.schema !== "vasi-evidence-manifest/v9" ||
+  playbackRecord.body.manifest.schema !== "vasi-evidence-manifest/v10" ||
   media.descriptors.length !== 1 || media.events.length !== 20 || media.summaries.length !== 2 ||
   !media.snapshots.some((entry) => entry.phase === "publish") ||
   !media.snapshots.some((entry) => entry.phase === "issue") ||

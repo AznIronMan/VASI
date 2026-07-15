@@ -3,6 +3,10 @@
 import { FormEvent, PointerEvent, useRef, useState } from "react";
 
 import { useActivityInteractionRecorder } from "@/components/evidence/activity-interaction-recorder";
+import {
+  AuthenticationAssuranceAction,
+  type AuthenticationAssuranceCode,
+} from "@/components/evidence/authentication-assurance-action";
 import { ExternalMediaActivity } from "@/components/evidence/external-media-activity";
 import { useParticipantContextRecorder } from "@/components/evidence/participant-context-recorder";
 import type { OpenParticipantAssignment } from "@/lib/evidence-types";
@@ -21,6 +25,7 @@ export function ParticipantRequest({ assignment, handle }: {
   const contextEvidence = useParticipantContextRecorder(assignment, handle);
   const [pending, setPending] = useState<"save" | "submit">();
   const [message, setMessage] = useState<string>();
+  const [authenticationAssuranceCode, setAuthenticationAssuranceCode] = useState<AuthenticationAssuranceCode>();
   const [strokes, setStrokes] = useState<SignatureStroke[]>([]);
   const type = assignment.type || "terms_response";
   const branding = assignment.tenant.branding;
@@ -39,6 +44,7 @@ export function ParticipantRequest({ assignment, handle }: {
     }
     setPending(intent);
     setMessage(undefined);
+    setAuthenticationAssuranceCode(undefined);
     try {
       await contextEvidence.recordResponse(intent === "save" ? "save" : "submission");
       if (intent === "submit") await interactionEvidence.disconnectAndFlush();
@@ -60,8 +66,16 @@ export function ParticipantRequest({ assignment, handle }: {
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      const result = await request.json() as { completed?: boolean; error?: string; saved?: boolean };
-      if (!request.ok) throw new Error(result.error || "Your response could not be recorded.");
+      const result = await request.json() as { code?: string; completed?: boolean; error?: string; saved?: boolean };
+      if (!request.ok) {
+        if (isAuthenticationAssuranceCode(result.code)) {
+          if (intent === "submit") interactionEvidence.resume();
+          setAuthenticationAssuranceCode(result.code);
+          setPending(undefined);
+          return;
+        }
+        throw new Error(result.error || "Your response could not be recorded.");
+      }
       if (intent === "save") {
         setMessage("Your response was saved as an append-only revision. It has not been submitted.");
         setPending(undefined);
@@ -92,6 +106,7 @@ export function ParticipantRequest({ assignment, handle }: {
           <div><dt>Requested by</dt><dd>{assignment.requester.email || "Identity retained in the company record"}</dd></div>
           {assignment.dueAt && <div><dt>Due</dt><dd>{new Date(assignment.dueAt).toLocaleString()}</dd></div>}
           <div><dt>Access expires</dt><dd>{new Date(assignment.expiresAt).toLocaleString()}</dd></div>
+          <div><dt>Required sign-in</dt><dd>{authenticationAssuranceText(assignment.requestAccess.authenticationAssurance)}</dd></div>
           <div><dt>After completion</dt><dd>{postCompletionText(assignment.requestAccess.postCompletion)}</dd></div>
         </dl>
         <p>Submitting records the authenticated action shown below in a tamper-evident audit trail. Your receipt and transaction history identify the company, requester, material times, and recorded outcome. You can request a reviewed export of your VASI data from your workspace.</p>
@@ -111,6 +126,7 @@ export function ParticipantRequest({ assignment, handle }: {
         {interactionEvidence.error && <p className="form-message form-message--error" role="status">{interactionEvidence.error} Your response can still be submitted.</p>}
         {contextEvidence.error && <p className="form-message form-message--error" role="status">{contextEvidence.error} Your response can still be submitted.</p>}
         {message && <p className={message.includes("could not") ? "form-message form-message--error" : "form-message"} role="status">{message}</p>}
+        {authenticationAssuranceCode && <AuthenticationAssuranceAction code={authenticationAssuranceCode} returnTo={`/r/${handle}`} />}
         <div className="participant-actions">
           <button className="secondary-button" disabled={Boolean(pending)} name="intent" type="submit" value="save">{pending === "save" ? "Saving…" : "Save progress"}</button>
           <button className="primary-button" disabled={Boolean(pending)} name="intent" type="submit" value="submit">{pending === "submit" ? "Recording…" : assignment.progress && assignment.progress.current < assignment.progress.total ? "Submit and continue" : "Submit and seal response"}</button>
@@ -125,6 +141,26 @@ function postCompletionText(policy: OpenParticipantAssignment["requestAccess"]["
   if (policy === "content_always") return "The completed content remains available with your record.";
   if (policy === "content_until_expiration") return "The completed content remains available until this request expires.";
   return "Your receipt and history remain available; the original content is not retained for participant access.";
+}
+
+function authenticationAssuranceText(
+  policy: OpenParticipantAssignment["requestAccess"]["authenticationAssurance"],
+) {
+  const methods = policy.acceptedMethods.includes("any_verified")
+    ? "any verified VASI sign-in"
+    : policy.acceptedMethods.map((method) => ({
+        any_verified: "any verified VASI sign-in",
+        email_verification: "email verification",
+        federated: "federated SSO",
+        password: "manual password",
+      })[method] || method).join(" or ");
+  return policy.maximumAgeSeconds === null
+    ? methods
+    : `${methods}, authenticated within ${Math.round(policy.maximumAgeSeconds / 60)} minutes`;
+}
+
+function isAuthenticationAssuranceCode(value?: string): value is AuthenticationAssuranceCode {
+  return value === "authentication_method_not_allowed" || value === "reauthentication_required";
 }
 
 function ActivityPresentation({ assignment, handle }: {

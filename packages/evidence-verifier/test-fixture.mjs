@@ -15,6 +15,7 @@ import {
   defaultTenantAdmission,
   TENANT_ADMISSION_GATES,
 } from "../engine-domain/productization.mjs";
+import { evaluateAuthenticationAssurance } from "../engine-domain/workflow.mjs";
 
 export function sealedTestRecord() {
   const { privateKey } = generateKeyPairSync("ed25519");
@@ -23,9 +24,18 @@ export function sealedTestRecord() {
   const participantContext = contextEvidence();
   const notificationDelivery = notificationEvidence();
   const admission = admissionEvidence();
+  const authenticationPolicy = {
+    acceptedMethods: ["federated"],
+    maximumAgeSeconds: 900,
+  };
   const firstData = eventData(1, "0".repeat(64), "request.issued", "owner", "owner@example.test", { admission: structuredClone(admission) }, "2026-01-01T00:00:00.000Z");
   const first = eventRecord(firstData);
   const secondData = eventData(2, first.eventHash, "participant.opened", "participant", "person@example.test", {}, "2026-01-01T00:00:10.000Z");
+  secondData.payload.authenticationAssurance = evaluateAuthenticationAssurance(
+    authenticationPolicy,
+    secondData.actor,
+    secondData.receivedAt,
+  );
   const second = eventRecord(secondData);
   const interactionBatch = activityInteraction.batches[0];
   const interactionSummary = activityInteraction.summaries[0];
@@ -75,18 +85,34 @@ export function sealedTestRecord() {
     contextSnapshot.receivedAt,
   );
   const fourth = eventRecord(fourthData);
-  const fifthData = eventData(5, fourth.eventHash, "request.completed", "participant", "person@example.test", {}, "2026-01-01T00:02:00.000Z");
+  const fifthData = eventData(5, fourth.eventHash, "activity.response.submitted", "participant", "person@example.test", {}, "2026-01-01T00:01:00.000Z");
+  fifthData.payload.authenticationAssurance = evaluateAuthenticationAssurance(
+    authenticationPolicy,
+    fifthData.actor,
+    fifthData.receivedAt,
+  );
   const fifth = eventRecord(fifthData);
-  const events = [first, second, third, fourth, fifth];
+  const sixthData = eventData(6, fifth.eventHash, "request.completed", "participant", "person@example.test", {}, "2026-01-01T00:02:00.000Z");
+  const sixth = eventRecord(sixthData);
+  const events = [first, second, third, fourth, fifth, sixth];
   const manifest = {
     admission,
     activityInteraction,
+    authenticationAssurance: {
+      evaluations: [secondData, fifthData].map((event) => ({
+        evaluation: event.payload.authenticationAssurance,
+        eventId: event.eventId,
+        eventType: event.eventType,
+      })),
+      policy: authenticationPolicy,
+      schema: "vasi-authentication-assurance-evidence/v1",
+    },
     assignment: { id: "assignment-1", participantEmail: "person@example.test", principalId: "participant" },
     evidence: {
       eventCount: events.length,
       eventHashes: events.map((event) => event.eventHash),
       firstSequence: 1,
-      headHash: fifth.eventHash,
+      headHash: sixth.eventHash,
       lastSequence: events.length,
     },
     outcome: {
@@ -104,7 +130,16 @@ export function sealedTestRecord() {
     },
     notificationDelivery,
     participantContext,
-    request: { expiresAt: "2026-01-08T00:00:00.000Z", id: "request-1", purpose: "Test evidence reporting" },
+    request: {
+      accessPolicy: {
+        authentication: "verified_email",
+        authenticationAssurance: authenticationPolicy,
+        postCompletion: "receipt_only",
+      },
+      expiresAt: "2026-01-08T00:00:00.000Z",
+      id: "request-1",
+      purpose: "Test evidence reporting",
+    },
     requester: {
       email: "owner@example.test",
       principalId: "owner",
@@ -112,7 +147,7 @@ export function sealedTestRecord() {
       relationship: "requesting_organization",
       schema: "vasi-requester-snapshot/v1",
     },
-    schema: "vasi-evidence-manifest/v9",
+    schema: "vasi-evidence-manifest/v10",
     tenant: { id: "tenant-1", name: "Example Company" },
     timestamps: {
       completedAt: "2026-01-01T00:02:00.000Z",
@@ -122,7 +157,17 @@ export function sealedTestRecord() {
     workflow: {
       id: "workflow-1",
       revision: 1,
-      snapshot: { activities: [], purpose: "Test evidence reporting", schema: "vasi-workflow/v1", title: "Example terms" },
+      snapshot: {
+        access: {
+          authentication: "verified_email",
+          authenticationAssurance: authenticationPolicy,
+          postCompletion: "receipt_only",
+        },
+        activities: [],
+        purpose: "Test evidence reporting",
+        schema: "vasi-workflow/v1",
+        title: "Example terms",
+      },
       snapshotHash: "b".repeat(64),
       title: "Example terms",
     },
@@ -310,7 +355,7 @@ function eventData(sequence, previousHash, eventType, principalId, email, payloa
   return {
     actor: {
       authenticatedAt: 1_767_225_600,
-      authentication: { method: "oauth", provider: principalId === "owner" ? "microsoft" : "google" },
+      authentication: { method: "federated", provider: principalId === "owner" ? "microsoft" : "google" },
       email,
       gatewaySessionId: `session-${principalId}`,
       principalId,

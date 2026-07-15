@@ -119,9 +119,11 @@ the current tenant revision is admitted can produce a version 9 manifest.
 
 Every newly issued request retains the admitted revision ID, complete canonical
 snapshot, hash, and `issued` binding provenance. The scheduled-or-issued event
-contains the same object. Workflow manifest `vasi-evidence-manifest/v9` seals it
-alongside requester provenance, tenant profile, workflow, activity, browser
-context, notification delivery, and outcome evidence.
+contains the same object. Workflow manifest `vasi-evidence-manifest/v9`
+introduced this binding; current manifest `vasi-evidence-manifest/v10` carries
+it alongside requester provenance, authentication assurance, tenant profile,
+workflow, activity, browser context, notification delivery, and outcome
+evidence.
 
 PostgreSQL rejects any later change to the request's issuance-time admission or
 tenant-profile revision, snapshot, hash, or provenance fields. Normal request

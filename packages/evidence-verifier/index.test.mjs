@@ -64,4 +64,14 @@ describe("portable evidence record verification", () => {
     expect(result.errors).toContain("tenant_admission_hash_invalid");
     expect(result.errors).toContain("tenant_admission_issuance_binding_invalid");
   });
+
+  it("recomputes provider-neutral authentication assurance for every material participant event", () => {
+    const { record } = sealedTestRecord();
+    expect(verifyEvidenceRecord(record).checks.authenticationAssurance).toBe(true);
+    const altered = structuredClone(record);
+    altered.manifest.authenticationAssurance.evaluations[1].evaluation.observation.method = "password";
+    const result = verifyEvidenceRecord(altered);
+    expect(result.verified).toBe(false);
+    expect(result.errors).toContain("authentication_assurance_evaluation_invalid");
+  });
 });

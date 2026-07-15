@@ -313,6 +313,16 @@ chronology, and the intersection of post-completion workflow access with
 retention availability. Raw technical context remains available only through
 the separately reviewed participant-data workflow.
 
+VASI 0.31.0 enforces immutable workflow authentication-assurance requirements
+inside the private engine after participant authorization. Disposable proofs
+cover cross-participant non-disclosure, password-versus-federated denial,
+authentication freshness, accepted completion, manifest v10 binding, and
+independent verifier recomputation. The control records a bounded method,
+provider/provenance when available, authentication time, and evaluated age; it
+does not retain provider subjects in the assurance object or claim that the
+identity provider required MFA. Customer MFA/conditional-access policy remains
+part of the identity and delivery admission gate.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

@@ -17,6 +17,7 @@ describe("deterministic evidence reports", () => {
         "event-3",
         "event-4",
         "event-5",
+        "event-6",
       ]);
     }
     expect(JSON.stringify(reports.participant)).not.toContain("192.0.2.20");
@@ -40,6 +41,11 @@ describe("deterministic evidence reports", () => {
       requiredGates: 8,
       status: "admitted",
     });
+    expect(reports.participant.authenticationAssurance).toMatchObject({
+      acceptedMethods: ["federated"],
+      evaluationCount: 2,
+      maximumAgeSeconds: 900,
+    });
     expect(JSON.stringify(reports.participant.notificationDelivery)).not.toContain("notification-job-1");
     const plainText = renderEvidenceReport(reports.nontechnical, "text").toString();
     expect(plainText).toContain("CHRONOLOGY");
@@ -47,6 +53,7 @@ describe("deterministic evidence reports", () => {
     expect(plainText).toContain("BROWSER/DEVICE CONTEXT (BROWSER-REPORTED SUPPORTING EVIDENCE)");
     expect(plainText).toContain("NOTIFICATION DELIVERY (PROVIDER-ACCEPTANCE EVIDENCE)");
     expect(plainText).toContain("PRODUCTION ADMISSION");
+    expect(plainText).toContain("AUTHENTICATION ASSURANCE");
     expect(plainText).toContain("does not prove inbox delivery");
     expect(renderEvidenceReport(reports.nontechnical, "html").toString()).toContain("<!doctype html>");
     expect(evidenceReportHash(buildEvidenceReports(record).technical)).toBe(evidenceReportHash(reports.technical));

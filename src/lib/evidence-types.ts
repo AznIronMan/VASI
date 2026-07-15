@@ -38,7 +38,13 @@ export type ParticipantAssignment = {
   instructions?: string;
   progress?: { current: number; total: number };
   purpose?: string;
-  requestAccess?: { postCompletion: "receipt_only" | "content_until_expiration" | "content_always" };
+  requestAccess?: {
+    authenticationAssurance: {
+      acceptedMethods: Array<"any_verified" | "federated" | "password" | "email_verification">;
+      maximumAgeSeconds: number | null;
+    };
+    postCompletion: "receipt_only" | "content_until_expiration" | "content_always";
+  };
   requester?: { email: string | null; relationship: "requesting_organization" };
   receiptAvailable?: boolean;
   responseMode?: import("@/lib/owner-types").WorkflowActivity["responseMode"];
@@ -83,7 +89,7 @@ export type ParticipantReceipt = {
   };
 };
 
-export type EngineErrorResponse = { error?: string };
+export type EngineErrorResponse = { code?: string; error?: string };
 
 export type ParticipantHistoryRecord = {
   assignmentId: string;

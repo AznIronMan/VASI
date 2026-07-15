@@ -13,6 +13,16 @@ export const POST_COMPLETION_ACCESS = Object.freeze([
   "content_until_expiration",
   "content_always",
 ]);
+export const AUTHENTICATION_ASSURANCE_METHODS = Object.freeze([
+  "any_verified",
+  "federated",
+  "password",
+  "email_verification",
+]);
+const DEFAULT_AUTHENTICATION_ASSURANCE = Object.freeze({
+  acceptedMethods: Object.freeze(["any_verified"]),
+  maximumAgeSeconds: null,
+});
 
 const ROLE_PERMISSIONS = Object.freeze({
   owner: Object.freeze(["artifact.manage", "artifact.read", "data_request.review", "integration.manage", "lifecycle.manage", "lifecycle.read", "member.manage", "quota.read", "record.read", "request.manage", "tenant.configure", "workflow.manage"]),
@@ -167,12 +177,123 @@ function validateForwardDestination(destination, index, activities, activityIds)
 function normalizeAccess(value) {
   const input = value === undefined
     ? {}
-    : strictObject(value, "access", ["authentication", "postCompletion"]);
+    : strictObject(value, "access", ["authentication", "authenticationAssurance", "postCompletion"]);
   const authentication = input.authentication ?? "verified_email";
   const postCompletion = input.postCompletion ?? "receipt_only";
   if (authentication !== "verified_email") invalid("Only verified-email participant access is supported.");
   if (!POST_COMPLETION_ACCESS.includes(postCompletion)) invalid("The post-completion access policy is unsupported.");
-  return Object.freeze({ authentication, postCompletion });
+  return Object.freeze({
+    authentication,
+    authenticationAssurance: normalizeAuthenticationAssurance(input.authenticationAssurance),
+    postCompletion,
+  });
+}
+
+export function authenticationAssurancePolicy(access) {
+  if (access === undefined || access === null) return DEFAULT_AUTHENTICATION_ASSURANCE;
+  if (Array.isArray(access) || typeof access !== "object") {
+    invalid("The stored workflow access policy is invalid.");
+  }
+  return normalizeAuthenticationAssurance(access.authenticationAssurance);
+}
+
+export function evaluateAuthenticationAssurance(policyValue, actor, evaluatedAt = new Date()) {
+  const policy = normalizeAuthenticationAssurance(policyValue);
+  const at = evaluatedAt instanceof Date ? new Date(evaluatedAt) : new Date(evaluatedAt);
+  if (!Number.isFinite(at.getTime())) invalid("The authentication-assurance evaluation time is invalid.");
+  const evaluatedAtSeconds = Math.floor(at.getTime() / 1_000);
+  const method = boundedObservation(actor?.authentication?.method) || "session_unspecified";
+  const authenticatedAtCandidate = Number.isSafeInteger(actor?.authenticatedAt)
+    ? actor.authenticatedAt
+    : undefined;
+  const authenticatedDate = authenticatedAtCandidate === undefined
+    ? undefined
+    : new Date(authenticatedAtCandidate * 1_000);
+  const authenticatedAt = authenticatedDate && Number.isFinite(authenticatedDate.getTime())
+    ? authenticatedAtCandidate
+    : undefined;
+  const observation = Object.freeze({
+    ...(authenticatedAt !== undefined ? { authenticatedAt: authenticatedDate.toISOString() } : {}),
+    method,
+    ...(boundedObservation(actor?.authentication?.provenance)
+      ? { provenance: boundedObservation(actor.authentication.provenance) }
+      : {}),
+    ...(boundedObservation(actor?.authentication?.provider)
+      ? { provider: boundedObservation(actor.authentication.provider) }
+      : {}),
+  });
+  const methodAccepted = policy.acceptedMethods.includes("any_verified") ||
+    policy.acceptedMethods.includes(method);
+  if (!methodAccepted) {
+    return Object.freeze({
+      evaluatedAt: at.toISOString(),
+      observation,
+      policy,
+      reason: "authentication_method_not_allowed",
+      satisfied: false,
+      schema: "vasi-authentication-assurance-evaluation/v1",
+    });
+  }
+  if (policy.maximumAgeSeconds !== null) {
+    const ageSeconds = authenticatedAt === undefined ? undefined : evaluatedAtSeconds - authenticatedAt;
+    if (ageSeconds === undefined || ageSeconds < -60 || ageSeconds > policy.maximumAgeSeconds) {
+      return Object.freeze({
+        ...(ageSeconds !== undefined && ageSeconds >= 0 ? { ageSeconds } : {}),
+        evaluatedAt: at.toISOString(),
+        observation,
+        policy,
+        reason: "reauthentication_required",
+        satisfied: false,
+        schema: "vasi-authentication-assurance-evaluation/v1",
+      });
+    }
+    return Object.freeze({
+      ageSeconds: Math.max(0, ageSeconds),
+      evaluatedAt: at.toISOString(),
+      observation,
+      policy,
+      satisfied: true,
+      schema: "vasi-authentication-assurance-evaluation/v1",
+    });
+  }
+  return Object.freeze({
+    evaluatedAt: at.toISOString(),
+    observation,
+    policy,
+    satisfied: true,
+    schema: "vasi-authentication-assurance-evaluation/v1",
+  });
+}
+
+function normalizeAuthenticationAssurance(value) {
+  if (value === undefined || value === null) return DEFAULT_AUTHENTICATION_ASSURANCE;
+  const input = strictObject(value, "authentication assurance", ["acceptedMethods", "maximumAgeSeconds"]);
+  const suppliedMethods = input.acceptedMethods ?? ["any_verified"];
+  if (!Array.isArray(suppliedMethods) || !suppliedMethods.length ||
+      suppliedMethods.length > AUTHENTICATION_ASSURANCE_METHODS.length) {
+    invalid("Authentication assurance requires one or more accepted methods.");
+  }
+  const methodSet = new Set(suppliedMethods);
+  if (methodSet.size !== suppliedMethods.length ||
+      suppliedMethods.some((method) => !AUTHENTICATION_ASSURANCE_METHODS.includes(method)) ||
+      (methodSet.has("any_verified") && methodSet.size !== 1)) {
+    invalid("The authentication-assurance methods are invalid.");
+  }
+  const acceptedMethods = Object.freeze(
+    AUTHENTICATION_ASSURANCE_METHODS.filter((method) => methodSet.has(method)),
+  );
+  const maximumAgeSeconds = input.maximumAgeSeconds === undefined || input.maximumAgeSeconds === null
+    ? null
+    : optionalSafeInteger(input.maximumAgeSeconds, "maximumAgeSeconds", 300, 2_592_000);
+  return Object.freeze({ acceptedMethods, maximumAgeSeconds });
+}
+
+function boundedObservation(value) {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized && normalized.length <= 128 && !/[\u0000-\u001f\u007f]/.test(normalized)
+    ? normalized
+    : undefined;
 }
 
 function normalizeCompletion(value) {

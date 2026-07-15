@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.30.0`
+Version: `0.31.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -371,6 +371,19 @@ both the immutable workflow policy and the independent retention horizon, so a
 `receipt_only` record can never be presented as having retained source content.
 Missing legacy observations remain visibly unrecorded rather than inferred.
 
+Version 0.31.0 adds immutable, provider-neutral authentication assurance to
+each workflow. Owners can require federated SSO, selected verified sign-in
+classes, and an optional recent-authentication window; new owner-console
+workflows default toward federated SSO. The private engine evaluates the exact
+gateway-session method and authentication time after participant authorization
+and before assignment access, protected document/media delivery, or response
+mutation. A deliberate sign-out and return flow handles stale or disallowed
+sessions without exposing request existence to another user. Accepted material
+events carry privacy-bounded evaluations, manifest version 10 seals their policy
+and event bindings, and the offline verifier independently recomputes every
+result. Human reports summarize the requirement without exposing provider
+subjects, tokens, credentials, or additional identity-provider claims.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -421,6 +434,10 @@ assessment remain installation or pilot gates.
   structured workflow drafts, immutable publication, ordered/conditional
   activity execution, request lifecycle controls, and revision-bound access and
   notification policies.
+- Provider-neutral workflow authentication assurance with SSO-first owner
+  defaults, optional sign-in freshness, private-engine enforcement across
+  content and material actions, deliberate participant reauthentication,
+  manifest v10 evidence, report summaries, and offline recomputation.
 - AES-256-GCM encrypted outbox envelopes, immutable delivery-attempt records,
   explicit notification purpose, bounded retry and stale-lock recovery,
   lifecycle-safe suppression, owner-visible provider-acceptance state, and
@@ -690,6 +707,9 @@ persistence, failure, rollback, and bounded verification contract. The
 first transaction, record, and assurance limits. The
 [workflow control plane](docs/architecture/workflow-control-plane.md) defines
 the company roles, state machine, publication, lifecycle, and outbox contracts.
+The [workflow authentication-assurance decision](docs/architecture/workflow-authentication-assurance.md)
+defines the provider-neutral policy, enforcement order, reauthentication flow,
+privacy-bounded manifest v10 evidence, independent verification, and limits.
 The [notification delivery evidence decision](docs/architecture/notification-delivery-evidence.md)
 defines explicit delivery purpose, lifecycle suppression, bounded owner status,
 manifest version 7 evidence, provider-acceptance wording, and at-least-once

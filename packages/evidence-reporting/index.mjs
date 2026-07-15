@@ -32,6 +32,9 @@ export function evidenceReportMediaType(format) {
 
 function buildReport(profile, context) {
   const common = {
+    ...(context.authenticationAssurance
+      ? { authenticationAssurance: context.authenticationAssurance }
+      : {}),
     eventReferences: context.eventReferences,
     generatedFrom: {
       completedAt: context.completedAt,
@@ -77,7 +80,7 @@ function buildReport(profile, context) {
   if (profile === "technical") {
     return Object.freeze({
       ...common,
-      explanation: "This forensic report preserves complete event, manifest, tenant-admission, authentication, server-observed request context, privacy-bounded browser-reported participant context, generalized activity-interaction, notification-delivery, media, artifact, response-revision, and seal data available in the sealed record.",
+      explanation: "This forensic report preserves complete event, manifest, tenant-admission, authentication-assurance, authentication, server-observed request context, privacy-bounded browser-reported participant context, generalized activity-interaction, notification-delivery, media, artifact, response-revision, and seal data available in the sealed record.",
       events: context.record.events,
       limitations: context.limitations,
       manifest: context.manifest,
@@ -117,6 +120,7 @@ function reportContext(record) {
   const contextEvidence = participantContextSummary(manifest);
   const notificationDelivery = notificationDeliverySummary(manifest.notificationDelivery);
   const productionAdmission = tenantAdmissionSummary(manifest.admission);
+  const authenticationAssurance = authenticationAssuranceSummary(manifest.authenticationAssurance);
   const activityTiming = latestActivityInteractionSummaries(manifest).map((entry) => Object.freeze({
     activityId: entry.activityId,
     confidence: entry.summary?.confidence?.level,
@@ -137,6 +141,7 @@ function reportContext(record) {
       : [];
   return {
     activityTiming: Object.freeze(activityTiming),
+    authenticationAssurance,
     completedAt,
     contextEvidence,
     eventReferences,
@@ -226,16 +231,36 @@ function evidenceLimitations(manifest) {
   for (const limitation of manifest.participantContext?.policy?.limitations || []) {
     limitations.push(limitation);
   }
-  if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema) &&
+  if (["vasi-evidence-manifest/v5", "vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9", "vasi-evidence-manifest/v10"].includes(manifest.schema) &&
       !(manifest.activityInteraction?.events || []).length) {
     limitations.push("No browser-reported generalized activity-presence events were available when the record was sealed.");
   }
-  if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9"].includes(manifest.schema) &&
+  if (["vasi-evidence-manifest/v6", "vasi-evidence-manifest/v7", "vasi-evidence-manifest/v8", "vasi-evidence-manifest/v9", "vasi-evidence-manifest/v10"].includes(manifest.schema) &&
       !(manifest.participantContext?.snapshots || []).length) {
     limitations.push("No privacy-bounded browser/device context snapshot was available when the record was sealed.");
   }
   for (const limitation of manifest.notificationDelivery?.limitations || []) limitations.push(limitation);
   return Object.freeze([...new Set(limitations)]);
+}
+
+function authenticationAssuranceSummary(value) {
+  if (!value?.policy || !Array.isArray(value.evaluations)) return undefined;
+  const latest = [...value.evaluations]
+    .map((entry) => entry?.evaluation)
+    .filter((entry) => entry?.satisfied)
+    .sort((left, right) => String(left.evaluatedAt).localeCompare(String(right.evaluatedAt)))
+    .at(-1);
+  return Object.freeze({
+    acceptedMethods: Object.freeze([...(value.policy.acceptedMethods || [])]),
+    evaluationCount: value.evaluations.length,
+    latestAccepted: latest ? Object.freeze({
+      authenticatedAt: latest.observation?.authenticatedAt,
+      evaluatedAt: latest.evaluatedAt,
+      method: latest.observation?.method,
+      provider: latest.observation?.provider,
+    }) : undefined,
+    maximumAgeSeconds: value.policy.maximumAgeSeconds,
+  });
 }
 
 function tenantAdmissionSummary(value) {
@@ -326,6 +351,23 @@ function reportText(report) {
     lines.push("", "PARTICIPANT IDENTITY", `Email: ${report.identity.email || "Unspecified"}`, `Authentication: ${authenticationText(report.identity.authentication)}`);
     if (report.profile !== "participant" && report.identity.requestContext) {
       lines.push(`IP address: ${report.identity.requestContext.ipAddress || "Unavailable"}`, `User agent: ${report.identity.requestContext.userAgent || "Unavailable"}`);
+    }
+  }
+  if (report.authenticationAssurance) {
+    const assurance = report.authenticationAssurance;
+    lines.push(
+      "",
+      "AUTHENTICATION ASSURANCE",
+      `Accepted methods: ${(assurance.acceptedMethods || []).map(statusText).join(", ") || "Unspecified"}`,
+      `Maximum authentication age: ${assurance.maximumAgeSeconds === null ? "No additional freshness limit" : `${assurance.maximumAgeSeconds} seconds`}`,
+      `Accepted material-event evaluations: ${assurance.evaluationCount}`,
+    );
+    if (assurance.latestAccepted) {
+      lines.push(
+        `Latest accepted method: ${statusText(assurance.latestAccepted.method)}`,
+        `Latest accepted provider: ${assurance.latestAccepted.provider || "Not provider-specific"}`,
+        `Latest evaluation: ${assurance.latestAccepted.evaluatedAt || "Unspecified"}`,
+      );
     }
   }
   if (report.outcomes) {

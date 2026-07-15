@@ -6,6 +6,7 @@ import {
   validateMediaEventBatch,
   validateMediaOriginPolicy,
 } from "../../packages/engine-domain/media.mjs";
+import { requireAuthenticationAssurance } from "./authentication-assurance.mjs";
 import { appendEvent } from "./evidence-events.mjs";
 import { EngineStoreError } from "./errors.mjs";
 
@@ -26,7 +27,7 @@ export function createMediaStore(database, settings) {
         const selected = await client.query(
           `select a."id" as "assignmentId", a."tenantId", a."requestId", a."intendedEmail",
                   a."principalId", a."status", r."status" as "requestStatus", r."scheduledFor",
-                  r."expiresAt", i."id" as "activityInstanceId", i."activityId",
+                  r."expiresAt", r."accessPolicy", i."id" as "activityInstanceId", i."activityId",
                   i."activityType", i."status" as "activityStatus", i."definition",
                   x."id" as "descriptorId", x."descriptor", x."descriptorHash"
            from "vasi_engine"."participant_assignment" a
@@ -42,11 +43,12 @@ export function createMediaStore(database, settings) {
         if (!selected.rowCount) notFound();
         const record = selected.rows[0];
         authorizeParticipant(record, actor);
-        assertMediaAvailable(record, new Date());
+        const openedAt = new Date();
+        assertMediaAvailable(record, openedAt);
+        requireAuthenticationAssurance(record.accessPolicy, actor, openedAt);
         if (record.activityType !== "external_media" || record.activityStatus !== "available") {
           throw new EngineStoreError("media_activity_unavailable", 409);
         }
-        const openedAt = new Date();
         return {
           activityId: record.activityId,
           descriptor: record.descriptor,
@@ -63,7 +65,7 @@ export function createMediaStore(database, settings) {
         const selected = await client.query(
           `select a."id" as "assignmentId", a."tenantId", a."requestId", a."intendedEmail",
                   a."principalId", a."status", r."status" as "requestStatus", r."scheduledFor",
-                  r."expiresAt", r."workflowRevisionId",
+                  r."expiresAt", r."workflowRevisionId", r."accessPolicy",
                   i."id" as "activityInstanceId", i."activityId", i."activityType", i."definition",
                   i."status" as "activityStatus", x."id" as "descriptorId",
                   s."id" as "interactionId", s."completedAt" as "interactionCompletedAt"
@@ -82,7 +84,13 @@ export function createMediaStore(database, settings) {
         if (!selected.rowCount) notFound();
         const record = selected.rows[0];
         authorizeParticipant(record, actor);
-        assertMediaAvailable(record, new Date());
+        const receivedAt = new Date();
+        assertMediaAvailable(record, receivedAt);
+        const authenticationAssurance = requireAuthenticationAssurance(
+          record.accessPolicy,
+          actor,
+          receivedAt,
+        );
         if (record.activityType !== "external_media" || record.activityStatus !== "available" ||
             record.interactionCompletedAt) {
           throw new EngineStoreError("media_activity_unavailable", 409);
@@ -140,7 +148,6 @@ export function createMediaStore(database, settings) {
           throw new EngineStoreError("media_event_sequence_conflict", 409);
         }
 
-        const receivedAt = new Date();
         await client.query(
           `insert into "vasi_engine"."media_event_batch"
             ("id", "tenantId", "requestId", "assignmentId", "activityInstanceId",
@@ -243,6 +250,7 @@ export function createMediaStore(database, settings) {
           eventType: "media.telemetry.recorded",
           payload: {
             activityId: record.activityId,
+            authenticationAssurance,
             batch: {
               eventCount: input.events.length,
               firstSequence: input.events[0].sequence,

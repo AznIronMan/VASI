@@ -344,7 +344,14 @@ export type WorkflowActivity = {
 };
 
 export type WorkflowDocument = {
-  access?: { authentication: "verified_email"; postCompletion: "receipt_only" | "content_until_expiration" | "content_always" };
+  access?: {
+    authentication: "verified_email";
+    authenticationAssurance?: {
+      acceptedMethods: Array<"any_verified" | "federated" | "password" | "email_verification">;
+      maximumAgeSeconds: number | null;
+    };
+    postCompletion: "receipt_only" | "content_until_expiration" | "content_always";
+  };
   activities: WorkflowActivity[];
   instructions?: string;
   notifications?: { onCompletion: boolean; onIssue: boolean; reminderHoursBeforeDue: number[] };

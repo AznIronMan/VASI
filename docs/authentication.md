@@ -261,6 +261,14 @@ collect raw keystrokes, browser plugin inventories, hidden camera/microphone
 data, or invasive device fingerprints, and does not claim that a user agent or
 duration proves comprehension.
 
+Workflow revisions can independently require an accepted method class and a
+recent authentication. The private engine evaluates that immutable policy from
+the exact session provenance before protected content or material actions;
+V·Sign only provides the SSO-first sign-out/return experience when another login
+is required. The provider-neutral policy, manifest evidence, verifier behavior,
+and limits are defined in the
+[workflow authentication-assurance decision](architecture/workflow-authentication-assurance.md).
+
 ## Transactional email
 
 Microsoft Graph is the preferred transport for Microsoft 365. Create a

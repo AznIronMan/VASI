@@ -124,7 +124,7 @@ const record = await call(owner, "POST", "/v1/owner/records", {
 expectStatus(record, 200, "interaction owner record");
 const evidence = record.body.manifest.activityInteraction;
 if (
-  record.body.manifest.schema !== "vasi-evidence-manifest/v9" ||
+  record.body.manifest.schema !== "vasi-evidence-manifest/v10" ||
   evidence.batches.length !== 2 || evidence.events.length !== 12 || evidence.summaries.length !== 2 ||
   evidence.summaries.at(-1).summary.events.count !== evidence.events.length ||
   !record.body.events.some((entry) => entry.eventData?.eventType === "activity.interaction.recorded") ||

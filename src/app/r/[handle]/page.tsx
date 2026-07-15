@@ -4,6 +4,10 @@ import { notFound, redirect } from "next/navigation";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { BrandMark } from "@/components/brand-mark";
+import {
+  AuthenticationAssuranceAction,
+  type AuthenticationAssuranceCode,
+} from "@/components/evidence/authentication-assurance-action";
 import { ParticipantRequest } from "@/components/evidence/participant-request";
 import { buildEngineActor } from "@/lib/engine-actor";
 import { requestEngineAction } from "@/lib/engine-client";
@@ -38,7 +42,11 @@ export default async function ParticipantRequestPage({
   );
   if (result.status === 404) notFound();
   if (result.status !== 200 || !result.body) {
-    return <ParticipantError message={friendlyEngineError((result.body as EngineErrorResponse | undefined)?.error)} />;
+    const code = (result.body as EngineErrorResponse | undefined)?.error;
+    if (isAuthenticationAssuranceCode(code)) {
+      return <main className="participant-shell"><AuthenticationAssuranceAction code={code} returnTo={`/r/${handle}`} /></main>;
+    }
+    return <ParticipantError message={friendlyEngineError(code)} />;
   }
   if (result.body.completed) redirect(`/r/${handle}/receipt`);
   if (!isCompleteAssignment(result.body)) {
@@ -50,6 +58,10 @@ export default async function ParticipantRequestPage({
       <ParticipantRequest assignment={result.body} handle={handle} />
     </main>
   );
+}
+
+function isAuthenticationAssuranceCode(value?: string): value is AuthenticationAssuranceCode {
+  return value === "authentication_method_not_allowed" || value === "reauthentication_required";
 }
 
 function isCompleteAssignment(value: ParticipantAssignment): value is OpenParticipantAssignment {

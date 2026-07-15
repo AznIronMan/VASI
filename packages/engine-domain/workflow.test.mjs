@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  authenticationAssurancePolicy,
   evaluateNextActivity,
+  evaluateAuthenticationAssurance,
   hasTenantPermission,
   validateWorkflowDraft,
 } from "./workflow.mjs";
@@ -63,6 +65,61 @@ describe("workflow contracts", () => {
     expect(hasTenantPermission(["owner"], "lifecycle.manage")).toBe(true);
     expect(hasTenantPermission(["manager"], "data_request.review")).toBe(true);
     expect(hasTenantPermission(["auditor"], "lifecycle.read")).toBe(true);
+  });
+
+  it("normalizes provider-neutral authentication assurance and preserves legacy access", () => {
+    expect(authenticationAssurancePolicy({ authentication: "verified_email" })).toEqual({
+      acceptedMethods: ["any_verified"],
+      maximumAgeSeconds: null,
+    });
+    const { document } = validateWorkflowDraft(workflow({
+      access: {
+        authentication: "verified_email",
+        authenticationAssurance: {
+          acceptedMethods: ["password", "federated"],
+          maximumAgeSeconds: 900,
+        },
+        postCompletion: "receipt_only",
+      },
+    }));
+    expect(document.access.authenticationAssurance).toEqual({
+      acceptedMethods: ["federated", "password"],
+      maximumAgeSeconds: 900,
+    });
+    expect(() => validateWorkflowDraft(workflow({
+      access: {
+        authentication: "verified_email",
+        authenticationAssurance: { acceptedMethods: ["any_verified", "federated"] },
+        postCompletion: "receipt_only",
+      },
+    }))).toThrow(/methods are invalid/);
+  });
+
+  it("evaluates method and authentication freshness without provider coupling", () => {
+    const policy = { acceptedMethods: ["federated"], maximumAgeSeconds: 900 };
+    const now = new Date("2026-07-15T00:15:00.000Z");
+    expect(evaluateAuthenticationAssurance(policy, {
+      authenticatedAt: Math.floor(new Date("2026-07-15T00:05:01.000Z").getTime() / 1_000),
+      authentication: { method: "federated", provider: "arbitrary-oidc" },
+    }, now)).toMatchObject({ ageSeconds: 599, satisfied: true });
+    expect(evaluateAuthenticationAssurance(policy, {
+      authenticatedAt: Math.floor(now.getTime() / 1_000),
+      authentication: { method: "password" },
+    }, now)).toMatchObject({
+      reason: "authentication_method_not_allowed",
+      satisfied: false,
+    });
+    expect(evaluateAuthenticationAssurance(policy, {
+      authenticatedAt: Math.floor(new Date("2026-07-14T23:59:59.000Z").getTime() / 1_000),
+      authentication: { method: "federated" },
+    }, now)).toMatchObject({ reason: "reauthentication_required", satisfied: false });
+    expect(evaluateAuthenticationAssurance(policy, {
+      authentication: { method: "federated" },
+    }, now)).toMatchObject({ reason: "reauthentication_required", satisfied: false });
+    expect(evaluateAuthenticationAssurance(policy, {
+      authenticatedAt: Number.MAX_SAFE_INTEGER,
+      authentication: { method: "federated" },
+    }, now)).toMatchObject({ reason: "reauthentication_required", satisfied: false });
   });
 
   it("allows only declared rich-activity outcomes in forward branches", () => {

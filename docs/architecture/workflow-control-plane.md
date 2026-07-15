@@ -1,6 +1,6 @@
 # Workflow and company-owner control plane
 
-Status: implemented in VASI 0.6.0 and extended through VASI 0.29.0.
+Status: implemented in VASI 0.6.0 and extended through VASI 0.31.0.
 
 ## Ownership boundary
 
@@ -44,11 +44,11 @@ edges, cycles, and tenant-provided code are rejected before publication.
 Each assignment receives immutable activity definitions and hashes. The engine,
 not the browser, selects the current activity, validates its response, evaluates
 the next transition, marks bypassed activities as skipped, and decides when the
-request is complete. The current version 8 evidence manifest covers the full
+request is complete. The current version 10 evidence manifest covers the full
 workflow snapshot, ordered activity outcomes and response revisions, exact
 artifact bindings, notification state and attempts available at completion,
-policies, immutable requester snapshot, timestamps, event chain, and standard
-VASI integrity seal.
+policies, immutable requester snapshot, authentication-assurance evaluations,
+timestamps, event chain, and standard VASI integrity seal.
 
 ## Request lifecycle and access
 
@@ -72,6 +72,14 @@ workflow also names a versioned retention profile whose active revision is
 snapshotted at issuance. The authenticated participant history/report horizon,
 original content horizon, evidence archive, and optional evidence deletion are
 then enforced independently.
+
+VASI 0.31.0 also binds a provider-neutral authentication-assurance policy to
+each workflow revision. Owners can require federated SSO, selected verified
+method classes, and an optional recent-authentication window. The engine
+enforces the policy after participant authorization and before protected
+content or response mutations; manifest version 10 and the offline verifier
+bind and recompute each accepted material-event evaluation. See the
+[workflow authentication-assurance decision](workflow-authentication-assurance.md).
 
 ## Notification outbox
 
