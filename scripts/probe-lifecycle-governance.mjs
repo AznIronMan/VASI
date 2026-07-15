@@ -249,6 +249,38 @@ async function proveReviewedParticipantDataExport() {
   if (!historyRecord || historyRecord.sender?.email !== owner.email) {
     throw new Error("The participant history omitted the immutable requesting user.");
   }
+  if (
+    historyRecord.authentication?.method !== participant.authentication.method ||
+    historyRecord.authentication?.provider !== participant.authentication.provider ||
+    !historyRecord.authentication?.authenticatedAt || !historyRecord.authentication?.observedAt ||
+    "providerSubject" in historyRecord.authentication || "linkedProvider" in historyRecord.authentication
+  ) throw new Error("The participant history authentication summary was absent, inaccurate, or overbroad.");
+  if (
+    historyRecord.activity?.resolved !== 2 || historyRecord.activity?.total !== 2 ||
+    !historyRecord.activity?.lastActivityAt || historyRecord.responses?.length !== 2 ||
+    historyRecord.responses[0]?.activityId !== "retention_decision" ||
+    historyRecord.responses[0]?.responseLabel !== "Yes" ||
+    historyRecord.responses[1]?.activityId !== "retention_acknowledgement" ||
+    !historyRecord.responses[1]?.responseLabel || !historyRecord.responses[1]?.respondedAt
+  ) throw new Error("The participant history omitted its authoritative activity chronology or outcomes.");
+  if (
+    !historyRecord.schedule?.dueAt || !historyRecord.schedule?.expiresAt ||
+    historyRecord.status !== "completed" || historyRecord.statusChangedAt !== historyRecord.completedAt ||
+    historyRecord.lifecycle?.contentAccessPolicy !== "receipt_only" ||
+    historyRecord.lifecycle?.contentAvailable !== false
+  ) throw new Error("The participant history misstated schedule, status, or post-completion content access.");
+  if (
+    !historyRecord.invitation?.queuedAt ||
+    !["scheduled", "queued", "processing", "provider_accepted", "suppressed", "failed", "indeterminate"]
+      .includes(historyRecord.invitation.status)
+  ) {
+    throw new Error("The participant history omitted the truthful invitation state.");
+  }
+  const outsiderHistory = await call(outsider, "GET", "/v1/participant/history");
+  expectStatus(outsiderHistory, 200, "cross-participant history isolation");
+  if (outsiderHistory.body.some((entry) => entry.assignmentId === completed.assignmentId)) {
+    throw new Error("The participant history exposed another participant's transaction.");
+  }
 
   const requested = await call(participant, "POST", "/v1/participant/data-requests", {
     commandId: randomUUID(),

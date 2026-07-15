@@ -27,7 +27,7 @@ import { createReportStore } from "./report-store.mjs";
 import { initializeSigningKeys } from "./signing-provider.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.29.1";
+const ENGINE_VERSION = "0.30.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });

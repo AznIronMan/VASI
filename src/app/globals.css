@@ -1075,6 +1075,53 @@ input::placeholder {
   overflow-wrap: anywhere;
 }
 
+.workspace-record__responses {
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(245, 248, 244, 0.72);
+}
+
+.workspace-record__responses h4 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workspace-record__responses ul {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: 10px;
+  list-style: none;
+}
+
+.workspace-record__responses li {
+  display: grid;
+  gap: 2px;
+}
+
+.workspace-record__responses strong,
+.workspace-record__responses span,
+.workspace-record__responses small {
+  overflow-wrap: anywhere;
+}
+
+.workspace-record__responses strong {
+  font-size: 11px;
+}
+
+.workspace-record__responses span {
+  font-size: 12px;
+}
+
+.workspace-record__responses small {
+  color: var(--ink-soft);
+  font-size: 9px;
+}
+
 .workspace-record > footer {
   margin-top: auto;
   padding-top: 16px;

@@ -80,8 +80,29 @@ export function ParticipantWorkspace({
       <div className="workspace-record-grid">{history.map((record) => <article className="workspace-record" key={record.assignmentId}>
         <header><span className={`workspace-status workspace-status--${record.status}`}>{record.status.replaceAll("_", " ")}</span><small>{record.tenant.name}</small></header>
         <h3>{record.title}</h3><p>{record.purpose}</p>
-        <dl><div><dt>Sent</dt><dd>{formatWorkspaceDate(record.issuedAt)}</dd></div><div><dt>First opened</dt><dd>{formatWorkspaceDate(record.firstOpenedAt)}</dd></div><div><dt>Completed</dt><dd>{formatWorkspaceDate(record.completedAt)}</dd></div><div><dt>Sent by</dt><dd>{record.sender.email || record.tenant.name}</dd></div></dl>
-        <footer><div>{record.evidence.manifestFingerprint && <><span>Record fingerprint</span><code>{record.evidence.manifestFingerprint.slice(0, 18)}…</code></>}</div>{record.evidence.reportAvailable && <a href={`/api/workspace/report?assignmentId=${encodeURIComponent(record.assignmentId)}&format=html`}>Download my record</a>}</footer>
+        <dl>
+          <div><dt>Sent by</dt><dd>{record.sender.email || record.tenant.name}</dd></div>
+          <div><dt>Issued</dt><dd>{formatWorkspaceDate(record.issuedAt)}</dd></div>
+          <div><dt>Invitation</dt><dd>{invitationText(record)}</dd></div>
+          <div><dt>Authenticated</dt><dd>{authenticationText(record)}</dd></div>
+          <div><dt>First opened</dt><dd>{formatWorkspaceDate(record.firstOpenedAt)}</dd></div>
+          <div><dt>Last activity</dt><dd>{formatWorkspaceDate(record.activity.lastActivityAt)}</dd></div>
+          <div><dt>Progress</dt><dd>{record.activity.total ? `${record.activity.resolved} of ${record.activity.total} activities resolved` : "No activity recorded"}</dd></div>
+          <div><dt>Current state recorded</dt><dd>{formatWorkspaceDate(record.statusChangedAt)}</dd></div>
+          <div><dt>Due</dt><dd>{formatWorkspaceDate(record.schedule.dueAt)}</dd></div>
+          <div><dt>Request expires</dt><dd>{formatWorkspaceDate(record.schedule.expiresAt)}</dd></div>
+          <div><dt>Completed</dt><dd>{formatWorkspaceDate(record.completedAt)}</dd></div>
+          <div><dt>Original content</dt><dd>{contentAccessText(record)}</dd></div>
+        </dl>
+        {record.responses.length > 0 && <section className="workspace-record__responses" aria-label="Your recorded outcomes">
+          <h4>Your recorded outcomes</h4>
+          <ul>{record.responses.map((response) => <li key={`${response.activityId}:${response.respondedAt || "recorded"}`}>
+            <strong>{response.activityTitle || response.activityId}</strong>
+            <span>{response.responseLabel}</span>
+            <small>{response.outcome ? `${response.outcome.replaceAll("_", " ")} · ` : ""}{formatWorkspaceDate(response.respondedAt)}</small>
+          </li>)}</ul>
+        </section>}
+        <footer><div>{record.evidence.manifestFingerprint && <><span>Record fingerprint</span><code>{record.evidence.manifestFingerprint.slice(0, 18)}…</code></>}</div>{record.evidence.reportAvailable && <a href={`/api/workspace/report?assignmentId=${encodeURIComponent(record.assignmentId)}&format=html`}>Download participant record</a>}</footer>
       </article>)}</div>
     </section>
 
@@ -97,6 +118,64 @@ export function ParticipantWorkspace({
 
 function formatWorkspaceDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "Not recorded";
+}
+
+function authenticationText(record: ParticipantHistoryRecord) {
+  const authentication = record.authentication;
+  if (!authentication) return "Not recorded";
+  const provider = authenticationProviderText(authentication.provider);
+  const method = authenticationMethodText(authentication.method);
+  const description = provider && method !== provider ? `${provider} · ${method}` : provider || method;
+  const at = authentication.authenticatedAt || authentication.observedAt;
+  return `${description || "Method not recorded"}${at ? ` · ${formatWorkspaceDate(at)}` : ""}`;
+}
+
+function authenticationProviderText(value?: string) {
+  const labels: Record<string, string> = {
+    apple: "Apple",
+    credential: "Manual password",
+    google: "Google",
+    microsoft: "Microsoft",
+    yahoo: "Yahoo",
+    zoho: "Zoho",
+  };
+  return value ? labels[value] || value.replaceAll("_", " ") : undefined;
+}
+
+function authenticationMethodText(value?: string) {
+  const labels: Record<string, string> = {
+    email_verification: "Verified email",
+    federated: "Provider sign-in",
+    password: "Manual password",
+    session_unspecified: "Earlier session (method unavailable)",
+  };
+  return value ? labels[value] || value.replaceAll("_", " ") : undefined;
+}
+
+function invitationText(record: ParticipantHistoryRecord) {
+  const labels: Record<ParticipantHistoryRecord["invitation"]["status"], string> = {
+    failed: "Delivery failed",
+    indeterminate: "Delivery state unavailable",
+    manual_link_only: "Shared as a manual link",
+    processing: "Delivery processing",
+    provider_accepted: "Email provider accepted",
+    queued: "Email queued",
+    scheduled: "Email scheduled",
+    suppressed: "Delivery suppressed",
+  };
+  const at = record.invitation.completedAt || record.invitation.queuedAt || record.invitation.scheduledFor;
+  return `${labels[record.invitation.status]}${at ? ` · ${formatWorkspaceDate(at)}` : ""}`;
+}
+
+function contentAccessText(record: ParticipantHistoryRecord) {
+  if (!record.lifecycle.contentAvailable) {
+    return record.lifecycle.contentAccessPolicy === "receipt_only"
+      ? "Receipt only; transaction history remains"
+      : "No longer available; transaction history remains";
+  }
+  return record.lifecycle.contentExpiresAt
+    ? `Available under company policy until ${formatWorkspaceDate(record.lifecycle.contentExpiresAt)}`
+    : "Available under company policy";
 }
 
 async function workspaceGet<T>(url: string): Promise<T> {

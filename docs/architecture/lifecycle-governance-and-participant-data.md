@@ -1,6 +1,6 @@
 # Lifecycle governance and participant data access
 
-Status: implemented in VASI 0.10.0.
+Status: implemented in VASI 0.10.0 and extended through VASI 0.30.0.
 
 VASI 0.18.0 includes eligible participant-context snapshots and provenance in
 approved technical participant exports and removes their PostgreSQL rows only
@@ -84,10 +84,27 @@ evidence or establish that a retention decision was legally correct.
 
 The V·Sign workspace lists records bound to the stable principal or verified
 email. It shows the requesting organization, immutable issuance-time requester
-email when available, sent/opened/
-completed times, lifecycle availability, and the participant report. The
-participant report is privacy-reduced and remains distinct from the fuller
-data-request workflow.
+email when available, issuance/invitation/authentication/open/activity/
+completion chronology, current state, schedule, bounded activity progress,
+exact submitted response labels and outcomes, effective content availability,
+and the participant report. The participant report is privacy-reduced and
+remains distinct from the fuller data-request workflow.
+
+The authentication summary uses the earliest immutable participant-open event
+and returns only the bounded method, provider, provenance, authenticated time,
+and engine-observation time. Provider subjects, linked-account context, tokens,
+request headers, IP addresses, browser context, and raw telemetry are not part
+of the normal history response. The response summary uses final submitted
+activity rows, not mutable UI state or saved drafts. Missing legacy observations
+remain absent and the interface says they were not recorded.
+
+Content availability is an intersection, never a union. A completed request
+must first allow `content_always` or unexpired `content_until_expiration`; its
+independent retention content horizon must also remain active. `receipt_only`,
+revoked, expired, or retention-expired records report content unavailable while
+their authorized history and sealed participant report remain separately
+governed. The effective displayed deadline is the earlier applicable workflow
+or retention deadline.
 
 The workspace places `Request my VASI data` in a secondary privacy panel. A
 request discovers matching assignments and creates one review scope per
@@ -135,7 +152,8 @@ The engine settings are:
 The disposable integration environment proves optimistic policy revisions,
 named-profile binding, hold idempotency, hold-safe purge, immutable hash chains,
 standard and certificate tombstone seals, retired fingerprint verification,
-participant history, cross-participant isolation, reviewed/redacted export,
+participant history chronology and content-policy truthfulness,
+cross-participant isolation, reviewed/redacted export,
 controlled expiry, immutable metadata, and backup/restore fingerprints.
 
 ## Remaining assurance work

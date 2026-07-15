@@ -20,11 +20,12 @@ import {
   validateRetentionPolicyMutation,
 } from "../../packages/engine-domain/lifecycle.mjs";
 import { participantContextPolicy } from "../../packages/engine-domain/context.mjs";
+import { notificationOperationalStatus } from "../../packages/engine-domain/notifications.mjs";
 import { hasTenantPermission } from "../../packages/engine-domain/workflow.mjs";
 import { EngineStoreError } from "./errors.mjs";
 import { createSigningProvider } from "./signing-provider.mjs";
 
-const ENGINE_VERSION = "0.29.1";
+const ENGINE_VERSION = "0.30.0";
 const GENESIS_HASH = "0".repeat(64);
 const DATA_EXPORT_SCHEMA = "vasi-participant-data-export/v1";
 
@@ -252,16 +253,90 @@ export function createLifecycleStore(database, settings) {
         `select a."id" as "assignmentId", a."requestId", a."status", a."issuedAt",
                 a."firstOpenedAt", a."completedAt", a."intendedEmail", a."participantEmail",
                 r."purpose", r."scheduledFor", r."dueAt", r."expiresAt", r."requesterSnapshot",
+                r."accessPolicy",
                 w."id" as "workflowRevisionId", w."revision", w."title", w."snapshotHash",
                 t."id" as "tenantId", t."name" as "tenantName",
                 m."manifestHash", l."contentStatus", l."historyStatus", l."evidenceStatus",
-                l."contentExpiresAt", l."historyExpiresAt", l."archiveAt", l."deleteAt"
+                l."contentExpiresAt", l."historyExpiresAt", l."archiveAt", l."deleteAt",
+                auth."authentication", auth."authenticatedAt", auth."authenticationObservedAt",
+                activity."activityCount", activity."resolvedActivityCount",
+                activity."lastActivityAt", activity."responses",
+                legacy."legacyResponseMode", legacy."legacyResponseValue", legacy."legacyRespondedAt",
+                status_event."statusChangedAt",
+                invitation."invitationJobStatus", invitation."invitationQueuedAt",
+                invitation."invitationAvailableAt", invitation."invitationCompletedAt",
+                invitation."invitationResultOutcome",
+                invitation."invitationResultAdapter", invitation."invitationAttemptOutcome",
+                invitation."invitationAttemptAdapter", invitation."invitationAttemptCompletedAt"
          from "vasi_engine"."participant_assignment" a
          join "vasi_engine"."request_instance" r on r."id" = a."requestId"
          join "vasi_engine"."workflow_revision" w on w."id" = r."workflowRevisionId"
          join "vasi_engine"."tenant" t on t."id" = a."tenantId"
          join "vasi_engine"."record_lifecycle_state" l on l."assignmentId" = a."id"
          left join "vasi_engine"."evidence_manifest" m on m."assignmentId" = a."id"
+         left join lateral (
+           select e."eventData" #> '{actor,authentication}' as "authentication",
+                  e."eventData" #>> '{actor,authenticatedAt}' as "authenticatedAt",
+                  e."receivedAt" as "authenticationObservedAt"
+           from "vasi_engine"."evidence_event" e
+           where e."assignmentId" = a."id" and e."eventType" = 'participant.opened'
+           order by e."sequence" limit 1
+         ) auth on true
+         left join lateral (
+           select count(i."id")::integer as "activityCount",
+                  (count(i."id") filter (where i."status" in ('completed', 'skipped')))::integer
+                    as "resolvedActivityCount",
+                  max(coalesce(response."respondedAt", i."completedAt", i."openedAt", i."availableAt"))
+                    as "lastActivityAt",
+                  coalesce(jsonb_agg(jsonb_build_object(
+                    'activityId', i."activityId",
+                    'activityTitle', i."definition"->>'title',
+                    'outcome', response."outcome",
+                    'respondedAt', response."respondedAt",
+                    'responseLabel', response."responseLabel"
+                  ) order by i."ordinal") filter (where response."id" is not null), '[]'::jsonb)
+                    as "responses"
+           from "vasi_engine"."activity_instance" i
+           left join "vasi_engine"."activity_response" response
+             on response."activityInstanceId" = i."id"
+           where i."assignmentId" = a."id"
+         ) activity on true
+         left join lateral (
+           select response."responseMode" as "legacyResponseMode",
+                  response."responseValue" as "legacyResponseValue",
+                  response."respondedAt" as "legacyRespondedAt"
+           from "vasi_engine"."participant_response" response
+           where response."assignmentId" = a."id"
+         ) legacy on true
+         left join lateral (
+           select event."createdAt" as "statusChangedAt"
+           from "vasi_engine"."request_lifecycle_event" event
+           where event."requestId" = a."requestId"
+             and event."eventType" = ('request.' || a."status")
+           order by event."createdAt" desc, event."id" desc limit 1
+         ) status_event on true
+         left join lateral (
+           select job."status" as "invitationJobStatus",
+                  job."createdAt" as "invitationQueuedAt",
+                  job."availableAt" as "invitationAvailableAt",
+                  job."completedAt" as "invitationCompletedAt",
+                  job."result"->>'outcome' as "invitationResultOutcome",
+                  job."result"->>'adapter' as "invitationResultAdapter",
+                  attempt."outcome" as "invitationAttemptOutcome",
+                  attempt."adapter" as "invitationAttemptAdapter",
+                  attempt."completedAt" as "invitationAttemptCompletedAt"
+           from "vasi_engine"."outbox_job" job
+           left join lateral (
+             select delivery."outcome", delivery."adapter", delivery."completedAt"
+             from "vasi_engine"."notification_delivery_attempt" delivery
+             where delivery."jobId" = job."id"
+             order by delivery."attempt" desc limit 1
+           ) attempt on true
+           where job."requestId" = a."requestId"
+             and job."jobType" = 'notification'
+             and job."notificationType" = 'request.issued'
+           order by job."createdAt" desc, job."id" desc limit 1
+         ) invitation on true
          where (a."principalId" = $1 or lower(coalesce(a."participantEmail", a."intendedEmail")) = $2)
            and l."historyStatus" = 'active'
            and (l."historyExpiresAt" is null or l."historyExpiresAt" > CURRENT_TIMESTAMP)
@@ -1394,9 +1469,17 @@ function lifecycleProjection(row) {
   };
 }
 
-function participantHistoryProjection(row) {
+export function participantHistoryProjection(row, now = new Date()) {
+  const responses = participantHistoryResponses(row);
+  const contentAccess = participantHistoryContentAccess(row, now);
   return {
     assignmentId: row.assignmentId,
+    activity: {
+      lastActivityAt: iso(row.lastActivityAt || row.legacyRespondedAt),
+      resolved: Number(row.resolvedActivityCount || 0),
+      total: Number(row.activityCount || (row.legacyResponseValue === undefined ? 0 : 1)),
+    },
+    authentication: participantHistoryAuthentication(row),
     completedAt: iso(row.completedAt),
     evidence: {
       archived: row.evidenceStatus === "archived",
@@ -1405,18 +1488,27 @@ function participantHistoryProjection(row) {
     },
     expiresAt: iso(row.expiresAt),
     firstOpenedAt: iso(row.firstOpenedAt),
+    invitation: participantHistoryInvitation(row, now),
     issuedAt: iso(row.issuedAt),
     lifecycle: {
       archiveAt: iso(row.archiveAt),
-      contentAvailable: row.contentStatus === "active" && (!row.contentExpiresAt || new Date(row.contentExpiresAt) > new Date()),
-      contentExpiresAt: iso(row.contentExpiresAt),
+      contentAccessPolicy: contentAccess.policy,
+      contentAvailable: contentAccess.available,
+      contentExpiresAt: contentAccess.expiresAt,
       deleteAt: iso(row.deleteAt),
       historyExpiresAt: iso(row.historyExpiresAt),
     },
     purpose: row.purpose,
     requestId: row.requestId,
+    responses,
+    schedule: {
+      dueAt: iso(row.dueAt),
+      expiresAt: iso(row.expiresAt),
+      scheduledFor: iso(row.scheduledFor),
+    },
     sender: { email: row.requesterSnapshot?.email || null, relationship: "requesting_organization" },
     status: row.status,
+    statusChangedAt: participantStatusChangedAt(row),
     tenant: { id: row.tenantId, name: row.tenantName },
     title: row.title,
     workflow: {
@@ -1425,6 +1517,128 @@ function participantHistoryProjection(row) {
       snapshotHash: row.snapshotHash,
     },
   };
+}
+
+function participantHistoryAuthentication(row) {
+  const authentication = row.authentication && typeof row.authentication === "object"
+    ? row.authentication
+    : {};
+  const summary = {
+    authenticatedAt: evidenceTimestamp(row.authenticatedAt),
+    method: safeHistoryToken(authentication.method),
+    observedAt: iso(row.authenticationObservedAt),
+    provider: safeHistoryToken(authentication.provider),
+    provenance: safeHistoryToken(authentication.provenance),
+  };
+  return Object.values(summary).some(Boolean) ? withoutUndefined(summary) : undefined;
+}
+
+function participantHistoryResponses(row) {
+  const responses = Array.isArray(row.responses) ? row.responses.map((response) => withoutUndefined({
+    activityId: safeHistoryToken(response?.activityId),
+    activityTitle: safeHistoryText(response?.activityTitle, 160),
+    outcome: safeHistoryToken(response?.outcome),
+    respondedAt: iso(response?.respondedAt),
+    responseLabel: safeHistoryText(response?.responseLabel, 10_000),
+  })).filter((response) => response.activityId && response.responseLabel) : [];
+  if (responses.length || row.legacyResponseValue === undefined || row.legacyResponseValue === null) {
+    return responses;
+  }
+  return [withoutUndefined({
+    activityId: "legacy_response",
+    activityTitle: "Recorded response",
+    outcome: safeHistoryToken(row.legacyResponseMode),
+    respondedAt: iso(row.legacyRespondedAt),
+    responseLabel: safeHistoryText(row.legacyResponseValue, 10_000),
+  })];
+}
+
+function participantHistoryContentAccess(row, now) {
+  const policy = ["receipt_only", "content_until_expiration", "content_always"]
+    .includes(row.accessPolicy?.postCompletion)
+    ? row.accessPolicy.postCompletion
+    : "receipt_only";
+  const completed = row.status === "completed";
+  const terminal = ["expired", "revoked"].includes(row.status);
+  let policyAllows = !terminal;
+  let policyDeadline = row.expiresAt;
+  if (completed) {
+    policyAllows = policy === "content_always" || policy === "content_until_expiration";
+    policyDeadline = policy === "content_until_expiration" ? row.expiresAt : null;
+  }
+  const effectiveDeadline = earliestDate(policyDeadline, row.contentExpiresAt);
+  const retentionAllows = row.contentStatus === "active" &&
+    (!row.contentExpiresAt || new Date(row.contentExpiresAt) > now);
+  const available = policyAllows && retentionAllows &&
+    (!effectiveDeadline || effectiveDeadline > now);
+  return {
+    available,
+    expiresAt: available ? iso(effectiveDeadline) : undefined,
+    policy,
+  };
+}
+
+function participantHistoryInvitation(row, now) {
+  if (!row.invitationJobStatus) return { status: "manual_link_only" };
+  const status = notificationOperationalStatus({
+    attemptOutcome: row.invitationAttemptOutcome,
+    availableAt: row.invitationAvailableAt,
+    resultOutcome: row.invitationResultOutcome,
+    status: row.invitationJobStatus,
+  }, now);
+  return withoutUndefined({
+    adapter: safeNotificationAdapter(row.invitationAttemptAdapter || row.invitationResultAdapter),
+    completedAt: iso(row.invitationAttemptCompletedAt || row.invitationCompletedAt),
+    queuedAt: iso(row.invitationQueuedAt),
+    scheduledFor: iso(row.invitationAvailableAt),
+    status,
+  });
+}
+
+function participantStatusChangedAt(row) {
+  if (row.status === "completed") return iso(row.completedAt);
+  if (row.status === "in_progress") return iso(row.firstOpenedAt);
+  if (["expired", "revoked", "issued", "scheduled"].includes(row.status)) {
+    return iso(row.statusChangedAt || row.scheduledFor || row.issuedAt);
+  }
+  return undefined;
+}
+
+function safeNotificationAdapter(value) {
+  return ["disabled", "engine", "microsoft_graph", "notification", "smtp", "webhook"].includes(value)
+    ? value
+    : undefined;
+}
+
+function safeHistoryToken(value) {
+  return typeof value === "string" && /^[A-Za-z0-9._:-]{1,128}$/.test(value) ? value : undefined;
+}
+
+function safeHistoryText(value, maximum) {
+  return typeof value === "string" && value.length > 0 && value.length <= maximum ? value : undefined;
+}
+
+function withoutUndefined(value) {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined && entry !== null));
+}
+
+function earliestDate(...values) {
+  const dates = values.filter(Boolean).map((value) => new Date(value)).filter((value) => !Number.isNaN(value.getTime()));
+  return dates.length ? new Date(Math.min(...dates.map((value) => value.getTime()))) : undefined;
+}
+
+function evidenceTimestamp(value) {
+  if (typeof value === "number" || (typeof value === "string" && /^\d{1,12}$/.test(value))) {
+    const seconds = Number(value);
+    if (!Number.isSafeInteger(seconds) || seconds < 0 || seconds > 253_402_300_799) return undefined;
+    return new Date(seconds * 1_000).toISOString();
+  }
+  if (typeof value !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    return undefined;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 
 function dataReviewProjection(row) {

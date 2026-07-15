@@ -105,6 +105,13 @@ private-engine schema. Apply it before replacing the gateway; the usual
 version-aligned engine-first rollout remains supported, and deployment creates
 no identity, tenant, invitation, or evidence record.
 
+VASI 0.30.0 adds no database migration. It reads existing immutable participant
+open events, activity responses, lifecycle rows, workflow access policy, and
+notification state to produce a privacy-bounded durable history summary. The
+usual engine-first rollout is required because the gateway workspace consumes
+the expanded response after the engine is replaced. Deployment does not create
+or modify a tenant, request, participant, notification, or evidence record.
+
 ## Initialize
 
 Requirements are Docker Engine with Compose, PostgreSQL 15 or newer, an HTTPS

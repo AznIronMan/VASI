@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.29.1`
+Version: `0.30.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -359,6 +359,17 @@ legacy estimate until the next successful provider sign-in replaces it. The
 internal console holds that estimate in the red/unknown state rather than
 presenting it as an active login. Exact observations retain the configured,
 connected, 90-day, and error status-light contract.
+
+Version 0.30.0 completes the participant-facing durable transaction-history
+summary. Each authenticated history entry now derives its bounded sign-in
+method/provider, invitation state, schedule, state-transition time, activity
+progress, last interaction, and exact submitted response labels from the
+authoritative engine record. The workspace deliberately omits provider
+subjects, raw browser/network telemetry, answer keys, credentials, and internal
+delivery details. Post-completion content availability is evaluated against
+both the immutable workflow policy and the independent retention horizon, so a
+`receipt_only` record can never be presented as having retained source content.
+Missing legacy observations remain visibly unrecorded rather than inferred.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

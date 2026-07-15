@@ -87,13 +87,29 @@ export type EngineErrorResponse = { error?: string };
 
 export type ParticipantHistoryRecord = {
   assignmentId: string;
+  activity: { lastActivityAt?: string; resolved: number; total: number };
+  authentication?: {
+    authenticatedAt?: string;
+    method?: string;
+    observedAt?: string;
+    provider?: string;
+    provenance?: string;
+  };
   completedAt?: string;
   evidence: { archived: boolean; manifestFingerprint?: string; reportAvailable: boolean };
   expiresAt: string;
   firstOpenedAt?: string;
+  invitation: {
+    adapter?: "disabled" | "engine" | "microsoft_graph" | "notification" | "smtp" | "webhook";
+    completedAt?: string;
+    queuedAt?: string;
+    scheduledFor?: string;
+    status: "manual_link_only" | "scheduled" | "queued" | "processing" | "provider_accepted" | "suppressed" | "failed" | "indeterminate";
+  };
   issuedAt: string;
   lifecycle: {
     archiveAt?: string;
+    contentAccessPolicy: "receipt_only" | "content_until_expiration" | "content_always";
     contentAvailable: boolean;
     contentExpiresAt?: string;
     deleteAt?: string;
@@ -101,8 +117,17 @@ export type ParticipantHistoryRecord = {
   };
   purpose: string;
   requestId: string;
+  responses: Array<{
+    activityId: string;
+    activityTitle?: string;
+    outcome?: string;
+    respondedAt?: string;
+    responseLabel: string;
+  }>;
+  schedule: { dueAt?: string; expiresAt: string; scheduledFor?: string };
   sender: { email?: string; relationship: "requesting_organization" };
   status: string;
+  statusChangedAt?: string;
   tenant: { id: string; name: string };
   title: string;
   workflow: { id: string; revision: number; snapshotHash: string };

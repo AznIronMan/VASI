@@ -305,6 +305,14 @@ an explicitly labeled legacy estimate; missing attribution fails toward an
 unknown/error light, and health-write failure cannot deny an otherwise
 completed login or manufacture a successful authentication event.
 
+VASI 0.30.0 derives participant transaction-history summaries only after the
+engine re-authorizes the stable principal or verified email. Focused and
+disposable proofs cover cross-participant denial, bounded authentication fields,
+truthful invitation state, exact submitted response labels, schedule and status
+chronology, and the intersection of post-completion workflow access with
+retention availability. Raw technical context remains available only through
+the separately reviewed participant-data workflow.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an
