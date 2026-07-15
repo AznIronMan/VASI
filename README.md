@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.36.0`
+Version: `0.36.1`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -442,6 +442,15 @@ truncated streams, and declared/actual length disagreement fail with a generic
 400. Accepted authentication bodies are rebuilt without forwarding an
 untrusted `Content-Length`, preserving JSON and provider form-post callbacks.
 PostgreSQL document upload keeps its separate bounded streaming contract.
+
+Version 0.36.1 makes the trusted-host engine deployment-perimeter probe
+repeatably deployable. A root-only preparation helper installs only exact
+lockfile production packages with npm lifecycle scripts disabled, supports a
+fail-closed pre-seeded offline cache, installs a stable host verifier, and then
+proves the Node version, package/lock agreement, installed top-level production
+versions, and protected settings runtime import. The recurring systemd service
+runs that bounded verifier before every perimeter check, so a fresh cutover or
+rollback cannot silently depend on missing or stale host packages.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

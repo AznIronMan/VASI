@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +10,7 @@ import {
   runtimeContractForImage,
   validateAutomationContract,
   validateComposeContracts,
+  validateEngineHostRuntimeContract,
   validateOperationalSchedulerContract,
   validateVersionAlignment,
 } from "./release-assurance.mjs";
@@ -62,6 +63,43 @@ describe("release assurance policy", () => {
     expect(result.unitsChecked).toContain("vasi-gateway-backup-check.timer");
   });
 
+  it("keeps the direct engine host runtime exact and lifecycle-script-free", async () => {
+    const result = await validateEngineHostRuntimeContract(root);
+    expect(result).toEqual({ failures: [], filesChecked: 3 });
+  });
+
+  it("rejects a weakened engine host runtime preparation contract", async () => {
+    const fixture = await mkdtemp(path.join(tmpdir(), "vasi-host-runtime-assurance-"));
+    try {
+      await mkdir(path.join(fixture, "scripts"));
+      await cp(
+        path.join(root, "scripts", "prepare-engine-host-runtime.sh"),
+        path.join(fixture, "scripts", "prepare-engine-host-runtime.sh"),
+      );
+      await cp(
+        path.join(root, "scripts", "verify-engine-host-runtime.mjs"),
+        path.join(fixture, "scripts", "verify-engine-host-runtime.mjs"),
+      );
+      const packageSource = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+      packageSource.scripts["host:prepare:engine"] = "npm install";
+      await writeFile(path.join(fixture, "package.json"), JSON.stringify(packageSource));
+      const preparation = path.join(fixture, "scripts", "prepare-engine-host-runtime.sh");
+      await writeFile(
+        preparation,
+        (await readFile(preparation, "utf8")).replace("--ignore-scripts", "--foreground-scripts"),
+      );
+      const result = await validateEngineHostRuntimeContract(fixture);
+      expect(result.failures).toContain(
+        "engine host runtime preparation weakens exact production installation",
+      );
+      expect(result.failures).toContain(
+        "package.json is missing the exact engine host runtime preparation command",
+      );
+    } finally {
+      await rm(fixture, { force: true, recursive: true });
+    }
+  });
+
   it("rejects weakened or installation-specific scheduler state", async () => {
     const fixture = await mkdtemp(path.join(tmpdir(), "vasi-systemd-assurance-"));
     try {
@@ -76,7 +114,13 @@ describe("release assurance policy", () => {
         "systemd",
         "vasi-engine-deployment-readiness.service",
       );
-      await writeFile(nodeService, `${await readFile(nodeService, "utf8")}\nMemoryDenyWriteExecute=yes\n`);
+      await writeFile(
+        nodeService,
+        `${(await readFile(nodeService, "utf8")).replace(
+          "ExecStartPre=/usr/bin/env node /usr/local/libexec/vasi/verify-engine-host-runtime.mjs\n",
+          "",
+        )}\nMemoryDenyWriteExecute=yes\n`,
+      );
       const result = await validateOperationalSchedulerContract(fixture);
       expect(result.failures).toContain("vasi-engine-operational-readiness.timer is missing Persistent=yes");
       expect(result.failures).toContain(
@@ -85,18 +129,21 @@ describe("release assurance policy", () => {
       expect(result.failures).toContain(
         "vasi-engine-deployment-readiness.service cannot deny executable memory to the direct Node runtime",
       );
+      expect(result.failures).toContain(
+        "vasi-engine-deployment-readiness.service is missing ExecStartPre=/usr/bin/env node /usr/local/libexec/vasi/verify-engine-host-runtime.mjs",
+      );
     } finally {
       await rm(fixture, { force: true, recursive: true });
     }
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.36.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.36.1")).toMatchObject({
       entrypoints: ["server.js"],
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.36.0")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.36.1")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -117,7 +164,7 @@ describe("release assurance policy", () => {
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.36.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.36.1")).toMatchObject({
       entrypoints: [
         "scripts/backup-custody.mjs",
         "scripts/backup-continuity.mjs",
@@ -131,7 +178,7 @@ describe("release assurance policy", () => {
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.36.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.36.1")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",

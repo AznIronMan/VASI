@@ -10,6 +10,7 @@ User=root
 Group=root
 UMask=0077
 WorkingDirectory=/opt/vasi-engine/current
+ExecStartPre=/usr/bin/env node /usr/local/libexec/vasi/verify-engine-host-runtime.mjs
 ExecStart=/usr/bin/env node scripts/probe-deployment-readiness.mjs --scope engine --storage /opt/vasi-engine/releases
 TimeoutStartSec=5min
 Nice=10

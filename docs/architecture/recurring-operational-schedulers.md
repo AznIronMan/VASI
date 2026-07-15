@@ -1,6 +1,6 @@
 # Recurring operational scheduler contract
 
-Status: implemented in VASI 0.24.0 and extended through VASI 0.35.0.
+Status: implemented in VASI 0.24.0 and extended through VASI 0.36.1.
 
 VASI ships the recurring host controls needed to keep a healthy release from
 silently degrading after deployment. The portable contract uses hardened
@@ -68,11 +68,36 @@ sudo systemd-analyze verify /etc/systemd/system/vasi-gateway-*.service \
   /etc/systemd/system/vasi-gateway-*.timer
 ```
 
-Use `/var/lib/vasi-engine/backups/maintenance/scheduled` and install
-`vasi-engine-*` on the engine role. Review any required drop-ins before the
-first run. Start every one-shot service manually and treat any nonzero result as
-a deployment failure before enabling its timer. Enable only after the service
-has passed:
+Use `/var/lib/vasi-engine/backups/maintenance/scheduled` on the engine role.
+Before installing `vasi-engine-*` units or changing the engine `current`
+symlink, prepare each exact extracted release from its own directory:
+
+```bash
+cd /opt/vasi-engine/releases/RELEASE_ID
+sudo -H /bin/sh scripts/prepare-engine-host-runtime.sh
+```
+
+The helper requires root because it atomically replaces the stable verifier at
+`/usr/local/libexec/vasi/verify-engine-host-runtime.mjs`. It runs `npm ci`
+against the exact lockfile with engine-version enforcement, production-only
+installation, lifecycle scripts disabled, and audit/update side effects
+disabled. It then validates the installed dependency versions and imports the
+protected settings runtime before returning a bounded
+`vasi-engine-host-runtime/v1` result. A failure must stop cutover.
+
+For an isolated installation, provision a trusted npm cache containing every
+lockfile production tarball and use `--offline`. Offline mode never contacts a
+registry and fails rather than silently falling back when an artifact is
+missing. Source archives intentionally do not vendor `node_modules`; retain the
+prepared immediate-rollback release and its production packages. The stable
+verifier is release-independent for the current manifest contract and checks
+whichever release `current` selects.
+
+Review any required drop-ins before the first run. Install the packaged units
+only after host preparation, then run `systemctl daemon-reload` and
+`systemd-analyze verify`. Start every one-shot service manually and treat any
+nonzero result as a deployment failure before enabling its timer. Enable only
+after the service has passed:
 
 ```bash
 sudo systemctl start vasi-gateway-backup-create.service
@@ -106,9 +131,12 @@ non-root, read-only, capability-dropped Compose contracts.
 The engine deployment-perimeter service runs Node directly on the trusted host
 because it must inspect public TLS and protected host storage. It intentionally
 does not use systemd `MemoryDenyWriteExecute`; V8 requires executable memory at
-isolate startup. Its remaining namespace, filesystem, capability, address
+isolate startup. An `ExecStartPre` call to the stable bounded verifier refuses
+the check when Node is unsupported, package/lock state drifts, a direct
+production dependency is missing or mismatched, or the protected settings
+runtime cannot load. Its remaining namespace, filesystem, capability, address
 family, and no-new-privileges controls stay mandatory, and source assurance
-rejects reintroducing the incompatible flag.
+rejects removing the preflight or reintroducing the incompatible flag.
 
 Source assurance enumerates the complete reviewed unit set and fails on a
 missing or extra unit, absent persistence/recurrence/hardening lines,

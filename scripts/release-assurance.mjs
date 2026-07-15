@@ -381,6 +381,7 @@ export async function validateOperationalSchedulerContract(repositoryRoot = root
   });
   addService("vasi-engine-deployment-readiness.service", [
     "WorkingDirectory=/opt/vasi-engine/current",
+    "ExecStartPre=/usr/bin/env node /usr/local/libexec/vasi/verify-engine-host-runtime.mjs",
     "ExecStart=/usr/bin/env node scripts/probe-deployment-readiness.mjs --scope engine --storage /opt/vasi-engine/releases",
     "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6",
   ]);
@@ -438,6 +439,60 @@ export async function validateOperationalSchedulerContract(repositoryRoot = root
   return { failures, unitsChecked: Object.keys(requirements) };
 }
 
+export async function validateEngineHostRuntimeContract(repositoryRoot = root) {
+  const failures = [];
+  let preparation = "";
+  let verifier = "";
+  let packageJSON;
+  try {
+    preparation = await readFile(path.join(repositoryRoot, "scripts", "prepare-engine-host-runtime.sh"), "utf8");
+  } catch {
+    failures.push("engine host runtime preparation is missing");
+  }
+  try {
+    verifier = await readFile(path.join(repositoryRoot, "scripts", "verify-engine-host-runtime.mjs"), "utf8");
+  } catch {
+    failures.push("engine host runtime verifier is missing");
+  }
+  try {
+    packageJSON = JSON.parse(await readFile(path.join(repositoryRoot, "package.json"), "utf8"));
+  } catch {
+    failures.push("engine host runtime package contract is unavailable");
+  }
+
+  const preparationLines = preparation.split("\n");
+  const exactInstall = "NODE_ENV=production npm_config_engine_strict=true npm ci --omit=dev --ignore-scripts --no-audit --no-fund $offline";
+  for (const required of [
+    "set -eu",
+    "umask 022",
+    "if [ \"$(id -u)\" -ne 0 ]; then",
+    exactInstall,
+    "/usr/bin/install -d -o root -g root -m 0755 /usr/local/libexec/vasi",
+    "/usr/bin/install -o root -g root -m 0644 scripts/verify-engine-host-runtime.mjs \\",
+    "  /usr/local/libexec/vasi/verify-engine-host-runtime.mjs",
+    "exec node /usr/local/libexec/vasi/verify-engine-host-runtime.mjs",
+  ]) {
+    if (!preparationLines.includes(required)) failures.push(`engine host runtime preparation is missing ${required}`);
+  }
+  if (
+    /\bnpm\s+(?:i|install)\b|--(?:force|foreground-scripts|ignore-engines|include=dev)\b|Environment(?:File)?=|\.env\b/.test(preparation)
+  ) {
+    failures.push("engine host runtime preparation weakens exact production installation");
+  }
+  for (const marker of [
+    "vasi-engine-host-runtime/v1",
+    "production_dependency_missing",
+    "production_dependency_mismatch",
+    "settings_runtime_unavailable",
+  ]) {
+    if (!verifier.includes(marker)) failures.push(`engine host runtime verifier is missing ${marker}`);
+  }
+  if (packageJSON?.scripts?.["host:prepare:engine"] !== "/bin/sh scripts/prepare-engine-host-runtime.sh") {
+    failures.push("package.json is missing the exact engine host runtime preparation command");
+  }
+  return { failures, filesChecked: 3 };
+}
+
 async function sourceAssurance(output, { allowDirty }) {
   const dirtyOutput = await capture("git", ["status", "--porcelain=v1"], { cwd: root });
   const dirty = Boolean(dirtyOutput.trim());
@@ -447,6 +502,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const versions = await validateVersionAlignment(root);
   const compose = await validateComposeContracts(root);
   const automation = await validateAutomationContract(root);
+  const engineHostRuntime = await validateEngineHostRuntimeContract(root);
   const operationalSchedulers = await validateOperationalSchedulerContract(root);
   if (source.forbiddenPaths.length) throw new Error(`Forbidden tracked paths: ${source.forbiddenPaths.join(", ")}.`);
   if (source.secretFindings.length) {
@@ -460,6 +516,9 @@ async function sourceAssurance(output, { allowDirty }) {
   if (versions.mismatches.length) throw new Error("VASI version declarations are not aligned.");
   if (compose.failures.length) throw new Error(`Compose hardening failed: ${compose.failures.join("; ")}.`);
   if (automation.failures.length) throw new Error(`Release automation hardening failed: ${automation.failures.join("; ")}.`);
+  if (engineHostRuntime.failures.length) {
+    throw new Error(`Engine host runtime hardening failed: ${engineHostRuntime.failures.join("; ")}.`);
+  }
   if (operationalSchedulers.failures.length) {
     throw new Error(`Operational scheduler hardening failed: ${operationalSchedulers.failures.join("; ")}.`);
   }
@@ -483,6 +542,7 @@ async function sourceAssurance(output, { allowDirty }) {
     automation,
     compose,
     dirty,
+    engineHostRuntime,
     operationalSchedulers,
     sourceFileCount: source.files.length,
     versions: versions.actual,

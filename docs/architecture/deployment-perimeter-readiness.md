@@ -78,9 +78,15 @@ this operational check. The host process reads the same protected bootstrap,
 emits the same bounded schema, and receives no credential in its arguments.
 
 The tracked systemd suite schedules each deployment scope independently every
-six hours. When its explicit origin argument is omitted, the probe resolves the
-gateway or engine public origin through the encrypted PostgreSQL runtime
-settings boundary. Alert on every nonzero exit.
+six hours. The engine unit first runs the stable
+`vasi-engine-host-runtime/v1` verifier installed by
+`scripts/prepare-engine-host-runtime.sh`; unsupported Node, manifest/lock drift,
+missing or mismatched production packages, and an unloadable protected settings
+runtime stop the service before any network check. Prepare every exact engine
+release before changing `current`, including a release retained for rollback.
+When its explicit origin argument is omitted, the probe resolves the gateway or
+engine public origin through the encrypted PostgreSQL runtime settings
+boundary. Alert on every nonzero exit.
 Retain only the bounded result under the installation's monitoring policy. A
 failure should identify the deployment scope and reason code; operators should
 inspect protected host/service logs separately rather than adding paths,

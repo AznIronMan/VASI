@@ -443,8 +443,23 @@ alert labels.
 Run the deployment-perimeter probe separately on both the gateway and engine
 hosts. The engine's maintenance container is deliberately limited to exact
 database egress, while this probe must also reach the public health/TLS origin.
-Run the engine scope from the trusted host with root access to the protected
-bootstrap and pass the operator-selected host storage path directly:
+Before selecting a newly extracted engine release, install its exact production
+dependency graph and stable preflight from that release directory:
+
+```bash
+sudo -H /bin/sh scripts/prepare-engine-host-runtime.sh
+```
+
+This command uses the exact lockfile, omits development packages, disables npm
+lifecycle scripts, rejects an unsupported Node engine, and verifies the
+installed packages plus protected settings import. Use `--offline` only after a
+trusted process has populated the root npm cache with every lockfile production
+artifact; a missing cached artifact fails the preparation. Retain the prepared
+prior release for rollback. The systemd perimeter unit runs the stable verifier
+before every scheduled check.
+
+Then run the engine scope from the trusted host with root access to the
+protected bootstrap and pass the operator-selected host storage path directly:
 
 ```bash
 sudo node scripts/probe-deployment-readiness.mjs \
