@@ -224,6 +224,15 @@ links expire after one hour, and a completed password reset revokes the user's
 other active sessions. Sign-in and recovery responses use generic language to
 reduce account enumeration.
 
+All responses from the Better Auth catch-all are forced to
+`Cache-Control: no-store`, including unauthenticated session introspection,
+provider callbacks/errors, internal-admin denials, and request-body boundary
+failures. The response wrapper preserves required provider cookies and status
+headers. Release assurance rejects a direct handler return that could bypass
+this policy, and the live public-ingress probe requires cross-origin session
+introspection to return only non-cacheable JSON `null` without CORS, cookie, or
+redirect side effects.
+
 An opaque evidence request path under `/r/` is preserved through social sign-in,
 manual registration, and email verification. The return value is accepted only
 when it exactly matches the fixed high-entropy request-path shape; arbitrary or

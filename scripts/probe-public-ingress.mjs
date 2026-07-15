@@ -1,4 +1,5 @@
 import process from "node:process";
+import { request as requestHTTPS } from "node:https";
 import { connect as connectTLS } from "node:tls";
 import { pathToFileURL } from "node:url";
 
@@ -8,10 +9,26 @@ const MAXIMUM_RESPONSE_BYTES = 65_536;
 const OVERSIZED_AUTHENTICATION_BYTES = 65_537;
 const PAGE_METHODS_DENIED = Object.freeze(["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
 const SUPPORTED_TLS_PROTOCOLS = Object.freeze(["TLSv1.2", "TLSv1.3"]);
+const NORMALIZATION_TARGETS = Object.freeze([
+  "/%2e%2e/admin",
+  "/..%2fadmin",
+  "/%2e%2e%2fapi%2fadmin",
+  "/%252e%252e%252fadmin",
+  "/%00",
+  "//admin",
+  "/%5cadmin",
+]);
+const PRIVATE_RESPONSE_MARKERS = Object.freeze([
+  "Identity administration",
+  "Company workflows",
+  "Private engine",
+  "Company assurance gates",
+]);
 
 export async function runPublicIngressProbe({
   exerciseRateLimit = false,
   fetchImplementation = fetch,
+  inspectAdversarial = inspectAdversarialBoundary,
   inspectTLS = inspectSupportedTLS,
   origin,
   rateRequests = 48,
@@ -30,6 +47,12 @@ export async function runPublicIngressProbe({
     !SUPPORTED_TLS_PROTOCOLS.every((protocol) => tlsProtocols.includes(protocol)) ||
     new Set(tlsProtocols).size !== tlsProtocols.length
   ) throw new Error("The public ingress supported TLS protocol contract failed.");
+
+  const adversarialBoundary = await inspectAdversarial(publicOrigin, timeoutMilliseconds);
+  if (
+    adversarialBoundary?.canonicalHostIsolationCases !== 3 ||
+    adversarialBoundary?.normalizationDenials !== NORMALIZATION_TARGETS.length
+  ) throw new Error("The public ingress adversarial request-target proof is incomplete.");
 
   const redirectPath = "/api/health?canonical-redirect=1";
   const httpURL = new URL(redirectPath, publicOrigin);
@@ -69,10 +92,18 @@ export async function runPublicIngressProbe({
   }
   requirePublicSecurityHeaders(root.response);
   requireNoServerVersion(root.response, "public application");
+  requireNoTokenReflection(
+    { body: root.body, headers: root.response.headers },
+    "attacker.invalid",
+    "public forwarded-header handling",
+  );
 
   for (const method of PAGE_METHODS_DENIED) {
     const denied = await request(fetchImplementation, publicOrigin, {
-      headers: spoofedHeaders(),
+      headers: {
+        ...spoofedHeaders(),
+        ...(method === "POST" ? { "x-http-method-override": "GET" } : {}),
+      },
       method,
       timeoutMilliseconds,
     });
@@ -109,6 +140,27 @@ export async function runPublicIngressProbe({
     hostilePreflight.response.headers.has("access-control-allow-credentials") ||
     hostilePreflight.response.headers.has("set-cookie")
   ) throw new Error("The public ingress authorized a hostile cross-origin preflight.");
+
+  const session = await request(fetchImplementation, new URL("/api/auth/get-session", publicOrigin), {
+    headers: {
+      ...spoofedHeaders(),
+      origin: "https://attacker.invalid",
+      "sec-fetch-site": "cross-site",
+    },
+    timeoutMilliseconds,
+  });
+  if (session.response.status !== 200 || session.body !== "null") {
+    throw new Error("The unauthenticated session response exposed unexpected state.");
+  }
+  requireNoStore(session.response, "unauthenticated session");
+  requireNoResponseSideEffect(session.response, "unauthenticated session");
+  requireNoCorsAuthorization(session.response, "unauthenticated session");
+  requirePublicSecurityHeaders(session.response);
+  requireNoTokenReflection(
+    { body: session.body, headers: session.response.headers },
+    "attacker.invalid",
+    "unauthenticated session",
+  );
 
   const oversized = await request(fetchImplementation, new URL("/api/auth/sign-in/email", publicOrigin), {
     body: new Uint8Array(OVERSIZED_AUTHENTICATION_BYTES),
@@ -174,6 +226,13 @@ export async function runPublicIngressProbe({
   }
 
   return Object.freeze({
+    adversarial: Object.freeze({
+      canonicalHostIsolationCases: adversarialBoundary.canonicalHostIsolationCases,
+      forwardedHeaders: "not_reflected",
+      methodOverride: "denied",
+      normalizationDenials: adversarialBoundary.normalizationDenials,
+      sessionPrivacy: "no_store_null",
+    }),
     bodyLimitBytes: OVERSIZED_AUTHENTICATION_BYTES - 1,
     canonicalRedirect: true,
     crossOriginPreflight: "denied",
@@ -181,9 +240,37 @@ export async function runPublicIngressProbe({
     pageMethods: Object.freeze({ allowed: Object.freeze(["GET", "HEAD"]), denied: PAGE_METHODS_DENIED.length }),
     rateLimit: rateLimit || null,
     retiredStatus,
-    schema: "vasi-public-ingress-probe/v2",
+    schema: "vasi-public-ingress-probe/v3",
     status: "pass",
     tlsProtocols: Object.freeze([...tlsProtocols].sort()),
+  });
+}
+
+export async function inspectAdversarialBoundary(
+  origin,
+  timeoutMilliseconds,
+  rawRequestImplementation = rawHTTPSRequest,
+) {
+  const canonicalHost = origin instanceof URL ? origin : validHTTPSOrigin(origin, "public");
+  const hostileHostCases = [
+    Object.freeze({ host: "attacker.invalid", path: "/" }),
+    Object.freeze({ host: `${canonicalHost.hostname}.attacker.invalid`, path: "/" }),
+    Object.freeze({ host: canonicalHost.hostname, path: "https://attacker.invalid/" }),
+  ];
+  for (const requestTarget of hostileHostCases) {
+    const observation = await rawRequestImplementation(canonicalHost, requestTarget, timeoutMilliseconds);
+    requireHostIsolatedObservation(observation, canonicalHost);
+  }
+  for (const path of NORMALIZATION_TARGETS) {
+    const observation = await rawRequestImplementation(canonicalHost, {
+      host: canonicalHost.hostname,
+      path,
+    }, timeoutMilliseconds);
+    requireNormalizedPathDenial(observation);
+  }
+  return Object.freeze({
+    canonicalHostIsolationCases: hostileHostCases.length,
+    normalizationDenials: NORMALIZATION_TARGETS.length,
   });
 }
 
@@ -233,6 +320,129 @@ function connectTLSProtocol(origin, protocol, timeoutMilliseconds) {
       }
     });
   });
+}
+
+function rawHTTPSRequest(origin, requestTarget, timeoutMilliseconds) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      if (error) reject(error);
+      else resolve(value);
+    };
+    const outbound = requestHTTPS({
+      agent: false,
+      headers: {
+        accept: "application/json, text/html;q=0.9",
+        connection: "close",
+        host: requestTarget.host,
+        "user-agent": "VASI-public-ingress-probe/3",
+      },
+      hostname: origin.hostname,
+      method: "GET",
+      path: requestTarget.path,
+      port: Number(origin.port || 443),
+      rejectUnauthorized: true,
+      servername: origin.hostname,
+      timeout: timeoutMilliseconds,
+    }, (response) => {
+      const chunks = [];
+      let length = 0;
+      response.on("data", (chunk) => {
+        length += chunk.length;
+        if (length > MAXIMUM_RESPONSE_BYTES) {
+          outbound.destroy();
+          finish(new Error("The public ingress adversarial response exceeded its bound."));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      response.once("error", () => finish(new Error("The public ingress adversarial response failed.")));
+      response.once("end", () => {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(response.headers)) {
+          if (Array.isArray(value)) value.forEach((entry) => headers.append(name, entry));
+          else if (value !== undefined) headers.set(name, value);
+        }
+        finish(null, Object.freeze({
+          body: Buffer.concat(chunks).toString("utf8"),
+          headers,
+          status: response.statusCode || 0,
+        }));
+      });
+    });
+    outbound.once("error", () => finish(new Error("The public ingress adversarial request failed.")));
+    outbound.once("timeout", () => {
+      outbound.destroy();
+      finish(new Error("The public ingress adversarial request timed out."));
+    });
+    outbound.end();
+  });
+}
+
+function requireHostIsolatedObservation(observation, origin) {
+  requireBoundedRawObservation(observation, "canonical-host isolation");
+  const allowed = new Set([301, 302, 307, 308, 400, 404, 421]);
+  if (!allowed.has(observation.status)) {
+    throw new Error("The public ingress selected application content for a hostile host or absolute target.");
+  }
+  const redirect = observation.headers.get("location");
+  if ([301, 302, 307, 308].includes(observation.status)) {
+    let target;
+    try {
+      target = new URL(redirect || "", origin);
+    } catch {
+      throw new Error("The public ingress hostile-host redirect is malformed.");
+    }
+    if (
+      target.protocol !== "https:" || target.username || target.password ||
+      target.hostname === "attacker.invalid" || target.hostname.endsWith(".attacker.invalid")
+    ) throw new Error("The public ingress reflected a hostile host into a redirect.");
+  } else if (redirect) {
+    throw new Error("The public ingress hostile-host denial produced an unexpected redirect.");
+  }
+  requireRawPrivacy(observation, "canonical-host isolation");
+  requireNoTokenReflection(observation, "attacker.invalid", "canonical-host isolation");
+  if (/VASI|V·Sign|Identity administration|Company workflows|Private engine/i.test(observation.body)) {
+    throw new Error("The public ingress hostile-host response exposed product content.");
+  }
+}
+
+function requireNormalizedPathDenial(observation) {
+  requireBoundedRawObservation(observation, "normalized-path denial");
+  if (![400, 404].includes(observation.status)) {
+    throw new Error("The public ingress did not reject an ambiguous or traversal-style request target.");
+  }
+  requireRawPrivacy(observation, "normalized-path denial");
+  if (observation.headers.has("location")) {
+    throw new Error("The public ingress normalized-path denial produced a redirect.");
+  }
+  if (!/(?:^|,)\s*no-store\s*(?:,|$)/i.test(observation.headers.get("cache-control") || "")) {
+    throw new Error("The public ingress normalized-path denial is cacheable.");
+  }
+  const server = observation.headers.get("server");
+  if (server && /\/[0-9]/.test(server)) {
+    throw new Error("The public ingress normalized-path denial disclosed its server version.");
+  }
+  if (PRIVATE_RESPONSE_MARKERS.some((marker) => observation.body.includes(marker))) {
+    throw new Error("The public ingress normalized-path denial exposed protected content.");
+  }
+}
+
+function requireBoundedRawObservation(observation, label) {
+  if (
+    !observation || !Number.isInteger(observation.status) || !(observation.headers instanceof Headers) ||
+    typeof observation.body !== "string" || Buffer.byteLength(observation.body) > MAXIMUM_RESPONSE_BYTES
+  ) throw new Error(`The public ingress ${label} observation is invalid.`);
+}
+
+function requireRawPrivacy(observation, label) {
+  if (
+    observation.headers.has("set-cookie") || observation.headers.has("x-powered-by") ||
+    observation.headers.has("access-control-allow-origin") ||
+    observation.headers.has("access-control-allow-credentials")
+  ) throw new Error(`The public ingress ${label} produced a state, runtime, or CORS side effect.`);
 }
 
 async function request(fetchImplementation, url, {
@@ -291,6 +501,20 @@ function requireNoStore(response, label) {
 function requireNoResponseSideEffect(response, label, { allowLocation = false } = {}) {
   if (response.headers.has("set-cookie") || (!allowLocation && response.headers.has("location"))) {
     throw new Error(`The ${label} response produced a cookie or redirect side effect.`);
+  }
+}
+
+function requireNoCorsAuthorization(response, label) {
+  if (
+    response.headers.has("access-control-allow-origin") ||
+    response.headers.has("access-control-allow-credentials")
+  ) throw new Error(`The ${label} response authorized cross-origin access.`);
+}
+
+function requireNoTokenReflection(observation, token, label) {
+  const headers = [...observation.headers.entries()].flat().join("\n");
+  if (`${observation.body || ""}\n${headers}`.toLowerCase().includes(token.toLowerCase())) {
+    throw new Error(`The ${label} response reflected hostile request metadata.`);
   }
 }
 

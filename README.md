@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.45.0`
+Version: `0.46.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -585,6 +585,17 @@ operator identifiers remain excluded. The dossier packages recorded evidence
 for accountable reviewers; it is not certification, a legal opinion, a digital
 signature, or approval of any external pilot gate.
 
+Version 0.46.0 hardens the public authentication boundary against cache and
+request-target confusion. Every Better Auth response—including session
+introspection, provider errors, bounded-body denials, and internal-host
+denials—is forced to `Cache-Control: no-store` without discarding provider
+cookies or status headers. The canonical edge rejects encoded traversal,
+encoded separators/NULs, and leading-double-slash targets before proxying. The
+v3 live ingress proof now uses raw TLS requests to verify hostile Host and
+absolute-form target isolation, exact normalization denials, forwarded-host
+non-reflection, method-override resistance, hostile simple CORS denial, and an
+unauthenticated session response containing only non-cacheable JSON `null`.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -599,7 +610,7 @@ assessment remain installation or pilot gates.
 - Next.js 16 and Better Auth with PostgreSQL-backed users, accounts, sessions,
   verification records, strict trusted-proxy address provenance, durable
   public-verification rate limits, and a pre-parser 64 KiB authentication
-  request-body boundary.
+  request-body boundary, plus mandatory no-store authentication responses.
 - Microsoft, Google, Yahoo, Zoho, Apple-ready, and manual authentication with an
   SSO-first participant experience and bounded, durable provider detection.
 - Internal-host-only identity administration, operator allowlisting,

@@ -62,8 +62,13 @@ server {
     limit_req_status 429;
     limit_conn_status 429;
 
+    error_page 400 = @vasi_bad_request;
     error_page 413 = @vasi_request_too_large;
     error_page 429 = @vasi_rate_limited;
+
+    if ($request_uri ~* "^(?://|[^?]*%(?:00|25|2e|2f|5c))") {
+        return 400;
+    }
 
     location / {
         limit_req zone=vasi_public_general burst=400 nodelay;
@@ -113,6 +118,13 @@ server {
         proxy_next_upstream off;
         proxy_intercept_errors off;
         proxy_redirect off;
+    }
+
+    location @vasi_bad_request {
+        internal;
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+        return 400 '{"error":"Bad request."}';
     }
 
     location @vasi_request_too_large {

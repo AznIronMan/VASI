@@ -73,7 +73,7 @@ function fixture(): AdminTenantReadinessExport {
           mode: "self_hosted",
           publicIngress: "gateway_only",
         },
-        engineVersion: "0.45.0",
+        engineVersion: "0.46.0",
         organizationName: "Example Organization",
         productName: "V·Sign",
         profileHash: "d".repeat(64),

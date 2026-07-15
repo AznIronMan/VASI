@@ -17,14 +17,24 @@ async function isAllowed(request: Request) {
 }
 
 async function handle(request: Request, method: "GET" | "POST") {
-  if (!(await isAllowed(request))) return new Response(null, { status: 404 });
+  if (!(await isAllowed(request))) return noStoreAuthenticationResponse(new Response(null, { status: 404 }));
   if (method === "POST") {
     const bounded = await boundedRequestBody(request);
-    if (!bounded.ok) return bounded.response;
+    if (!bounded.ok) return noStoreAuthenticationResponse(bounded.response);
     request = bounded.request;
   }
   const handlers = toNextJsHandler(await getAuth());
-  return handlers[method](request);
+  return noStoreAuthenticationResponse(await handlers[method](request));
+}
+
+function noStoreAuthenticationResponse(response: Response) {
+  const headers = new Headers(response.headers);
+  headers.set("Cache-Control", "no-store");
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
 }
 
 export function GET(request: Request) {

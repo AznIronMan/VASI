@@ -736,6 +736,7 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
   let overlay = "";
   let packageJSON = {};
   let pageBoundary = "";
+  let authenticationBoundary = "";
   let probe = "";
   let routeProbe = "";
   let accessDenial = "";
@@ -767,6 +768,14 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
     pageBoundary = await readFile(path.join(repositoryRoot, "src", "proxy.ts"), "utf8");
   } catch {
     failures.push("the public page method boundary is missing");
+  }
+  try {
+    authenticationBoundary = await readFile(
+      path.join(repositoryRoot, "src", "app", "api", "auth", "[...all]", "route.ts"),
+      "utf8",
+    );
+  } catch {
+    failures.push("the public authentication response boundary is missing");
   }
   try {
     probe = await readFile(path.join(repositoryRoot, "scripts", "probe-public-ingress.mjs"), "utf8");
@@ -854,10 +863,28 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
     failures.push("the public page method boundary contains a redirect, cookie, rewrite, or network side effect");
   }
   for (const marker of [
+    'headers.set("Cache-Control", "no-store");',
+    "return noStoreAuthenticationResponse(bounded.response);",
+    "return noStoreAuthenticationResponse(await handlers[method](request));",
+    "return noStoreAuthenticationResponse(new Response(null, { status: 404 }));",
+  ]) {
+    if (!authenticationBoundary.includes(marker)) {
+      failures.push(`the public authentication response boundary is missing ${marker}`);
+    }
+  }
+  if (/return\s+handlers\[method\]\(request\)/.test(authenticationBoundary)) {
+    failures.push("the public authentication response boundary can bypass no-store enforcement");
+  }
+  for (const marker of [
     'const PAGE_METHODS_DENIED = Object.freeze(["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);',
     'const SUPPORTED_TLS_PROTOCOLS = Object.freeze(["TLSv1.2", "TLSv1.3"]);',
+    "const NORMALIZATION_TARGETS = Object.freeze([",
     'crossOriginPreflight: "denied"',
-    'schema: "vasi-public-ingress-probe/v2"',
+    'schema: "vasi-public-ingress-probe/v3"',
+    "inspectAdversarialBoundary",
+    'new URL("/api/auth/get-session", publicOrigin)',
+    '"x-http-method-override": "GET"',
+    'sessionPrivacy: "no_store_null"',
     '"content-security-policy"',
     '"strict-transport-security"',
     '"access-control-allow-origin"',
@@ -904,7 +931,7 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
   );
   return {
     failures,
-    filesChecked: 15,
+    filesChecked: 16,
     routeIsolation: {
       methodCount: sensitiveRoutes.length,
       namespaceMethods,

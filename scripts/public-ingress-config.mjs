@@ -85,8 +85,13 @@ server {
     limit_req_status 429;
     limit_conn_status 429;
 
+    error_page 400 = @vasi_bad_request;
     error_page 413 = @vasi_request_too_large;
     error_page 429 = @vasi_rate_limited;
+
+    if ($request_uri ~* "^(?://|[^?]*%(?:00|25|2e|2f|5c))") {
+        return 400;
+    }
 
     location / {
         limit_req zone=vasi_public_general burst=400 nodelay;
@@ -98,6 +103,13 @@ ${proxyDirectives(settings.gatewayUpstreamName, 8)}
         limit_req zone=vasi_public_auth burst=30 nodelay;
         limit_conn vasi_public_connections 80;
 ${proxyDirectives(settings.gatewayUpstreamName, 8)}
+    }
+
+    location @vasi_bad_request {
+        internal;
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+        return 400 '{"error":"Bad request."}';
     }
 
     location @vasi_request_too_large {
@@ -241,18 +253,24 @@ function validatePublicServers(servers, settings, failures) {
     ["reset_timedout_connection", ["on"]],
     ["limit_req_status", ["429"]],
     ["limit_conn_status", ["429"]],
+    ["error_page", ["400", "=", "@vasi_bad_request"]],
     ["error_page", ["413", "=", "@vasi_request_too_large"]],
     ["error_page", ["429", "=", "@vasi_rate_limited"]],
   ]) requireDirective(server, name, args, failures, "public HTTPS server");
+  validateInvalidTargetGuard(server, failures);
   requireNonemptyDirective(server, "ssl_certificate", failures, "public HTTPS server");
   requireNonemptyDirective(server, "ssl_certificate_key", failures, "public HTTPS server");
 
   const locations = directBlocks(server, "location");
   const root = locations.filter((location) => equalArgs(location.args, ["/"]));
   const auth = locations.filter((location) => equalArgs(location.args, ["^~", "/api/auth/"]));
+  const badRequest = locations.filter((location) => equalArgs(location.args, ["@vasi_bad_request"]));
   const tooLarge = locations.filter((location) => equalArgs(location.args, ["@vasi_request_too_large"]));
   const rateLimited = locations.filter((location) => equalArgs(location.args, ["@vasi_rate_limited"]));
-  if (locations.length !== 4 || root.length !== 1 || auth.length !== 1 || tooLarge.length !== 1 || rateLimited.length !== 1) {
+  if (
+    locations.length !== 5 || root.length !== 1 || auth.length !== 1 ||
+    badRequest.length !== 1 || tooLarge.length !== 1 || rateLimited.length !== 1
+  ) {
     failures.push("the public HTTPS server must expose only the reviewed root, authentication, and error locations");
     return;
   }
@@ -262,11 +280,27 @@ function validatePublicServers(servers, settings, failures) {
   validateProxyLocation(auth[0], settings.gatewayUpstreamName, failures, "public authentication location");
   requireDirective(auth[0], "limit_req", ["zone=vasi_public_auth", "burst=30", "nodelay"], failures, "public authentication location");
   requireDirective(auth[0], "limit_conn", ["vasi_public_connections", "80"], failures, "public authentication location");
+  validateErrorLocation(badRequest[0], 400, false, failures);
   validateErrorLocation(tooLarge[0], 413, false, failures);
   validateErrorLocation(rateLimited[0], 429, true, failures);
   if (descendantsNamed(server, "proxy_pass").length !== 2) {
     failures.push("the public HTTPS server contains an unreviewed or missing proxy target");
   }
+}
+
+function validateInvalidTargetGuard(server, failures) {
+  const guards = directBlocks(server, "if");
+  const expected = ["($request_uri", "~*", "^(?://|[^?]*%(?:00|25|2e|2f|5c)))"];
+  const matching = guards.filter((guard) => equalArgs(guard.args, expected));
+  if (guards.length !== 1 || matching.length !== 1) {
+    failures.push("public HTTPS server must contain the exact invalid request-target guard");
+    return;
+  }
+  const children = matching[0].children || [];
+  if (
+    children.length !== 1 || children[0].children || children[0].name !== "return" ||
+    !equalArgs(children[0].args, ["400"])
+  ) failures.push("public HTTPS invalid request-target guard must return only 400");
 }
 
 function validateRetiredServers(servers, settings, failures) {

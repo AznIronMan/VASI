@@ -47,6 +47,7 @@ describe("public ingress configuration contract", () => {
     ["request-derived redirect hosts", "return 301 https://vsign.example.com$request_uri;", "return 301 https://$host$request_uri;", "public HTTP redirect"],
     ["appended forwarding chains", "proxy_set_header X-Forwarded-For $remote_addr;", "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;", "replace x-forwarded-for"],
     ["oversized public bodies", "client_max_body_size 64k;", "client_max_body_size 128m;", "client_max_body_size 64k"],
+    ["normalized traversal forwarding", "if ($request_uri ~* \"^(?://|[^?]*%(?:00|25|2e|2f|5c))\")", "if ($request_uri ~* \"^/never-match\")", "invalid request-target guard"],
     ["unbounded upstream reads", "proxy_read_timeout 30s;", "proxy_read_timeout 120s;", "proxy_read_timeout 30s"],
     ["opaque proxy includes", "proxy_redirect off;", "proxy_redirect off;\n        include /etc/nginx/proxy_params;", "opaque proxy include"],
     ["engine proxying on the retired host", "    return 404;\n}\n\nserver {\n    listen 443 ssl;", "    location / { proxy_pass https://private_engine; }\n}\n\nserver {\n    listen 443 ssl;", "retired HTTP server must not proxy"],
