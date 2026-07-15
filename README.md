@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.41.0`
+Version: `0.41.1`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -524,6 +524,11 @@ removing orphans, verifies exact running images and health, and restores the
 prior selector/runtime on candidate failure. A stable protected overlay link
 keeps recurring controls aligned across cutover and rollback; source assurance
 pins the command and sanitized examples without publishing installation state.
+
+Version 0.41.1 separates the protected release owner from the Docker caller.
+One explicit numeric UID in the mode-`0600` activation configuration permits a
+root-only Docker host to validate deployment-account-owned release files
+without granting that account Docker access or broadly trusting local users.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

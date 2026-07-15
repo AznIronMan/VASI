@@ -170,6 +170,11 @@ shared bootstrap-data link, sanitized-to-live Compose equivalence, exact images
 and runtime hardening before atomically changing `current`; a failed candidate
 restores the prior selector and reconciles the prior project.
 
+VASI 0.41.1 adds the protected `releaseOwnerUid` field. On a root-only Docker
+host, set it to the numeric UID that owns the reviewed release tree. The
+activation configuration and directory remain root-owned and private; the
+field does not grant the deployment account Docker access.
+
 ## Initialize
 
 Requirements are Docker Engine with Compose, PostgreSQL 15 or newer, an HTTPS

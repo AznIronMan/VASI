@@ -2,6 +2,7 @@
   "currentLink": "/opt/vasi-engine/current",
   "dataRoot": "/var/lib/vasi-engine/data",
   "overlayFile": "/var/lib/vasi-release/engine.live.yaml",
+  "releaseOwnerUid": 1000,
   "releaseRoot": "/opt/vasi-engine/releases",
   "role": "engine",
   "schema": "vasi-production-release-activation/v1"

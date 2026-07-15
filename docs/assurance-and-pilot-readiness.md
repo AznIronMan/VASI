@@ -306,6 +306,11 @@ selector/runtime on candidate failure. Source assurance pins the command and
 both sanitized examples; target-host dry-run, rollback readiness, and all
 normal post-cutover proofs remain required.
 
+VASI 0.41.1 narrows mixed-ownership hosts to one protected, explicitly named
+release-owner UID. This permits a root-only Docker caller to validate the
+deployment account's release tree without trusting every local account or
+granting the release owner Docker control.
+
 VASI 0.25.0 turns the pilot table below into an enforced tenant control plane.
 Every provisioned tenant starts pending. Administrators record one immutable,
 digest-bound, attributable decision per gate; VASI derives admission only when

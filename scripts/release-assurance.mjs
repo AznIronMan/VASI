@@ -828,6 +828,7 @@ export async function validateProductionActivationContract(repositoryRoot = root
   }
   for (const marker of [
     "vasi-production-release-activation/v1",
+    "releaseOwnerUid",
     "The candidate release data binding is not the configured shared data root.",
     "The protected Compose overlay changed more than the approved listener.",
     "base.name !== contract.projectName",

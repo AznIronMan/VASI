@@ -1,6 +1,6 @@
 # Fail-closed production release activation
 
-Status: implemented in VASI 0.41.0.
+Status: implemented in VASI 0.41.0 and corrected in VASI 0.41.1.
 
 VASI source archives are deliberately sanitized: they contain no installation
 address, credential, bootstrap database, or live Compose override. Production
@@ -37,9 +37,13 @@ these fields:
 | `currentLink` | Stable selector outside `releaseRoot` and `dataRoot` |
 | `dataRoot` | Private mode-`0700` shared bootstrap-data directory |
 | `overlayFile` | Stable protected listener overlay outside release and data roots |
+| `releaseOwnerUid` | One explicitly trusted numeric owner for staged release files/directories |
 
 Paths must be absolute, normalized, canonical, non-overlapping, and free of
 group/world-writable parent boundaries used by activation. The protected
+release-owner UID permits a root-only Docker deployment to verify a release
+tree owned by its unprivileged deployment account; it grants no Docker or file
+permission and must match the reviewed installation owner. The protected
 overlay has one accepted four-line shape: it replaces only `app.ports` for the
 gateway or `private-ingress.ports` for the engine with one TCP binding. The
 address must be exactly `127.0.0.1` or RFC1918 IPv4; the target is fixed to

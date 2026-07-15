@@ -130,12 +130,15 @@ export async function activateProductionRelease(
 }
 
 export function validateActivationConfigurationValue(value) {
-  const expected = ["currentLink", "dataRoot", "overlayFile", "releaseRoot", "role", "schema"];
+  const expected = ["currentLink", "dataRoot", "overlayFile", "releaseOwnerUid", "releaseRoot", "role", "schema"];
   if (!isPlainRecord(value) || Object.keys(value).sort().join(",") !== expected.join(",")) {
     throw new Error("The production release activation configuration fields are invalid.");
   }
   if (value.schema !== ACTIVATION_SCHEMA || !roles[value.role]) {
     throw new Error("The production release activation configuration is unsupported.");
+  }
+  if (!Number.isInteger(value.releaseOwnerUid) || value.releaseOwnerUid < 0 || value.releaseOwnerUid > 4_294_967_294) {
+    throw new Error("The production release activation releaseOwnerUid is invalid.");
   }
   const paths = {};
   for (const name of ["currentLink", "dataRoot", "overlayFile", "releaseRoot"]) {
@@ -157,7 +160,7 @@ export function validateActivationConfigurationValue(value) {
   ) {
     throw new Error("The production release activation paths overlap unsafely.");
   }
-  return Object.freeze({ ...paths, role: value.role, schema: value.schema });
+  return Object.freeze({ ...paths, releaseOwnerUid: value.releaseOwnerUid, role: value.role, schema: value.schema });
 }
 
 export function parseProtectedOverlay(source, role) {
@@ -225,37 +228,38 @@ export function validateMergedCompose(base, merged, { listener, role, version })
 
 async function prepareActivation(configuration, releaseId, { commandRunner, scriptRoot, uid }) {
   const contract = roles[configuration.role];
-  await validateDirectory(configuration.releaseRoot, [0, uid], false);
-  await validateDirectory(configuration.dataRoot, [0, uid, 1000], true);
-  await validateDirectory(path.dirname(configuration.currentLink), [0, uid], false);
+  const releaseOwners = uniqueNumbers([0, uid, configuration.releaseOwnerUid]);
+  await validateDirectory(configuration.releaseRoot, releaseOwners, false);
+  await validateDirectory(configuration.dataRoot, uniqueNumbers([...releaseOwners, 1000]), true);
+  await validateDirectory(path.dirname(configuration.currentLink), releaseOwners, false);
   const releaseRoot = await realpath(configuration.releaseRoot);
   const candidate = path.join(releaseRoot, releaseId);
-  await validateDirectory(candidate, [0, uid], false);
+  await validateDirectory(candidate, releaseOwners, false);
   if (path.dirname(candidate) !== releaseRoot || await realpath(candidate) !== candidate) {
     throw new Error("The candidate release is outside the configured release root.");
   }
-  const previousTarget = await validateCurrentLink(configuration.currentLink, releaseRoot, uid);
+  const previousTarget = await validateCurrentLink(configuration.currentLink, releaseRoot, releaseOwners);
   const activatorRoot = await realpath(scriptRoot);
   if (activatorRoot !== candidate && activatorRoot !== previousTarget) {
     throw new Error("The activation command must run from the candidate or selected trusted release.");
   }
   await validateDirectory(path.dirname(configuration.overlayFile), [0, uid], true);
-  await validateProtectedFile(configuration.overlayFile, uid, 4096);
+  await validateProtectedFile(configuration.overlayFile, [0, uid], 4096);
   const protectedOverlaySource = await readFile(configuration.overlayFile, "utf8");
   const listener = parseProtectedOverlay(protectedOverlaySource, configuration.role);
   const candidateOverlay = path.join(candidate, "compose.live.yaml");
   const overlayLinkMissing = await validateCandidateOverlay(candidateOverlay, configuration.overlayFile);
   const candidateRuntime = await inspectReleaseRuntime(
-    candidate, configuration, contract, listener, commandRunner, uid,
+    candidate, configuration, contract, listener, commandRunner, releaseOwners,
   );
   if (previousTarget && previousTarget !== candidate) {
     try {
-      await inspectReleaseRuntime(previousTarget, configuration, contract, listener, commandRunner, uid);
+      await inspectReleaseRuntime(previousTarget, configuration, contract, listener, commandRunner, releaseOwners);
       await validateRollbackOverlay(
         path.join(previousTarget, "compose.live.yaml"),
         configuration.overlayFile,
         protectedOverlaySource,
-        uid,
+        releaseOwners,
       );
     } catch {
       throw new Error("The selected rollback release is not ready.");
@@ -274,12 +278,12 @@ async function prepareActivation(configuration, releaseId, { commandRunner, scri
   });
 }
 
-async function inspectReleaseRuntime(releaseDirectory, configuration, contract, listener, commandRunner, uid) {
-  await validateDirectory(releaseDirectory, [0, uid], false);
+async function inspectReleaseRuntime(releaseDirectory, configuration, contract, listener, commandRunner, releaseOwners) {
+  await validateDirectory(releaseDirectory, releaseOwners, false);
   const packageFile = path.join(releaseDirectory, "package.json");
   const composeFile = path.join(releaseDirectory, contract.composeFile);
-  await validateSourceFile(packageFile, [0, uid], 128 * 1024);
-  await validateSourceFile(composeFile, [0, uid], 512 * 1024);
+  await validateSourceFile(packageFile, releaseOwners, 128 * 1024);
+  await validateSourceFile(composeFile, releaseOwners, 512 * 1024);
   const packageJSON = JSON.parse(await readFile(packageFile, "utf8"));
   const version = typeof packageJSON?.version === "string" && /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(packageJSON.version)
     ? packageJSON.version
@@ -318,15 +322,15 @@ async function inspectReleaseRuntime(releaseDirectory, configuration, contract, 
 async function loadProtectedConfiguration(filename, uid) {
   const resolved = path.resolve(filename);
   await validateDirectory(path.dirname(resolved), [0, uid], true);
-  await validateProtectedFile(resolved, uid, 64 * 1024);
+  await validateProtectedFile(resolved, [0, uid], 64 * 1024);
   return validateActivationConfigurationValue(JSON.parse(await readFile(resolved, "utf8")));
 }
 
-async function validateProtectedFile(filename, uid, maximumBytes) {
+async function validateProtectedFile(filename, owners, maximumBytes) {
   const metadata = await lstat(filename);
   if (
     !metadata.isFile() || metadata.isSymbolicLink() || metadata.size < 2 || metadata.size > maximumBytes ||
-    (metadata.mode & 0o777) !== 0o600 || ![0, uid].includes(metadata.uid) || await realpath(filename) !== filename
+    (metadata.mode & 0o777) !== 0o600 || !owners.includes(metadata.uid) || await realpath(filename) !== filename
   ) {
     throw new Error("A protected production release activation file failed validation.");
   }
@@ -366,7 +370,7 @@ async function validateCandidateOverlay(candidateOverlay, protectedOverlay) {
   }
 }
 
-async function validateRollbackOverlay(rollbackOverlay, protectedOverlay, protectedOverlaySource, uid) {
+async function validateRollbackOverlay(rollbackOverlay, protectedOverlay, protectedOverlaySource, releaseOwners) {
   const metadata = await lstat(rollbackOverlay);
   if (metadata.isSymbolicLink()) {
     if (await realpath(rollbackOverlay) !== await realpath(protectedOverlay)) {
@@ -374,19 +378,19 @@ async function validateRollbackOverlay(rollbackOverlay, protectedOverlay, protec
     }
     return;
   }
-  await validateProtectedFile(rollbackOverlay, uid, 4096);
+  await validateProtectedFile(rollbackOverlay, releaseOwners, 4096);
   if (await readFile(rollbackOverlay, "utf8") !== protectedOverlaySource) {
     throw new Error("The rollback release live overlay does not match the protected overlay.");
   }
 }
 
-async function validateCurrentLink(currentLink, releaseRoot, uid) {
+async function validateCurrentLink(currentLink, releaseRoot, releaseOwners) {
   try {
     const metadata = await lstat(currentLink);
     if (!metadata.isSymbolicLink()) throw new Error("The current release selector is not a symbolic link.");
     const target = await realpath(currentLink);
     if (path.dirname(target) !== releaseRoot) throw new Error("The current release is outside the configured release root.");
-    await validateDirectory(target, [0, uid], false);
+    await validateDirectory(target, releaseOwners, false);
     return target;
   } catch (error) {
     if (error?.code === "ENOENT") return null;
@@ -514,6 +518,10 @@ function isWithin(parent, child) {
 
 function isPlainRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function uniqueNumbers(values) {
+  return [...new Set(values)];
 }
 
 function canonical(value) {
