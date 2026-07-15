@@ -23,9 +23,10 @@ import { participantContextPolicy } from "../../packages/engine-domain/context.m
 import { notificationOperationalStatus } from "../../packages/engine-domain/notifications.mjs";
 import { hasTenantPermission } from "../../packages/engine-domain/workflow.mjs";
 import { EngineStoreError } from "./errors.mjs";
+import { requireRecentParticipantDataAuthentication } from "./authentication-assurance.mjs";
 import { createSigningProvider } from "./signing-provider.mjs";
 
-const ENGINE_VERSION = "0.31.0";
+const ENGINE_VERSION = "0.32.0";
 const GENESIS_HASH = "0".repeat(64);
 const DATA_EXPORT_SCHEMA = "vasi-participant-data-export/v1";
 
@@ -349,6 +350,8 @@ export function createLifecycleStore(database, settings) {
 
     async createParticipantDataRequest(actor, payload) {
       requireParticipant(actor);
+      const now = new Date();
+      const authenticationAssurance = requireRecentParticipantDataAuthentication(actor, now);
       const input = validateParticipantDataRequestCreate(payload);
       return transaction(database, async (client) => {
         const replay = await client.query(
@@ -366,7 +369,6 @@ export function createLifecycleStore(database, settings) {
           [actor.principalId, actor.email.toLowerCase()],
         );
         const scopes = groupAssignments(assignments.rows);
-        const now = new Date();
         const requestId = randomUUID();
         const status = scopes.length ? "pending_review" : "approved";
         const expiresAt = plusDays(now, reviewDays);
@@ -394,6 +396,7 @@ export function createLifecycleStore(database, settings) {
           commandId: input.commandId,
           eventType: "request.created",
           payload: {
+            authenticationAssurance,
             matchedRecordCount: assignments.rowCount,
             reviewExpiresAt: expiresAt.toISOString(),
             tenantScopeCount: scopes.length,
@@ -535,10 +538,11 @@ export function createLifecycleStore(database, settings) {
 
     async openParticipantDataExport(actor, payload) {
       requireParticipant(actor);
+      const now = new Date();
+      const authenticationAssurance = requireRecentParticipantDataAuthentication(actor, now);
       const input = validateParticipantDataExportOpen(payload);
       return transaction(database, async (client) => {
         const request = await participantDataRequest(client, input.requestId, actor, true);
-        const now = new Date();
         assertDataRequestExportable(request, now);
         let artifact = await participantDataExport(client, request.id);
         if (!artifact) {
@@ -586,7 +590,7 @@ export function createLifecycleStore(database, settings) {
         await appendDataRequestEvent(client, {
           actor,
           eventType: "export.opened",
-          payload: { exportId: artifact.id },
+          payload: { authenticationAssurance, exportId: artifact.id },
           requestId: request.id,
           createdAt: now,
         });
@@ -596,6 +600,8 @@ export function createLifecycleStore(database, settings) {
 
     async readParticipantDataExportChunk(actor, payload) {
       requireParticipant(actor);
+      const now = new Date();
+      const authenticationAssurance = requireRecentParticipantDataAuthentication(actor, now);
       const input = validateParticipantDataExportOpen({ requestId: payload?.requestId });
       const exportId = token(payload?.exportId, "exportId");
       const sequence = integer(payload?.sequence, "sequence", 0, 100_000);
@@ -603,7 +609,6 @@ export function createLifecycleStore(database, settings) {
         const request = await participantDataRequest(client, input.requestId, actor, false);
         const artifact = await participantDataExport(client, request.id, exportId);
         if (!artifact) notFound();
-        const now = new Date();
         if (artifact.contentDeletedAt || new Date(artifact.expiresAt) <= now) {
           throw new EngineStoreError("participant_data_export_expired", 410);
         }
@@ -624,7 +629,7 @@ export function createLifecycleStore(database, settings) {
           await appendDataRequestEvent(client, {
             actor,
             eventType: "export.downloaded",
-            payload: { exportId: artifact.id, finalSequence: sequence },
+            payload: { authenticationAssurance, exportId: artifact.id, finalSequence: sequence },
             requestId: request.id,
             createdAt: now,
           });

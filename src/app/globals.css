@@ -889,6 +889,10 @@ input::placeholder {
     var(--canvas);
 }
 
+.workspace-shell--records > .participant-error {
+  margin-top: 24px;
+}
+
 .workspace-identity {
   display: grid;
   margin-left: auto;

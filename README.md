@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.31.0`
+Version: `0.32.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -384,6 +384,16 @@ and event bindings, and the offline verifier independently recomputes every
 result. Human reports summarize the requirement without exposing provider
 subjects, tokens, credentials, or additional identity-provider claims.
 
+Version 0.32.0 applies a separate product-mandated recent-authentication gate
+to participant privacy access. The private engine requires an authentication no
+more than 15 minutes old before creating a `Request my VASI data` case, opening
+its reviewed technical export, or reading every export chunk. Successful
+creation, open, and completed-download events bind the bounded assurance
+evaluation to the immutable data-request audit chain; stale, missing, invalid,
+or future-skewed observations fail closed. V·Sign presents an explicit sign-out,
+sign-in-again, and `/workspace` return path without exposing provider subjects,
+tokens, secrets, or another participant's request.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -484,7 +494,8 @@ assessment remain installation or pilot gates.
   verification tombstones.
 - A participant record-history workspace and organization-scoped data-request
   review that produces a privacy-redacted, sealed, bounded PostgreSQL JSON
-  export with audited access and automatic content expiry.
+  export with recent-authentication enforcement at request creation and every
+  export access, audited assurance, and automatic content expiry.
 - A release assurance gate with tracked-source policy, complete and production
   dependency audits, CycloneDX source/image SBOMs, digest-pinned image scanning,
   fail-closed non-root runtime-command smoke checks, runtime version alignment,

@@ -4,6 +4,11 @@ import {
 } from "../../packages/engine-domain/workflow.mjs";
 import { EngineStoreError } from "./errors.mjs";
 
+export const PARTICIPANT_DATA_AUTHENTICATION_ASSURANCE = Object.freeze({
+  acceptedMethods: Object.freeze(["any_verified"]),
+  maximumAgeSeconds: 900,
+});
+
 export function requireAuthenticationAssurance(accessPolicy, actor, evaluatedAt = new Date()) {
   let evaluation;
   try {
@@ -22,4 +27,10 @@ export function requireAuthenticationAssurance(accessPolicy, actor, evaluatedAt 
     );
   }
   return evaluation;
+}
+
+export function requireRecentParticipantDataAuthentication(actor, evaluatedAt = new Date()) {
+  return requireAuthenticationAssurance({
+    authenticationAssurance: PARTICIPANT_DATA_AUTHENTICATION_ASSURANCE,
+  }, actor, evaluatedAt);
 }

@@ -1,6 +1,6 @@
 # Lifecycle governance and participant data access
 
-Status: implemented in VASI 0.10.0 and extended through VASI 0.30.0.
+Status: implemented in VASI 0.10.0 and extended through VASI 0.32.0.
 
 VASI 0.18.0 includes eligible participant-context snapshots and provenance in
 approved technical participant exports and removes their PostgreSQL rows only
@@ -130,6 +130,33 @@ supports transparent access to VASI-held information but does not automatically
 determine jurisdiction-specific data-subject rights, exemptions, identity
 requirements, response deadlines, litigation duties, or deletion rights.
 
+## Recent authentication for privacy access
+
+Participant history and data-request status remain available under the normal
+verified-session and retention controls. The more sensitive actions use a
+separate product-mandated policy: authentication must be no more than 900
+seconds old before request creation, export open/generation, and every export
+chunk read. The private engine evaluates this boundary before payload/request
+lookup, so a stale session receives the same bounded
+`reauthentication_required` result for an existing, unknown, or another
+participant's identifier.
+
+The gate is provider-neutral and accepts any verified V·Sign authentication
+class. A missing or malformed authentication time is first rejected by
+actor-assertion validation; a well-formed but over-age or more-than-60-second
+future time receives the bounded reauthentication result. Both fail closed
+before request lookup. V·Sign preserves only the safe participant-action reason
+code, asks the user to sign out and authenticate again, and returns to
+`/workspace`; the browser does not decide freshness.
+
+Accepted request creation, export open, and final-chunk download events include
+`vasi-authentication-assurance-evaluation/v1` in the immutable data-request
+chain. It binds the 900-second policy, evaluation/authentication time, bounded
+method/provider/provenance observation, and calculated age. Provider subjects,
+linked-account identifiers, cookies, tokens, passwords, and request context are
+excluded from the evaluation. Chunk reads are checked independently so a stale
+session cannot bypass the gate using export metadata obtained earlier.
+
 ## Storage and service independence
 
 Authoritative lifecycle records, policies, holds, request scopes, exports,
@@ -154,6 +181,7 @@ named-profile binding, hold idempotency, hold-safe purge, immutable hash chains,
 standard and certificate tombstone seals, retired fingerprint verification,
 participant history chronology and content-policy truthfulness,
 cross-participant isolation, reviewed/redacted export,
+recent/missing/stale authentication rejection, bounded accepted-assurance audit,
 controlled expiry, immutable metadata, and backup/restore fingerprints.
 
 ## Remaining assurance work

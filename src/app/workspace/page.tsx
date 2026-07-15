@@ -14,7 +14,12 @@ export const metadata: Metadata = {
   title: "Workspace",
 };
 
-export default async function WorkspacePage() {
+export default async function WorkspacePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ privacyReauthentication?: string }>;
+}) {
+  const query = await searchParams;
   const requestHeaders = await headers();
   const authorization = await authorizeParticipantHeaders(requestHeaders);
   if (!authorization.ok) redirect("/");
@@ -28,6 +33,9 @@ export default async function WorkspacePage() {
   }
   return <ParticipantWorkspace
     email={authorization.session.user.email}
+    initialAuthenticationRequired={query.privacyReauthentication === "required"
+      ? "reauthentication_required"
+      : undefined}
     initialDataRequests={dataRequests.body}
     initialHistory={history.body}
     name={authorization.session.user.name}

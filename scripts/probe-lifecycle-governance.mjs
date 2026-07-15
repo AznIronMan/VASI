@@ -282,6 +282,29 @@ async function proveReviewedParticipantDataExport() {
     throw new Error("The participant history exposed another participant's transaction.");
   }
 
+  const staleParticipant = { ...participant, authenticatedAt: issuedAt - 3_600 };
+  const staleRequest = await call(staleParticipant, "POST", "/v1/participant/data-requests", {
+    commandId: randomUUID(),
+  });
+  expectReauthentication(staleRequest, "stale participant data request");
+  const missingAuthenticationRequest = await call(
+    { ...participant, authenticatedAt: undefined },
+    "POST",
+    "/v1/participant/data-requests",
+    { commandId: randomUUID() },
+  );
+  expectStatus(missingAuthenticationRequest, 403, "authentication-time-missing data request");
+  if (missingAuthenticationRequest.body?.error !== "forbidden") {
+    throw new Error("The malformed authentication-time assertion did not fail closed.");
+  }
+  const futureAuthenticationRequest = await call(
+    { ...participant, authenticatedAt: issuedAt + 3_600 },
+    "POST",
+    "/v1/participant/data-requests",
+    { commandId: randomUUID() },
+  );
+  expectReauthentication(futureAuthenticationRequest, "future authentication-time data request");
+
   const requested = await call(participant, "POST", "/v1/participant/data-requests", {
     commandId: randomUUID(),
   });
@@ -291,6 +314,10 @@ async function proveReviewedParticipantDataExport() {
     requestId: requested.body.id,
   });
   expectStatus(pendingExport, 409, "unreviewed participant data export");
+  const staleUnknownExport = await call(staleParticipant, "POST", "/v1/participant/data-exports", {
+    requestId: randomUUID(),
+  });
+  expectReauthentication(staleUnknownExport, "stale unknown participant data export");
 
   const reviews = await call(owner, "POST", "/v1/owner/data-request-review-list", {
     tenantId: tenant.id,
@@ -309,10 +336,21 @@ async function proveReviewedParticipantDataExport() {
   });
   expectStatus(approved, 200, "participant data request approval");
 
+  const staleOpened = await call(staleParticipant, "POST", "/v1/participant/data-exports", {
+    requestId: requested.body.id,
+  });
+  expectReauthentication(staleOpened, "stale participant data export open");
+
   const opened = await call(participant, "POST", "/v1/participant/data-exports", {
     requestId: requested.body.id,
   });
   expectStatus(opened, 200, "participant data export open");
+  const staleChunk = await call(staleParticipant, "POST", "/v1/participant/data-export-chunks", {
+    exportId: opened.body.id,
+    requestId: requested.body.id,
+    sequence: 0,
+  });
+  expectReauthentication(staleChunk, "stale participant data export chunk");
   const bytes = await readParticipantDataExport(participant, requested.body.id, opened.body);
   const payload = JSON.parse(bytes.toString("utf8"));
   if (
@@ -346,6 +384,7 @@ async function proveReviewedParticipantDataExport() {
   if (!opened.body.seal.every((seal) => verifyLifecycleSeal(payload, seal, DATA_EXPORT_PROFILE))) {
     throw new Error("The participant data export seal is invalid.");
   }
+  await assertParticipantDataAuthenticationAssurance(requested.body.id);
   const denied = await call(outsider, "POST", "/v1/participant/data-exports", {
     requestId: requested.body.id,
   });
@@ -719,6 +758,32 @@ async function assertHashChain(table, recordColumn, recordId) {
   if (!result.rowCount) throw new Error(`${table} did not retain any audit events.`);
 }
 
+async function assertParticipantDataAuthenticationAssurance(requestId) {
+  const result = await database.query(
+    `select "eventType", "eventData" from "vasi_engine"."participant_data_request_event"
+     where "requestId" = $1 and "eventType" in ('request.created', 'export.opened', 'export.downloaded')
+     order by "sequence"`,
+    [requestId],
+  );
+  const expected = ["request.created", "export.opened", "export.downloaded"];
+  if (result.rows.map((row) => row.eventType).join(",") !== expected.join(",")) {
+    throw new Error("The participant data authentication-assurance audit events were incomplete.");
+  }
+  for (const row of result.rows) {
+    const evaluation = row.eventData?.payload?.authenticationAssurance;
+    if (
+      evaluation?.schema !== "vasi-authentication-assurance-evaluation/v1" ||
+      evaluation?.satisfied !== true ||
+      evaluation?.policy?.maximumAgeSeconds !== 900 ||
+      evaluation?.policy?.acceptedMethods?.join(",") !== "any_verified" ||
+      !Number.isFinite(evaluation?.ageSeconds) || evaluation.ageSeconds < 0 ||
+      evaluation.ageSeconds > 900 || "providerSubject" in (evaluation?.observation || {})
+    ) {
+      throw new Error(`The ${row.eventType} authentication-assurance audit was absent or unsafe.`);
+    }
+  }
+}
+
 async function expectImmutableFailure(statement, values) {
   try {
     await database.query(statement, values);
@@ -782,5 +847,12 @@ function verifyLifecycleSeal(payload, seal, profile) {
 function expectStatus(result, status, label) {
   if (result.status !== status) {
     throw new Error(`${label} returned ${result.status}; expected ${status} (${JSON.stringify(result.body)}).`);
+  }
+}
+
+function expectReauthentication(result, label) {
+  expectStatus(result, 401, label);
+  if (result.body?.error !== "reauthentication_required") {
+    throw new Error(`${label} did not return the bounded reauthentication reason.`);
   }
 }

@@ -169,6 +169,13 @@ external callback destinations are rejected. Link possession selects a request
 but does not authorize it. The private engine separately requires the intended
 verified email and binds first access to the stable V·Sign principal.
 
+The participant privacy workspace uses the same deliberate return pattern for
+`Request my VASI data`, but its private-engine policy is not tenant-configurable:
+request creation and every reviewed-export access require an authentication no
+more than 15 minutes old. A stale session is explicitly signed out and returned
+to `/workspace` after the normal SSO-first sign-in. Valid session lifetime alone
+does not satisfy this sensitive-action freshness boundary.
+
 On an authorized request page, VASI records separately labeled server-observed
 request headers and fixed browser-reported context at presentation and before a
 save/submission. The browser contract is limited to locale/time zone,

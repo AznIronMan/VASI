@@ -10,15 +10,20 @@ export type AuthenticationAssuranceCode =
 
 export function AuthenticationAssuranceAction({
   code,
+  context = "workflow",
   returnTo,
 }: {
   code: AuthenticationAssuranceCode;
+  context?: "privacy" | "workflow";
   returnTo: string;
 }) {
   const [pending, setPending] = useState(false);
-  const message = code === "authentication_method_not_allowed"
-    ? "This company requires an approved sign-in method for this request. Sign in again and choose a federated provider such as Microsoft, Google, Yahoo, or Zoho."
-    : "This company requires a recent authentication for this request. Sign in again to refresh the recorded session.";
+  const privacy = context === "privacy";
+  const message = privacy
+    ? "Protecting your personal-data request and technical export requires a recent sign-in. Sign in again, then return to the privacy area."
+    : code === "authentication_method_not_allowed"
+      ? "This company requires an approved sign-in method for this request. Sign in again and choose a federated provider such as Microsoft, Google, Yahoo, or Zoho."
+      : "This company requires a recent authentication for this request. Sign in again to refresh the recorded session.";
 
   async function authenticateAgain() {
     setPending(true);
@@ -31,7 +36,9 @@ export function AuthenticationAssuranceAction({
 
   return (
     <section className="participant-error" aria-labelledby="authentication-required-heading">
-      <h1 id="authentication-required-heading">Sign in again to continue</h1>
+      <h1 id="authentication-required-heading">
+        {privacy ? "Sign in again to access your data" : "Sign in again to continue"}
+      </h1>
       <p>{message}</p>
       <button className="primary-button" disabled={pending} onClick={() => void authenticateAgain()} type="button">
         {pending ? "Signing out…" : "Sign in again"}

@@ -4,6 +4,10 @@ import { useState } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import {
+  AuthenticationAssuranceAction,
+  type AuthenticationAssuranceCode,
+} from "@/components/evidence/authentication-assurance-action";
 import type {
   ParticipantDataRequest,
   ParticipantHistoryRecord,
@@ -11,12 +15,14 @@ import type {
 
 export function ParticipantWorkspace({
   email,
+  initialAuthenticationRequired,
   initialDataRequests,
   initialHistory,
   name,
   sessionExpiresAt,
 }: {
   email: string;
+  initialAuthenticationRequired?: AuthenticationAssuranceCode;
   initialDataRequests: ParticipantDataRequest[];
   initialHistory: ParticipantHistoryRecord[];
   name: string;
@@ -24,6 +30,7 @@ export function ParticipantWorkspace({
 }) {
   const [history, setHistory] = useState(initialHistory);
   const [dataRequests, setDataRequests] = useState(initialDataRequests);
+  const [authenticationRequired, setAuthenticationRequired] = useState(initialAuthenticationRequired);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string>();
   const activeDataRequest = dataRequests.find((request) =>
@@ -51,6 +58,7 @@ export function ParticipantWorkspace({
     if (activeDataRequest) return;
     setPending(true);
     setMessage(undefined);
+    setAuthenticationRequired(undefined);
     try {
       const created = await workspacePost<ParticipantDataRequest>("/api/workspace/data-requests", {
         commandId: crypto.randomUUID(),
@@ -60,6 +68,8 @@ export function ParticipantWorkspace({
         ? "Your data request was submitted for organization review."
         : "No matching VASI records were found for this account.");
     } catch (error) {
+      const code = workspaceAuthenticationCode(error);
+      if (code) setAuthenticationRequired(code);
       setMessage(workspaceError(error));
     } finally {
       setPending(false);
@@ -73,6 +83,11 @@ export function ParticipantWorkspace({
       <div><span>Verified account</span><strong>{email}</strong><small>Session expires {new Date(sessionExpiresAt).toLocaleString()}</small><button type="button" disabled={pending} onClick={() => void refresh()}>Refresh records</button></div>
     </section>
     {message && <p className="admin-message" role="status">{message}</p>}
+    {authenticationRequired && <AuthenticationAssuranceAction
+      code={authenticationRequired}
+      context="privacy"
+      returnTo="/workspace"
+    />}
 
     <section className="workspace-records" aria-labelledby="workspace-records-heading">
       <div className="workspace-section-heading"><div><p className="eyebrow eyebrow--green">HISTORY</p><h2 id="workspace-records-heading">Requests sent to you</h2></div><span>{history.length} record{history.length === 1 ? "" : "s"}</span></div>
@@ -191,9 +206,27 @@ async function workspacePost<T>(url: string, body: unknown): Promise<T> {
     headers: { "content-type": "application/json" },
     method: "POST",
   });
-  const result = await response.json() as T & { error?: string };
-  if (!response.ok) throw new Error(result.error || "The workspace request could not be completed.");
+  const result = await response.json() as T & { code?: string; error?: string };
+  if (!response.ok) {
+    throw new WorkspaceRequestError(
+      result.error || "The workspace request could not be completed.",
+      result.code,
+    );
+  }
   return result;
+}
+
+class WorkspaceRequestError extends Error {
+  constructor(message: string, readonly code?: string) {
+    super(message);
+  }
+}
+
+function workspaceAuthenticationCode(error: unknown): AuthenticationAssuranceCode | undefined {
+  const code = error instanceof WorkspaceRequestError ? error.code : undefined;
+  return code === "authentication_method_not_allowed" || code === "reauthentication_required"
+    ? code
+    : undefined;
 }
 
 function workspaceError(error: unknown) {

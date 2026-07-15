@@ -24,7 +24,7 @@ export function friendlyEngineError(code?: string) {
     case "assignment_revoked": return "This request is no longer available.";
     case "assignment_not_yet_available": return "This request is scheduled but is not available yet.";
     case "authentication_method_not_allowed": return "This request requires a permitted sign-in method. Sign in again and choose a federated provider if the company requires SSO.";
-    case "reauthentication_required": return "The requesting company requires a more recent sign-in before you continue.";
+    case "reauthentication_required": return "A recent sign-in is required before you continue.";
     case "response_replayed": return "This request has already been completed.";
     case "receipt_unavailable": return "The completed receipt is not available yet.";
     case "activity_state_conflict": return "This workflow step changed state. Reload the request before responding again.";

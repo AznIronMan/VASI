@@ -323,6 +323,15 @@ does not retain provider subjects in the assurance object or claim that the
 identity provider required MFA. Customer MFA/conditional-access policy remains
 part of the identity and delivery admission gate.
 
+VASI 0.32.0 applies a fixed 15-minute recent-authentication gate to participant
+data-request creation, reviewed-export open, and every export chunk read. The
+engine evaluates it before identifier lookup and records only successful bounded
+evaluations in request-created, export-opened, and completed-download chain
+events. Disposable proofs cover stale and missing time, unknown-request
+non-disclosure, direct chunk bypass, accepted audit shape, sealed export content,
+and cross-participant isolation. Provider subjects and reusable authentication
+material remain excluded.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

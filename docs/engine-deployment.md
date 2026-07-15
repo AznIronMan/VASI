@@ -121,6 +121,14 @@ version-aligned. Existing workflow snapshots normalize to `any_verified` with
 no additional freshness limit; deployment does not rewrite them or create an
 identity, tenant, request, notification, or evidence record.
 
+VASI 0.32.0 adds no database migration. It reuses the signed actor
+`authenticatedAt` value and existing participant-data-request hash-chain event
+payloads to enforce and audit the fixed 15-minute privacy-access gate. Deploy
+the engine before the gateway so stale request creation/export access is denied
+before the participant UI begins handling the bounded reauthentication code.
+Deployment does not rewrite a request, export, session, tenant, or evidence
+record.
+
 ## Initialize
 
 Requirements are Docker Engine with Compose, PostgreSQL 15 or newer, an HTTPS
