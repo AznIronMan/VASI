@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { hashCanonicalJSON } from "../../packages/engine-crypto/index.mjs";
+import { validateReadinessExport } from "../../packages/readiness-dossier/index.mjs";
 import {
   applyTenantAdmissionDecision,
   defaultInstallationProfile,
@@ -194,7 +195,7 @@ describe("tenant readiness dossier export", () => {
       fixture.database,
       settings(),
       "installation-test",
-      { engineVersion: "0.46.2" },
+      { engineVersion: "0.47.0" },
     );
 
     const exported = await store.exportTenantReadiness(actor, {
@@ -209,7 +210,7 @@ describe("tenant readiness dossier export", () => {
           adapterPolicy: {
             destinationAllowlistCounts: { smtpHosts: 1 },
           },
-          engineVersion: "0.46.2",
+          engineVersion: "0.47.0",
         },
         integrations: [{
           adapterId: "smtp",
@@ -234,6 +235,7 @@ describe("tenant readiness dossier export", () => {
       schema: "vasi-tenant-readiness-export/v1",
     });
     expect(exported.dossierHash).toBe(hashCanonicalJSON(exported.dossier));
+    expect(validateReadinessExport(exported)).toBe(exported);
     const serialized = JSON.stringify(exported);
     expect(serialized).not.toContain("smtp.internal.example.test");
     expect(serialized).not.toContain("operator@example.test");

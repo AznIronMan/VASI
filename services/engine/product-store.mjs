@@ -5,6 +5,7 @@ import {
   encryptJSONEnvelope,
   hashCanonicalJSON,
 } from "../../packages/engine-crypto/index.mjs";
+import { READINESS_DOSSIER_LIMITATIONS } from "../../packages/readiness-dossier/index.mjs";
 import {
   applyTenantAdmissionDecision,
   BUILT_IN_ADAPTERS,
@@ -404,13 +405,7 @@ export function createProductStore(database, settings, installationId, { engineV
           lastProductionStop: stopState.lastStopEventData
             ? readinessProductionStopProjection(stopState)
             : null,
-          limitations: Object.freeze([
-            "This dossier reports the VASI engine state observed at export; it is not a certification, legal opinion, or independent assessment.",
-            "Recorded gate approvals identify evidence and reviewers but do not establish that the underlying review was sufficient or correct.",
-            "Secrets, credentials, personal contact data, raw integration configuration, and destination allowlist values are deliberately omitted.",
-            "The dossier SHA-256 detects changes to these exported facts; it is not a digital signature or a certificate seal.",
-            "External identity, delivery, custody, recovery, accessibility, legal, security, capacity, and support controls remain installation and customer responsibilities.",
-          ]),
+          limitations: READINESS_DOSSIER_LIMITATIONS,
           readiness: Object.freeze({
             approvedGateIds: Object.freeze(approvedGateIds),
             classification: "recorded_evidence_not_certification",

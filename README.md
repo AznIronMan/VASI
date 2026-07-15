@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.46.2`
+Version: `0.47.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -606,6 +606,19 @@ closed; ordinary module imports remain side-effect free. Source assurance owns
 the exact entrypoint inventory and rejects the former literal URL comparison,
 a missing helper guard, or an unreviewed new guarded CLI.
 
+Version 0.47.0 makes pilot-readiness dossiers independently verifiable without
+access to a VASI installation. One framework-independent package now owns the
+strict export schema, canonical hash check, JSON serialization, and printable
+HTML renderer used by both the gateway and a new offline CLI. The verifier
+opens one physical regular file without following a final symlink, enforces a
+2 MiB strict-UTF-8 boundary, validates all admission/readiness/profile/quota/
+integration bindings, and emits only a fixed aggregate result. JSON must be an
+exact machine export; HTML must reproduce byte-for-byte from its inert export
+wrapper. Visible edits, executable additions, duplicate embeddings, covered-
+data changes, unknown fields, or a separately supplied digest mismatch fail
+without printing exported facts. Source assurance owns the shared renderer,
+CLI, documentation, adversarial tests, and execution guard.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -633,7 +646,9 @@ assessment remain installation or pilot gates.
 - Administrator-only, immutable tenant production admission with eight exact
   digest-bound assurance gates, fail-closed issuance/outbound enforcement, and
   an atomic audited stop for all non-terminal tenant work, plus privacy-bounded
-  JSON and human-readable readiness dossiers for external review.
+  JSON and human-readable readiness dossiers for external review, with a
+  bounded offline verifier for canonical digest and exact HTML-presentation
+  checks.
 - Microsoft Graph transactional delivery restricted to its configured mailbox,
   with SMTP as an optional fallback.
 - A local SQLite bootstrap at `data/VASI.settings` containing only the
@@ -1078,6 +1093,10 @@ The [recurring public-edge assurance decision](docs/architecture/recurring-publi
 defines the strict protected topology contract, exact live-image scan,
 digest-bound retention, runtime drift proof, hardened schedules, installation,
 and alerting limits.
+The [pilot-readiness dossier decision](docs/architecture/pilot-readiness-dossier.md)
+defines the privacy-bounded external-review snapshot, immutable disclosure
+audit, shared renderer, offline JSON/HTML verification, and interpretation
+limits.
 The [assurance and pilot-readiness contract](docs/assurance-and-pilot-readiness.md)
 defines the threat register, repeatable release evidence, recovery/key drills,
 observability limits, and the first-party, independent, legal, and customer

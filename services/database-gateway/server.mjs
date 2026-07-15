@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { isDirectExecution } from "../../scripts/direct-execution.mjs";
 
-export const DATABASE_GATEWAY_VERSION = "0.46.2";
+export const DATABASE_GATEWAY_VERSION = "0.47.0";
 export const DATABASE_GATEWAY_HEALTH_SCHEMA = "vasi-database-gateway-health/v1";
 const DEFAULT_SETTINGS_PATH = "/app/data/VASI.settings";
 const MAXIMUM_ADDRESSES = 16;

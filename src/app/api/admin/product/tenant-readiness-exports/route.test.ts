@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createReadinessExportFixture } from "../../../../../../packages/readiness-dossier/test-fixture.mjs";
+import { verifyReadinessDossierBytes } from "../../../../../../packages/readiness-dossier/index.mjs";
+import type { AdminTenantReadinessExport } from "@/lib/owner-types";
+
 const mocks = vi.hoisted(() => ({
   actor: vi.fn(),
   authorize: vi.fn(),
@@ -13,7 +17,6 @@ vi.mock("@/lib/engine-client", () => ({ requestEngineAction: mocks.engine }));
 import { POST } from "./route";
 
 const tenantId = "11111111-1111-4111-8111-111111111111";
-const digest = "a".repeat(64);
 
 describe("administrator tenant readiness exports", () => {
   beforeEach(() => {
@@ -23,7 +26,8 @@ describe("administrator tenant readiness exports", () => {
   });
 
   it("returns a non-cacheable attachment with the engine dossier hash", async () => {
-    mocks.engine.mockResolvedValue({ status: 200, body: exportFixture("json") });
+    const exported = exportFixture("json");
+    mocks.engine.mockResolvedValue({ status: 200, body: exported });
     const response = await POST(request("json"));
 
     expect(response.status).toBe(200);
@@ -32,8 +36,8 @@ describe("administrator tenant readiness exports", () => {
     );
     expect(response.headers.get("content-type")).toContain("application/json");
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(response.headers.get("x-vasi-dossier-sha256")).toBe(digest);
-    expect(await response.json()).toMatchObject({ dossierHash: digest, format: "json" });
+    expect(response.headers.get("x-vasi-dossier-sha256")).toBe(exported.dossierHash);
+    expect(await response.json()).toMatchObject({ dossierHash: exported.dossierHash, format: "json" });
     expect(mocks.engine).toHaveBeenCalledWith(
       { principalId: "admin" },
       {
@@ -49,6 +53,19 @@ describe("administrator tenant readiness exports", () => {
     const response = await POST(request("json"));
     expect(response.status).toBe(502);
     expect(response.headers.get("content-disposition")).toBeNull();
+  });
+
+  it("returns HTML that the framework-independent verifier reproduces exactly", async () => {
+    const exported = exportFixture("html");
+    mocks.engine.mockResolvedValue({ status: 200, body: exported });
+    const response = await POST(request("html"));
+    const bytes = new Uint8Array(await response.arrayBuffer());
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(response.headers.get("content-security-policy")).toContain("sandbox");
+    expect(verifyReadinessDossierBytes(bytes, { expectedDigest: exported.dossierHash }))
+      .toMatchObject({ expectedDigest: "matched", format: "html", presentation: "exact", status: "pass" });
   });
 
   it("does not read or export state before administrator mutation authorization", async () => {
@@ -72,19 +89,5 @@ function request(format: "html" | "json") {
 }
 
 function exportFixture(format: "html" | "json") {
-  return {
-    auditEventHash: "b".repeat(64),
-    capturedAt: "2026-07-15T20:00:00.000Z",
-    dossier: {
-      admission: { gates: [], status: "pending" },
-      integrations: [],
-      limitations: [],
-      readiness: { pendingGateIds: [] },
-      schema: "vasi-tenant-readiness-dossier/v1",
-      tenant: { id: tenantId, name: "Example Tenant" },
-    },
-    dossierHash: digest,
-    format,
-    schema: "vasi-tenant-readiness-export/v1",
-  };
+  return createReadinessExportFixture(format) as AdminTenantReadinessExport;
 }

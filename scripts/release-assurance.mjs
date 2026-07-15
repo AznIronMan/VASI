@@ -71,6 +71,7 @@ export const DIRECT_EXECUTION_ENTRYPOINTS = Object.freeze([
   "scripts/release-assurance.mjs",
   "scripts/render-database-egress-policy.mjs",
   "scripts/render-private-ingress-egress-policy.mjs",
+  "scripts/verify-readiness-dossier.mjs",
   "scripts/verify-engine-host-runtime.mjs",
   "services/database-gateway/server.mjs",
 ]);
@@ -1262,6 +1263,78 @@ export async function validateDirectExecutionContract(
   };
 }
 
+export async function validateReadinessDossierVerifierContract(repositoryRoot = root) {
+  const failures = [];
+  const files = {
+    bridge: "src/lib/readiness-dossier.ts",
+    cli: "scripts/verify-readiness-dossier.mjs",
+    cliTest: "scripts/verify-readiness-dossier.test.mjs",
+    documentation: "docs/architecture/pilot-readiness-dossier.md",
+    package: "package.json",
+    verifier: "packages/readiness-dossier/index.mjs",
+    verifierTest: "packages/readiness-dossier/index.test.mjs",
+  };
+  const sources = {};
+  for (const [name, filename] of Object.entries(files)) {
+    try {
+      sources[name] = await readFile(path.join(repositoryRoot, filename), "utf8");
+    } catch {
+      failures.push(`the readiness dossier verifier ${name} source is unavailable`);
+      sources[name] = "";
+    }
+  }
+
+  for (const marker of [
+    "const MAXIMUM_READINESS_DOSSIER_BYTES = 2_097_152",
+    "constants.O_NOFOLLOW",
+    "renderReadinessDossierHTML(exported) !== text",
+    'id="vasi-readiness-export"',
+    'fail("expected_digest_mismatch")',
+    'status: "pass"',
+    "READINESS_DOSSIER_LIMITATIONS",
+  ]) {
+    if (!sources.verifier.includes(marker)) failures.push(`the readiness dossier verifier is missing ${marker}`);
+  }
+  if (/\bconsole\.|process\.(?:stdout|stderr)|JSON\.stringify\(error/.test(sources.verifier)) {
+    failures.push("the readiness dossier verifier package contains an output or error-disclosure path");
+  }
+  for (const marker of [
+    'from "../packages/readiness-dossier/index.mjs"',
+    "VASI readiness dossier verification failed.",
+    ["if (isDirectExecution(import.meta.url, ", "process.argv[1])) {"].join(""),
+  ]) {
+    if (!sources.cli.includes(marker)) failures.push(`the readiness dossier verifier CLI is missing ${marker}`);
+  }
+  if (!sources.bridge.includes('from "../../packages/readiness-dossier/index.mjs"')) {
+    failures.push("the gateway readiness dossier renderer does not use the shared verifier package");
+  }
+  for (const marker of [
+    "rejects presentation edits, executable additions, duplicate embeddings, and noncanonical JSON",
+    "bounds bytes and requires one physical regular UTF-8 file",
+  ]) {
+    if (!sources.verifierTest.includes(marker)) failures.push(`the readiness dossier verifier test is missing ${marker}`);
+  }
+  for (const marker of [
+    "privacy-bounded output",
+    "fails with one generic error and no exported facts",
+    "remains import-safe",
+  ]) {
+    if (!sources.cliTest.includes(marker)) failures.push(`the readiness dossier verifier CLI test is missing ${marker}`);
+  }
+  if (!sources.documentation.includes("npm run readiness:verify -- DOSSIER_FILE")) {
+    failures.push("the offline readiness dossier verification command is undocumented");
+  }
+  try {
+    const packageJSON = JSON.parse(sources.package);
+    if (packageJSON.scripts?.["readiness:verify"] !== "node scripts/verify-readiness-dossier.mjs") {
+      failures.push("package.json is missing the exact readiness dossier verification command");
+    }
+  } catch {
+    failures.push("the readiness dossier verifier package command is invalid");
+  }
+  return { failures, filesChecked: Object.keys(files).length };
+}
+
 async function sourceAssurance(output, { allowDirty }) {
   const dirtyOutput = await capture("git", ["status", "--porcelain=v1"], { cwd: root });
   const dirty = Boolean(dirtyOutput.trim());
@@ -1269,6 +1342,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const commit = (await capture("git", ["rev-parse", "HEAD"], { cwd: root })).trim();
   const source = await inspectTrackedSource(root);
   const directExecution = await validateDirectExecutionContract(root, source.files.map((entry) => entry.path));
+  const readinessDossierVerifier = await validateReadinessDossierVerifierContract(root);
   const versions = await validateVersionAlignment(root);
   const compose = await validateComposeContracts(root);
   const automation = await validateAutomationContract(root);
@@ -1290,6 +1364,9 @@ async function sourceAssurance(output, { allowDirty }) {
   }
   if (directExecution.failures.length) {
     throw new Error(`Operational CLI execution hardening failed: ${directExecution.failures.join("; ")}.`);
+  }
+  if (readinessDossierVerifier.failures.length) {
+    throw new Error(`Readiness dossier verifier hardening failed: ${readinessDossierVerifier.failures.join("; ")}.`);
   }
   if (versions.mismatches.length) throw new Error("VASI version declarations are not aligned.");
   if (compose.failures.length) throw new Error(`Compose hardening failed: ${compose.failures.join("; ")}.`);
@@ -1342,6 +1419,7 @@ async function sourceAssurance(output, { allowDirty }) {
     operationalSchedulers,
     productionActivation,
     publicIngress,
+    readinessDossierVerifier,
     runtimeImageBuild,
     sourceFileCount: source.files.length,
     versions: versions.actual,
