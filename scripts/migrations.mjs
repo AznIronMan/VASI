@@ -27,6 +27,10 @@ const migrations = [
     name: "0005_invitation_provision_command",
     path: path.join(repositoryRoot, "database", "invitation-provision-command.sql"),
   },
+  {
+    name: "0006_connector_authentication_health",
+    path: path.join(repositoryRoot, "database", "connector-authentication-health.sql"),
+  },
 ];
 
 export async function runMigrations(bootstrap = loadBootstrapSettings()) {

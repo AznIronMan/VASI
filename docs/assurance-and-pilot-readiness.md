@@ -297,6 +297,14 @@ rejection clear the command; ambiguous server/transport outcomes retain it.
 Browser storage and digest failures remain non-authoritative and cannot weaken
 the private-engine actor/input binding.
 
+VASI 0.29.1 separates connector health from generic provider-account activity.
+Only a completed session carrying the exact federated method, supported
+provider, provider subject, user, and creation time can advance the live
+connector observation. Migration-time account activity is retained solely as
+an explicitly labeled legacy estimate; missing attribution fails toward an
+unknown/error light, and health-write failure cannot deny an otherwise
+completed login or manufacture a successful authentication event.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

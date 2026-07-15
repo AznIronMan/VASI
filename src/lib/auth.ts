@@ -4,6 +4,7 @@ import { admin as adminPlugin, genericOAuth, username } from "better-auth/plugin
 import { generateAppleClientSecret } from "@/lib/apple-secret";
 import { resolveProductBrand } from "@/lib/branding";
 import { resolveSessionAuthentication } from "@/lib/auth-provenance";
+import { recordConnectorAuthentication } from "@/lib/connector-authentication-health";
 import { database, getDatabase } from "@/lib/database";
 import { sendAuthEmail } from "@/lib/email";
 import { isProviderConfigured } from "@/lib/auth-providers";
@@ -150,6 +151,23 @@ async function createAuth() {
                 authenticationProvenance: authentication.provenance,
               },
             };
+          },
+          after: async (session) => {
+            try {
+              const result = await recordConnectorAuthentication(session);
+              if (result !== "recorded" && result !== "ignored") {
+                console.warn(JSON.stringify({
+                  event: "connector_authentication_health_update_incomplete",
+                  result,
+                }));
+              }
+            } catch {
+              // Connector health must never turn a completed login into a false
+              // denial. The attributed session remains the authoritative event.
+              console.error(JSON.stringify({
+                event: "connector_authentication_health_update_failed",
+              }));
+            }
           },
         },
       },

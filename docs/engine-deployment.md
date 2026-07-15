@@ -96,6 +96,15 @@ the 0.28 engine command contract; engine-first rollout remains the supported
 version-aligned procedure. No storage value is authoritative, and deployment
 does not create a tenant or invitation.
 
+VASI 0.29.1 adds gateway migration
+`0006_connector_authentication_health`. It creates the dedicated per-provider
+authentication timestamp and provenance, backfills exact attributed session
+history when available, and marks the account-update fallback as a legacy
+estimate. The migration does not change tokens, credentials, sessions, or the
+private-engine schema. Apply it before replacing the gateway; the usual
+version-aligned engine-first rollout remains supported, and deployment creates
+no identity, tenant, invitation, or evidence record.
+
 ## Initialize
 
 Requirements are Docker Engine with Compose, PostgreSQL 15 or newer, an HTTPS

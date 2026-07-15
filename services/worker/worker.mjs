@@ -17,7 +17,7 @@ import {
   expireOneParticipantDataRequest,
 } from "./retention-worker.mjs";
 
-const ENGINE_VERSION = "0.29.0";
+const ENGINE_VERSION = "0.29.1";
 const GENESIS_HASH = "0".repeat(64);
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });

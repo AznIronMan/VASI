@@ -336,7 +336,18 @@ function connectorTitle(connector: AdminConnector) {
 
 function connectorDescription(connector: AdminConnector) {
   if (connector.status === "disconnected") return "Not connected";
-  if (connector.status === "error") return "Previously connected, but the provider is unavailable or the link is invalid";
+  if (connector.authenticationEvidence === "legacy_estimate") {
+    const date = connector.lastAuthenticatedAt
+      ? new Date(connector.lastAuthenticatedAt).toLocaleDateString()
+      : "unknown";
+    return `Connected, but authentication health is unknown; legacy account activity estimate ${date} is not verified as authentication; the next provider sign-in will replace this estimate`;
+  }
+  if (connector.status === "error") {
+    if (connector.configured && connector.connected && !connector.lastAuthenticatedAt) {
+      return "Connected, but no authentication observation is available; the next provider sign-in will establish health";
+    }
+    return "Previously connected, but the provider is unavailable or the link is invalid";
+  }
   if (connector.status === "stale") {
     return `Connected; last authentication ${connector.lastAuthenticatedAt ? new Date(connector.lastAuthenticatedAt).toLocaleDateString() : "more than 90 days ago"}`;
   }

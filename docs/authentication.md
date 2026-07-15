@@ -202,10 +202,20 @@ For each user, the console shows Microsoft, Google, Apple, Yahoo, and Zoho conne
   invalid; and
 - gray: not connected.
 
-Provider account updates refresh the last-authenticated timestamp. Force
-disconnect removes the local V·Sign account link and revokes every V·Sign
-session for that user; it does not delete the external provider account. V·Sign
-refuses to remove the user's final working sign-in method.
+Connector health uses a dedicated last-authenticated timestamp with bounded
+provenance. Only the post-create hook of a completed session attributed to the
+exact supported provider account advances it. Password and email-verification
+sessions, token refreshes, ordinary provider-account updates, unsupported
+providers, and unattributed sessions cannot make a connector appear recently
+used. The migration prefers the latest exact historical session attribution;
+when none exists, the prior account-update time is retained only as a clearly
+labeled legacy activity estimate until the next successful provider sign-in.
+That estimate remains in the red/unknown state and is not represented as
+verified authentication in either the light or connector description.
+
+Force disconnect removes the local V·Sign account link and revokes every
+V·Sign session for that user; it does not delete the external provider account.
+V·Sign refuses to remove the user's final working sign-in method.
 
 The username/password checkbox controls the credential account. Enabling it
 creates a random, unknown bootstrap credential and immediately emails the user

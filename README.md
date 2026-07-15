@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.29.0`
+Version: `0.29.1`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -347,6 +347,18 @@ recovers its command after reload; changed input receives a new command;
 success or a definite client rejection clears it; ambiguous transport/server
 outcomes retain it. Storage or digest unavailability never blocks the
 server-enforced provisioning contract.
+
+Version 0.29.1 makes connector health an authentication observation rather
+than an account-maintenance heuristic. Each supported provider account has a
+dedicated timestamp and bounded provenance. Only the post-create hook of a
+completed, provider-attributed federated session can advance the live value;
+password and verification sessions, token refreshes, and generic provider
+account updates cannot. Migration preserves the latest exact attributed
+session where available and labels an older account-update timestamp only as a
+legacy estimate until the next successful provider sign-in replaces it. The
+internal console holds that estimate in the red/unknown state rather than
+presenting it as an active login. Exact observations retain the configured,
+connected, 90-day, and error status-light contract.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

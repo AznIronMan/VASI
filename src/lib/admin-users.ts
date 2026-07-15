@@ -5,12 +5,17 @@ import {
   getAuthProviderAvailability,
   type AuthProviderId,
 } from "@/lib/auth-providers";
+import {
+  connectorAuthenticationProvenance,
+  type ConnectorAuthenticationProvenance,
+} from "@/lib/connector-authentication-health";
 import { database } from "@/lib/database";
 import { getRuntimeSettings, type RuntimeSettings } from "@/lib/runtime-settings";
 
 export type ConnectorHealth = "active" | "stale" | "error" | "disconnected";
 
 export type AdminConnector = {
+  authenticationEvidence: "attributed_history" | "legacy_estimate" | "observed" | null;
   configured: boolean;
   connected: boolean;
   label: string;
@@ -41,19 +46,27 @@ export type PendingInvitation = {
 
 export function resolveConnectorHealth({
   accountId,
+  authenticationEvidence,
   configured,
   connected,
   lastAuthenticatedAt,
   now = Date.now(),
 }: {
   accountId?: string;
+  authenticationEvidence?: AdminConnector["authenticationEvidence"];
   configured: boolean;
   connected: boolean;
   lastAuthenticatedAt?: Date | string;
   now?: number;
 }): ConnectorHealth {
   if (!connected) return "disconnected";
-  if (!configured || !accountId || !lastAuthenticatedAt) return "error";
+  if (
+    !configured ||
+    !accountId ||
+    !lastAuthenticatedAt ||
+    !authenticationEvidence ||
+    authenticationEvidence === "legacy_estimate"
+  ) return "error";
   return new Date(lastAuthenticatedAt).getTime() < now - 90 * 24 * 60 * 60 * 1_000
     ? "stale"
     : "active";
@@ -63,8 +76,9 @@ type UserRow = {
   accounts: Array<{
     accountId: string;
     hasPassword: boolean;
+    lastAuthenticatedAt: Date | string | null;
+    lastAuthenticationProvenance: ConnectorAuthenticationProvenance | null;
     providerId: string;
-    updatedAt: Date | string;
   }>;
   banned: boolean;
   createdAt: Date | string;
@@ -94,8 +108,9 @@ export async function loadAdminDashboard() {
               'providerId', a."providerId",
               'accountId', a."accountId",
               'hasPassword', a."password" is not null,
-              'updatedAt', a."updatedAt"
-            ) order by a."updatedAt" desc
+              'lastAuthenticatedAt', a."lastAuthenticatedAt",
+              'lastAuthenticationProvenance', a."lastAuthenticationProvenance"
+            ) order by a."lastAuthenticatedAt" desc nulls last, a."updatedAt" desc
           ) filter (where a."id" is not null),
           '[]'::json
         ) as accounts
@@ -143,17 +158,22 @@ function toAdminUser(row: UserRow, settings: RuntimeSettings): AdminUser {
     connectors: authProviderIds.map((provider) => {
       const configured = availability.get(provider)?.configured ?? false;
       const account = accounts.find((item) => item.providerId === provider);
-      const lastAuthenticatedAt = account
-        ? new Date(account.updatedAt).toISOString()
+      const lastAuthenticatedAt = account?.lastAuthenticatedAt
+        ? new Date(account.lastAuthenticatedAt).toISOString()
         : null;
+      const authenticationEvidence = resolveAuthenticationEvidence(
+        account?.lastAuthenticationProvenance,
+      );
       const status = resolveConnectorHealth({
         accountId: account?.accountId,
+        authenticationEvidence,
         configured,
         connected: Boolean(account),
-        lastAuthenticatedAt: account?.updatedAt,
+        lastAuthenticatedAt: account?.lastAuthenticatedAt ?? undefined,
       });
 
       return {
+        authenticationEvidence,
         configured,
         connected: Boolean(account),
         label: availability.get(provider)?.label ?? provider,
@@ -173,6 +193,21 @@ function toAdminUser(row: UserRow, settings: RuntimeSettings): AdminUser {
     role: row.role,
     username: row.username,
   };
+}
+
+export function resolveAuthenticationEvidence(
+  provenance?: ConnectorAuthenticationProvenance | null,
+): AdminConnector["authenticationEvidence"] {
+  switch (provenance) {
+    case connectorAuthenticationProvenance.federatedSession:
+      return "observed";
+    case connectorAuthenticationProvenance.attributedSessionBackfill:
+      return "attributed_history";
+    case connectorAuthenticationProvenance.legacyAccountActivityEstimate:
+      return "legacy_estimate";
+    default:
+      return null;
+  }
 }
 
 export async function writeAdminAudit({
