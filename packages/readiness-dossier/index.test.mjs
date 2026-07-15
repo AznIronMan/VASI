@@ -145,7 +145,10 @@ describe("offline pilot-readiness dossier verification", () => {
 
     for (const mutate of [
       (value) => { value.seals[1].certificate.subject = "CN=Changed"; },
-      (value) => { value.seals[1].publicJWK.x = `${value.seals[1].publicJWK.x.slice(0, -1)}A`; },
+      (value) => {
+        const current = value.seals[1].publicJWK.x;
+        value.seals[1].publicJWK.x = `${current.slice(0, -1)}${current.endsWith("A") ? "B" : "A"}`;
+      },
     ]) {
       const tampered = structuredClone(exported);
       mutate(tampered);

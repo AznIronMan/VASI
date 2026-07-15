@@ -11,97 +11,25 @@ import path from "node:path";
 import process from "node:process";
 import { TextDecoder } from "node:util";
 
-export const PILOT_GATE_DESCRIPTOR_SCHEMA = "vasi-pilot-gate-evidence-descriptor/v1";
-export const PILOT_GATE_MANIFEST_SCHEMA = "vasi-pilot-gate-evidence-manifest/v1";
-export const PILOT_GATE_VERIFICATION_SCHEMA = "vasi-pilot-gate-evidence-verification/v1";
-export const MAXIMUM_PILOT_GATE_DESCRIPTOR_BYTES = 262_144;
-export const MAXIMUM_PILOT_GATE_MANIFEST_BYTES = 1_048_576;
-export const MAXIMUM_PILOT_GATE_ARTIFACTS = 64;
-export const MAXIMUM_PILOT_GATE_ARTIFACT_BYTES = 16 * 1024 * 1024;
-export const MAXIMUM_PILOT_GATE_TOTAL_BYTES = 128 * 1024 * 1024;
+import pilotGateContract from "../../config/pilot-gate-evidence-contract.json" with { type: "json" };
 
-export const PILOT_GATE_LIMITATIONS = Object.freeze([
-  "This manifest proves the integrity and completeness of the indexed local files; it does not establish that a review was sufficient or correct.",
-  "VASI does not ingest, copy, upload, interpret, certify, or approve the indexed evidence artifacts.",
-  "Opaque references identify separately controlled scope, reviewer, and records; they do not prove identity, authority, independence, or legal capacity.",
-  "A satisfied checklist item or accepted exception records the review package assertion only; the accountable admission owner must make the gate decision.",
-  "The manifest SHA-256 detects changes to the canonical manifest and artifact digests; it is not a digital signature, trusted timestamp, or certificate opinion.",
-]);
+export const PILOT_GATE_DESCRIPTOR_SCHEMA = pilotGateContract.schemas.descriptor;
+export const PILOT_GATE_MANIFEST_SCHEMA = pilotGateContract.schemas.manifest;
+export const PILOT_GATE_VERIFICATION_SCHEMA = pilotGateContract.schemas.verification;
+export const MAXIMUM_PILOT_GATE_DESCRIPTOR_BYTES = pilotGateContract.limits.descriptorBytes;
+export const MAXIMUM_PILOT_GATE_MANIFEST_BYTES = pilotGateContract.limits.manifestBytes;
+export const MAXIMUM_PILOT_GATE_ARTIFACTS = pilotGateContract.limits.artifacts;
+export const MAXIMUM_PILOT_GATE_ARTIFACT_BYTES = pilotGateContract.limits.artifactBytes;
+export const MAXIMUM_PILOT_GATE_TOTAL_BYTES = pilotGateContract.limits.totalBytes;
 
-export const PILOT_GATE_CHECKLISTS = Object.freeze({
-  exact_release: Object.freeze([
-    "source_assurance",
-    "image_assurance",
-    "build_test_conformance",
-    "backup_settings_migrations",
-    "rollback_readiness",
+export const PILOT_GATE_LIMITATIONS = Object.freeze([...pilotGateContract.limitations]);
+export const PILOT_GATE_CHECKLISTS = Object.freeze(Object.fromEntries(
+  Object.entries(pilotGateContract.checklists).map(([gateId, checklist]) => [
+    gateId,
+    Object.freeze([...checklist]),
   ]),
-  isolation_integrity: Object.freeze([
-    "first_party_isolation_tamper",
-    "public_private_tenant_scope",
-    "independent_penetration_assessment",
-    "finding_disposition",
-  ]),
-  identity_delivery: Object.freeze([
-    "approved_identity_providers",
-    "callback_and_origin_policy",
-    "mfa_or_conditional_access",
-    "authentication_mail",
-    "tenant_delivery_path",
-    "account_recovery_support",
-  ]),
-  privacy_legal: Object.freeze([
-    "notice_and_consent_language",
-    "field_and_disclosure_inventory",
-    "data_request_process",
-    "retention_and_hold_policy",
-    "jurisdiction_analysis",
-    "electronic_act_analysis",
-  ]),
-  accessibility: Object.freeze([
-    "automated_accessibility",
-    "keyboard_navigation",
-    "screen_reader",
-    "zoom_and_reflow",
-    "motion_and_animation",
-    "media_alternatives",
-    "supported_browser_device",
-  ]),
-  malware_content: Object.freeze([
-    "content_risk_classification",
-    "scanner_or_trusted_source_policy",
-    "external_media_policy",
-    "content_owner_acceptance",
-    "outage_and_retry_policy",
-  ]),
-  recovery_custody: Object.freeze([
-    "disposable_recovery_drill",
-    "rpo_and_rto",
-    "encrypted_off_host_custody",
-    "key_rotation_and_revocation",
-    "break_glass_process",
-    "certificate_tsa_hsm_decision",
-  ]),
-  capacity_support: Object.freeze([
-    "pilot_owner_users_scenarios",
-    "concurrency_and_volume_limits",
-    "load_evidence",
-    "alert_destination_and_escalation",
-    "incident_contacts",
-    "support_hours",
-    "rollback_and_stop_criteria",
-  ]),
-});
-
-const mediaExtensions = Object.freeze({
-  "application/json": ".json",
-  "application/pdf": ".pdf",
-  "application/zip": ".zip",
-  "text/csv": ".csv",
-  "text/html": ".html",
-  "text/markdown": ".md",
-  "text/plain": ".txt",
-});
+));
+const mediaExtensions = Object.freeze({ ...pilotGateContract.mediaExtensions });
 const artifactFilename = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const identifier = /^[a-z][a-z0-9_-]{0,63}$/;
 const opaqueReference = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;

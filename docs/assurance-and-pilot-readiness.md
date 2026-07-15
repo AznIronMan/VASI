@@ -537,6 +537,14 @@ This makes substitution and incomplete handoff detectable; it does not perform
 the review, authorize the reviewer, accept an exception, or approve the gate.
 See [Pilot-gate evidence packages](architecture/pilot-gate-evidence-packages.md).
 
+VASI 0.51.0 closes the transcription gap without crossing that custody
+boundary. The internal console verifies the canonical manifest, selected gate,
+closed checklist, limitations, and package SHA-256 entirely in browser memory,
+then fills only the existing opaque references and digest. It submits no
+manifest or artifact field and discloses only aggregate counts. The browser
+does not verify artifact bytes or approve a gate; accountable owners still rely
+on the offline artifact verification and external review record.
+
 ## Readiness dossier handoff
 
 VASI 0.45.0 lets an installation administrator export the current state behind

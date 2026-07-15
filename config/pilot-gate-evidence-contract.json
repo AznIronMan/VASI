@@ -1,0 +1,94 @@
+{
+  "checklists": {
+    "accessibility": [
+      "automated_accessibility",
+      "keyboard_navigation",
+      "screen_reader",
+      "zoom_and_reflow",
+      "motion_and_animation",
+      "media_alternatives",
+      "supported_browser_device"
+    ],
+    "capacity_support": [
+      "pilot_owner_users_scenarios",
+      "concurrency_and_volume_limits",
+      "load_evidence",
+      "alert_destination_and_escalation",
+      "incident_contacts",
+      "support_hours",
+      "rollback_and_stop_criteria"
+    ],
+    "exact_release": [
+      "source_assurance",
+      "image_assurance",
+      "build_test_conformance",
+      "backup_settings_migrations",
+      "rollback_readiness"
+    ],
+    "identity_delivery": [
+      "approved_identity_providers",
+      "callback_and_origin_policy",
+      "mfa_or_conditional_access",
+      "authentication_mail",
+      "tenant_delivery_path",
+      "account_recovery_support"
+    ],
+    "isolation_integrity": [
+      "first_party_isolation_tamper",
+      "public_private_tenant_scope",
+      "independent_penetration_assessment",
+      "finding_disposition"
+    ],
+    "malware_content": [
+      "content_risk_classification",
+      "scanner_or_trusted_source_policy",
+      "external_media_policy",
+      "content_owner_acceptance",
+      "outage_and_retry_policy"
+    ],
+    "privacy_legal": [
+      "notice_and_consent_language",
+      "field_and_disclosure_inventory",
+      "data_request_process",
+      "retention_and_hold_policy",
+      "jurisdiction_analysis",
+      "electronic_act_analysis"
+    ],
+    "recovery_custody": [
+      "disposable_recovery_drill",
+      "rpo_and_rto",
+      "encrypted_off_host_custody",
+      "key_rotation_and_revocation",
+      "break_glass_process",
+      "certificate_tsa_hsm_decision"
+    ]
+  },
+  "limits": {
+    "artifactBytes": 16777216,
+    "artifacts": 64,
+    "descriptorBytes": 262144,
+    "manifestBytes": 1048576,
+    "totalBytes": 134217728
+  },
+  "limitations": [
+    "This manifest proves the integrity and completeness of the indexed local files; it does not establish that a review was sufficient or correct.",
+    "VASI does not ingest, copy, upload, interpret, certify, or approve the indexed evidence artifacts.",
+    "Opaque references identify separately controlled scope, reviewer, and records; they do not prove identity, authority, independence, or legal capacity.",
+    "A satisfied checklist item or accepted exception records the review package assertion only; the accountable admission owner must make the gate decision.",
+    "The manifest SHA-256 detects changes to the canonical manifest and artifact digests; it is not a digital signature, trusted timestamp, or certificate opinion."
+  ],
+  "mediaExtensions": {
+    "application/json": ".json",
+    "application/pdf": ".pdf",
+    "application/zip": ".zip",
+    "text/csv": ".csv",
+    "text/html": ".html",
+    "text/markdown": ".md",
+    "text/plain": ".txt"
+  },
+  "schemas": {
+    "descriptor": "vasi-pilot-gate-evidence-descriptor/v1",
+    "manifest": "vasi-pilot-gate-evidence-manifest/v1",
+    "verification": "vasi-pilot-gate-evidence-verification/v1"
+  }
+}

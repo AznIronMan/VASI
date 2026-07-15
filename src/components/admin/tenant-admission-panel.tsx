@@ -1,8 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 
 import { COMPANY_PROVISIONED_EVENT } from "@/components/admin/tenant-provisioning-panel";
+import {
+  verifyPilotGateManifestFile,
+  type PilotGateManifestImport,
+} from "@/lib/pilot-gate-manifest-import";
 
 import type {
   AdminTenantAdmission,
@@ -341,15 +345,73 @@ function ApprovalForm({
   onSubmit: (event: FormEvent<HTMLFormElement>, gate: TenantAdmissionGate) => void;
   pending: boolean;
 }) {
+  const [reviewerReference, setReviewerReference] = useState(gate.reviewerReference || "");
+  const [evidenceReference, setEvidenceReference] = useState(gate.evidenceReference || "");
+  const [evidenceDigest, setEvidenceDigest] = useState(gate.evidenceDigest || "");
+  const [manifestImport, setManifestImport] = useState<PilotGateManifestImport>();
+  const [manifestError, setManifestError] = useState<string>();
+  const [verifyingManifest, setVerifyingManifest] = useState(false);
+  const manifestHelpId = `pilot-gate-manifest-help-${gate.id}`;
+  const manifestStatusId = `pilot-gate-manifest-status-${gate.id}`;
+
+  function manualChange(setter: (value: string) => void, value: string) {
+    setter(value);
+    setManifestImport(undefined);
+    setManifestError(undefined);
+  }
+
+  async function importManifest(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    setVerifyingManifest(true);
+    setManifestImport(undefined);
+    setManifestError(undefined);
+    try {
+      const result = await verifyPilotGateManifestFile(file, gate.id);
+      setReviewerReference(result.approval.reviewerReference);
+      setEvidenceReference(result.approval.evidenceReference);
+      setEvidenceDigest(result.approval.evidenceDigest);
+      setManifestImport(result);
+    } catch {
+      setManifestError("The offline evidence manifest could not be verified locally.");
+    } finally {
+      setVerifyingManifest(false);
+    }
+  }
+
   return <form className="admission-approval-form" onSubmit={(event) => onSubmit(event, gate)}>
-    <div className="form-row">
-      <label className="field"><span>Reviewer reference</span><input name="reviewerReference" defaultValue={gate.reviewerReference} pattern="[A-Za-z0-9._:-]+" maxLength={160} required placeholder="customer-legal-2026" /></label>
-      <label className="field"><span>Evidence reference</span><input name="evidenceReference" defaultValue={gate.evidenceReference} pattern="[A-Za-z0-9._:-]+" maxLength={160} required placeholder="review-package:2026-07" /></label>
+    <div className="admission-manifest-import">
+      <label className="field">
+        <span>Local evidence manifest (optional)</span>
+        <input
+          accept=".json,application/json"
+          aria-describedby={`${manifestHelpId} ${manifestStatusId}`}
+          disabled={pending || verifyingManifest}
+          onChange={(event) => void importManifest(event)}
+          type="file"
+        />
+      </label>
+      <p id={manifestHelpId}>
+        Verified only in this browser. The manifest is not uploaded; only its opaque reviewer and evidence references and package SHA-256 enter the approval request. Verify the indexed artifact files separately with the offline CLI.
+      </p>
+      <div aria-live="polite" id={manifestStatusId}>
+        {verifyingManifest && <p className="admission-manifest-import__status">Verifying the canonical manifest locally…</p>}
+        {manifestError && <p className="admission-manifest-import__error" role="alert">{manifestError}</p>}
+        {manifestImport && <p className="admission-manifest-import__status">
+          Manifest verified locally for this gate: {manifestImport.checklistItems} checklist items, {manifestImport.artifacts} indexed artifacts, {manifestImport.exceptions} accepted exceptions, and {manifestImport.totalBytes.toLocaleString()} aggregate bytes. Reviewed {new Date(manifestImport.reviewedAt).toLocaleString()}. Artifact bytes were not reverified by this browser and the gate is not yet approved.
+        </p>}
+      </div>
     </div>
-    <label className="field"><span>Evidence SHA-256</span><input className="mono-input" name="evidenceDigest" defaultValue={gate.evidenceDigest} pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required placeholder={"a".repeat(64)} /></label>
+    <div className="form-row">
+      <label className="field"><span>Reviewer reference</span><input name="reviewerReference" value={reviewerReference} onChange={(event) => manualChange(setReviewerReference, event.target.value)} pattern="[A-Za-z0-9._:-]+" maxLength={160} required placeholder="customer-legal-2026" /></label>
+      <label className="field"><span>Evidence reference</span><input name="evidenceReference" value={evidenceReference} onChange={(event) => manualChange(setEvidenceReference, event.target.value)} pattern="[A-Za-z0-9._:-]+" maxLength={160} required placeholder="review-package:2026-07" /></label>
+    </div>
+    <label className="field"><span>Evidence SHA-256</span><input className="mono-input" name="evidenceDigest" value={evidenceDigest} onChange={(event) => manualChange(setEvidenceDigest, event.target.value)} pattern="[a-fA-F0-9]{64}" minLength={64} maxLength={64} required placeholder={"a".repeat(64)} /></label>
     <div className="admission-gate__actions">
-      <button className="primary-button" disabled={pending} type="submit">Record immutable approval</button>
-      <button className="table-link" disabled={pending} type="button" onClick={onCancel}>Cancel</button>
+      <button className="primary-button" disabled={pending || verifyingManifest} type="submit">Record immutable approval</button>
+      <button className="table-link" disabled={pending || verifyingManifest} type="button" onClick={onCancel}>Cancel</button>
     </div>
   </form>;
 }

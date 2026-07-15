@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { hashCanonicalJSON } from "../../packages/engine-crypto/index.mjs";
 import { EngineStoreError } from "./errors.mjs";
 
-const ENGINE_VERSION = "0.50.0";
+const ENGINE_VERSION = "0.51.0";
 
 export async function appendEvent(client, {
   actor,

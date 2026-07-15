@@ -1490,8 +1490,13 @@ export async function validateReadinessDossierVerifierContract(repositoryRoot = 
 export async function validatePilotGateEvidenceContract(repositoryRoot = root) {
   const failures = [];
   const files = {
+    adminPanel: "src/components/admin/tenant-admission-panel.tsx",
+    browser: "src/lib/pilot-gate-manifest-import.ts",
+    browserInteropTest: "packages/pilot-gate-evidence/browser-import.test.mjs",
+    browserTest: "src/lib/pilot-gate-manifest-import.test.ts",
     cli: "scripts/pilot-gate-evidence.mjs",
     cliTest: "scripts/pilot-gate-evidence.test.mjs",
+    contract: "config/pilot-gate-evidence-contract.json",
     documentation: "docs/architecture/pilot-gate-evidence-packages.md",
     library: "packages/pilot-gate-evidence/index.mjs",
     libraryTest: "packages/pilot-gate-evidence/index.test.mjs",
@@ -1508,10 +1513,9 @@ export async function validatePilotGateEvidenceContract(repositoryRoot = root) {
   }
 
   for (const marker of [
-    'PILOT_GATE_DESCRIPTOR_SCHEMA = "vasi-pilot-gate-evidence-descriptor/v1"',
-    'PILOT_GATE_MANIFEST_SCHEMA = "vasi-pilot-gate-evidence-manifest/v1"',
-    "MAXIMUM_PILOT_GATE_ARTIFACT_BYTES = 16 * 1024 * 1024",
-    "MAXIMUM_PILOT_GATE_TOTAL_BYTES = 128 * 1024 * 1024",
+    'from "../../config/pilot-gate-evidence-contract.json" with { type: "json" }',
+    "pilotGateContract.limits.artifactBytes",
+    "pilotGateContract.limits.totalBytes",
     "constants.O_NOFOLLOW",
     "before.nlink !== 1n",
     "(Number(before.mode) & 0o7777) !== 0o600",
@@ -1522,13 +1526,129 @@ export async function validatePilotGateEvidenceContract(repositoryRoot = root) {
     'item.outcome !== "satisfied" && item.outcome !== "accepted_exception"',
     "digestCanonical(normalized) !== packageDigest",
     "sameMetadata(boundary.metadata, finalMetadata)",
-    "This manifest proves the integrity and completeness",
-    "VASI does not ingest, copy, upload, interpret, certify, or approve",
   ]) {
     if (!sources.library.includes(marker)) failures.push(`the pilot-gate evidence library is missing ${marker}`);
   }
   if (/\bconsole\.|process\.(?:stdout|stderr)|JSON\.stringify\(error|node:(?:child_process|http|https)|\bfetch\s*\(/.test(sources.library)) {
     failures.push("the pilot-gate evidence library contains an output, network, process, or error-disclosure path");
+  }
+  try {
+    const contract = JSON.parse(sources.contract);
+    const expectedChecklists = {
+      accessibility: [
+        "automated_accessibility", "keyboard_navigation", "screen_reader", "zoom_and_reflow",
+        "motion_and_animation", "media_alternatives", "supported_browser_device",
+      ],
+      capacity_support: [
+        "pilot_owner_users_scenarios", "concurrency_and_volume_limits", "load_evidence",
+        "alert_destination_and_escalation", "incident_contacts", "support_hours",
+        "rollback_and_stop_criteria",
+      ],
+      exact_release: [
+        "source_assurance", "image_assurance", "build_test_conformance",
+        "backup_settings_migrations", "rollback_readiness",
+      ],
+      identity_delivery: [
+        "approved_identity_providers", "callback_and_origin_policy", "mfa_or_conditional_access",
+        "authentication_mail", "tenant_delivery_path", "account_recovery_support",
+      ],
+      isolation_integrity: [
+        "first_party_isolation_tamper", "public_private_tenant_scope",
+        "independent_penetration_assessment", "finding_disposition",
+      ],
+      malware_content: [
+        "content_risk_classification", "scanner_or_trusted_source_policy", "external_media_policy",
+        "content_owner_acceptance", "outage_and_retry_policy",
+      ],
+      privacy_legal: [
+        "notice_and_consent_language", "field_and_disclosure_inventory", "data_request_process",
+        "retention_and_hold_policy", "jurisdiction_analysis", "electronic_act_analysis",
+      ],
+      recovery_custody: [
+        "disposable_recovery_drill", "rpo_and_rto", "encrypted_off_host_custody",
+        "key_rotation_and_revocation", "break_glass_process", "certificate_tsa_hsm_decision",
+      ],
+    };
+    const expectedLimitations = [
+      "This manifest proves the integrity and completeness of the indexed local files; it does not establish that a review was sufficient or correct.",
+      "VASI does not ingest, copy, upload, interpret, certify, or approve the indexed evidence artifacts.",
+      "Opaque references identify separately controlled scope, reviewer, and records; they do not prove identity, authority, independence, or legal capacity.",
+      "A satisfied checklist item or accepted exception records the review package assertion only; the accountable admission owner must make the gate decision.",
+      "The manifest SHA-256 detects changes to the canonical manifest and artifact digests; it is not a digital signature, trusted timestamp, or certificate opinion.",
+    ];
+    const expectedMediaExtensions = {
+      "application/json": ".json",
+      "application/pdf": ".pdf",
+      "application/zip": ".zip",
+      "text/csv": ".csv",
+      "text/html": ".html",
+      "text/markdown": ".md",
+      "text/plain": ".txt",
+    };
+    if (Object.keys(contract).sort().join("\0") !==
+          ["checklists", "limitations", "limits", "mediaExtensions", "schemas"].join("\0") ||
+        JSON.stringify(contract.checklists) !== JSON.stringify(expectedChecklists) ||
+        JSON.stringify(contract.limitations) !== JSON.stringify(expectedLimitations) ||
+        JSON.stringify(contract.mediaExtensions) !== JSON.stringify(expectedMediaExtensions) ||
+        contract.schemas?.descriptor !== "vasi-pilot-gate-evidence-descriptor/v1" ||
+        contract.schemas?.manifest !== "vasi-pilot-gate-evidence-manifest/v1" ||
+        contract.schemas?.verification !== "vasi-pilot-gate-evidence-verification/v1" ||
+        contract.limits?.descriptorBytes !== 262_144 || contract.limits?.manifestBytes !== 1_048_576 ||
+        contract.limits?.artifacts !== 64 || contract.limits?.artifactBytes !== 16 * 1024 * 1024 ||
+        contract.limits?.totalBytes !== 128 * 1024 * 1024) {
+      failures.push("the shared pilot-gate evidence contract is incomplete or weakened");
+    }
+  } catch {
+    failures.push("the shared pilot-gate evidence contract is invalid");
+  }
+  for (const marker of [
+    'from "../../config/pilot-gate-evidence-contract.json"',
+    "file.size > pilotGateContract.limits.manifestBytes",
+    "contents.byteLength !== file.size",
+    "text.length > pilotGateContract.limits.manifestBytes",
+    'new TextDecoder("utf-8", { fatal: true })',
+    "gateId !== expectedGateId",
+    "await digestCanonical(normalized) !== packageDigest",
+    "globalThis.crypto?.subtle",
+    "prettyCanonicalJSON({ ...normalized, packageDigest }) !== text",
+    "The offline evidence manifest could not be verified locally.",
+    "approval: Object.freeze({",
+  ]) {
+    if (!sources.browser.includes(marker)) failures.push(`the browser-local pilot-gate verifier is missing ${marker}`);
+  }
+  if (/\bfetch\s*\(|\bXMLHttpRequest\b|\bsendBeacon\b|\bFormData\b|\bfile\.name\b/.test(sources.browser)) {
+    failures.push("the browser-local pilot-gate verifier contains a network, submission, or filename-disclosure path");
+  }
+  for (const marker of [
+    "verifies the shared canonical contract and returns admission fields plus aggregates only",
+    "rejects a manifest for a different admission gate",
+    "rejects structural, checklist, limitation, reference, and digest tampering",
+    "requires exact canonical JSON presentation",
+    "reads one bounded strict-UTF-8 local file without using its name",
+    "uses one generic failure for every rejected local input",
+  ]) {
+    if (!sources.browserTest.includes(marker)) failures.push(`the browser-local pilot-gate verifier test is missing ${marker}`);
+  }
+  for (const marker of [
+    "accepts an exact offline-library manifest through the browser-local verifier",
+    "createPilotGateEvidenceManifest",
+    "pilotGateManifestJSON(manifest)",
+    "verifyPilotGateManifestText",
+  ]) {
+    if (!sources.browserInteropTest.includes(marker)) {
+      failures.push(`the pilot-gate browser interoperability test is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    "verifyPilotGateManifestFile(file, gate.id)",
+    "Verified only in this browser. The manifest is not uploaded",
+    "Artifact bytes were not reverified by this browser and the gate is not yet approved.",
+    'type="file"',
+  ]) {
+    if (!sources.adminPanel.includes(marker)) failures.push(`the pilot-gate admission handoff is missing ${marker}`);
+  }
+  if (/data\.get\(["'](?:manifest|artifact)|name=["'](?:manifest|artifact)/i.test(sources.adminPanel)) {
+    failures.push("the pilot-gate admission handoff submits a manifest or artifact field");
   }
   for (const marker of [
     'from "../packages/pilot-gate-evidence/index.mjs"',
@@ -1558,6 +1678,8 @@ export async function validatePilotGateEvidenceContract(repositoryRoot = root) {
     "npm run pilot:evidence -- verify MANIFEST_FILE EVIDENCE_DIRECTORY",
     "Integrity packaging is not approval",
     "must remain outside the VASI release tree",
+    "The browser does not upload the manifest",
+    "does not re-read or verify the indexed artifact files",
   ]) {
     if (!sources.documentation.includes(marker)) failures.push(`the pilot-gate evidence documentation is missing ${marker}`);
   }

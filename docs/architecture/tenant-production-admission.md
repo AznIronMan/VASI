@@ -1,6 +1,6 @@
 # Tenant production admission
 
-Status: implemented in VASI 0.25.0 and extended through VASI 0.50.0.
+Status: implemented in VASI 0.25.0 and extended through VASI 0.51.0.
 
 ## Purpose
 
@@ -56,6 +56,14 @@ only strict local artifacts, derives the exact admission digest, and verifies
 the package again without network or VASI access. Packaging proves file
 integrity and checklist completeness, not review sufficiency or approval. See
 [Pilot-gate evidence packages](pilot-gate-evidence-packages.md).
+
+VASI 0.51.0 lets an administrator select that canonical manifest in the
+private console. A bounded browser-local verifier shares the offline contract,
+requires the selected gate and exact package digest to match, and populates
+only the existing opaque reviewer/evidence references and digest. It never
+uploads or retains the manifest and cannot record the decision automatically.
+Artifact-byte and custody verification remain the offline review system's
+responsibility.
 
 ## Fail-closed enforcement
 
@@ -165,7 +173,8 @@ the dossier packages recorded state but cannot approve a gate. See
 [Pilot readiness dossier](pilot-readiness-dossier.md).
 
 The evidence-package manifest and artifacts remain outside the VASI release and
-database; the console receives only their opaque references and package digest.
+database. The console can read the canonical manifest locally to populate its
+form, but the server receives only the opaque references and package digest.
 
 The privacy-safe operational snapshot reports active, admitted, disabled, and
 pending-admission tenant counts. Any active tenant without a current admitted

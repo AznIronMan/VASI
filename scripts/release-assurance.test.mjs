@@ -114,19 +114,24 @@ describe("release assurance policy", () => {
 
   it("keeps pilot-gate evidence deterministic, bounded, offline, and privacy-safe", async () => {
     const result = await validatePilotGateEvidenceContract(root);
-    expect(result).toEqual({ failures: [], filesChecked: 6 });
+    expect(result).toEqual({ failures: [], filesChecked: 11 });
   });
 
   it("rejects a weakened pilot-gate evidence contract", async () => {
     const fixture = await mkdtemp(path.join(tmpdir(), "vasi-pilot-gate-evidence-assurance-"));
     try {
       const files = [
+        "config/pilot-gate-evidence-contract.json",
         "docs/architecture/pilot-gate-evidence-packages.md",
         "package.json",
         "packages/pilot-gate-evidence/index.mjs",
         "packages/pilot-gate-evidence/index.test.mjs",
+        "packages/pilot-gate-evidence/browser-import.test.mjs",
         "scripts/pilot-gate-evidence.mjs",
         "scripts/pilot-gate-evidence.test.mjs",
+        "src/components/admin/tenant-admission-panel.tsx",
+        "src/lib/pilot-gate-manifest-import.test.ts",
+        "src/lib/pilot-gate-manifest-import.ts",
       ];
       for (const filename of files) {
         await mkdir(path.dirname(path.join(fixture, filename)), { recursive: true });
@@ -147,6 +152,16 @@ describe("release assurance policy", () => {
           "VASI approval",
         ),
       );
+      const browser = path.join(fixture, "src/lib/pilot-gate-manifest-import.ts");
+      await writeFile(
+        browser,
+        (await readFile(browser, "utf8")).replace("gateId !== expectedGateId", "false"),
+      );
+      const contract = path.join(fixture, "config/pilot-gate-evidence-contract.json");
+      await writeFile(
+        contract,
+        (await readFile(contract, "utf8")).replace('      "screen_reader",\n', ""),
+      );
       const result = await validatePilotGateEvidenceContract(fixture);
       expect(result.failures).toContain(
         "the pilot-gate evidence library is missing constants.O_NOFOLLOW",
@@ -156,6 +171,12 @@ describe("release assurance policy", () => {
       );
       expect(result.failures).toContain(
         "the pilot-gate evidence documentation is missing Integrity packaging is not approval",
+      );
+      expect(result.failures).toContain(
+        "the browser-local pilot-gate verifier is missing gateId !== expectedGateId",
+      );
+      expect(result.failures).toContain(
+        "the shared pilot-gate evidence contract is incomplete or weakened",
       );
     } finally {
       await rm(fixture, { force: true, recursive: true });
@@ -661,7 +682,7 @@ curl https://monitor.example.test\n`,
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.50.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.51.0")).toMatchObject({
       allowedOptionalPackagePaths: [
         "node_modules/@img/colour",
         "node_modules/@img/sharp-libvips-linuxmusl-x64",
@@ -674,7 +695,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.50.0")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.51.0")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -695,7 +716,7 @@ curl https://monitor.example.test\n`,
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.50.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.51.0")).toMatchObject({
       entrypoints: [
         "scripts/backup-custody.mjs",
         "scripts/backup-continuity.mjs",
@@ -709,7 +730,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.50.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.51.0")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",
@@ -726,7 +747,7 @@ curl https://monitor.example.test\n`,
   it("derives a bounded physical prohibition inventory from the exact lock graph", async () => {
     const packageJSON = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
     const packageLock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
-    const allowed = runtimeContractForImage("vasi:0.50.0").allowedOptionalPackagePaths;
+    const allowed = runtimeContractForImage("vasi:0.51.0").allowedOptionalPackagePaths;
     const result = runtimeDependencyAuditPaths(packageJSON, packageLock, allowed);
     expect(result.lockPackageCount).toBeGreaterThan(400);
     expect(result.prohibitedPackagePaths).toContain("node_modules/vitest");

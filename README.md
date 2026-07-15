@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.50.0`
+Version: `0.51.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -656,6 +656,17 @@ manifest whose package SHA-256 maps directly to the existing admission
 interpreted, copied, or transmitted. The package proves integrity and declared
 checklist completeness only—the named independent, legal, accessibility,
 security, custody, and customer owners still make every gate decision.
+
+Version 0.51.0 closes the admission transcription gap with a bounded,
+browser-local manifest handoff in the internal console. One shared contract
+keeps the offline CLI and browser verifier aligned. Selecting a canonical
+manifest verifies its strict schema, selected gate, complete checklist,
+limitations, exact presentation, and package SHA-256 in memory, then fills only
+the existing opaque reviewer/evidence references and digest. The manifest and
+artifact inventory are not uploaded, filenames and review details are not
+returned, and the administrator still records the immutable gate decision
+explicitly. Indexed artifact bytes and custody remain subject to the separate
+offline verification process.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

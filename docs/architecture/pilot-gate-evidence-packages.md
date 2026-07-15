@@ -1,6 +1,6 @@
 # Pilot-gate evidence packages
 
-Status: implemented in VASI 0.50.0.
+Status: implemented in VASI 0.50.0 and extended in VASI 0.51.0.
 
 ## Purpose and boundary
 
@@ -189,12 +189,32 @@ bytes and digest.
 ## Admission and readiness handoff
 
 After the responsible reviewer and accountable owner complete their external
-workflow, use these exact values for the selected gate in the private tenant
-admission console:
+workflow, open the selected gate in the private tenant admission console and
+choose the canonical manifest. The browser does not upload the manifest. It
+reads at most 1 MiB into browser memory, requires strict UTF-8 and exact
+canonical JSON, validates the shared closed schema and checklist, requires the
+manifest gate to match the selected gate, and recomputes `packageDigest` with
+the browser's SHA-256 implementation. The local verifier returns only aggregate
+counts, review time, and these three admission values:
 
 - `reviewerReference` from the manifest;
 - `evidenceReference` from the manifest; and
 - `evidenceDigest` equal to the manifest `packageDigest`.
+
+Those values populate the existing editable fields; the administrator must
+still choose **Record immutable approval**. Manually changing a populated field
+clears the local-verification status. Only the three fields above enter the
+existing admission API request. The file input has no submitted name, the
+manifest is not retained in component state or sent to the server, and artifact
+paths, identifiers, hashes, checklist details, exception references, scope
+reference, and manifest filename are not returned by the verifier.
+
+Browser handoff verifies the manifest contract and package digest only. It
+does not re-read or verify the indexed artifact files, their permissions,
+directory inventory, physical-file identity, or custody. Run the offline CLI
+verification against the separately controlled artifact directory before the
+accountable gate decision. The console states this limitation beside the file
+control and never presents local verification as gate approval.
 
 The console creates the immutable gate decision and server decision time. It
 does not ingest or verify the evidence directory. Export a new signed readiness

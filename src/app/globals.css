@@ -1731,6 +1731,44 @@ input::placeholder {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.admission-manifest-import {
+  padding: 12px;
+  border: 1px solid #cfdcd6;
+  border-radius: 10px;
+  background: #f4f9f7;
+}
+
+.admission-manifest-import .field {
+  display: grid;
+}
+
+.admission-manifest-import input[type="file"] {
+  min-height: 42px;
+  padding: 8px;
+  border: 1px dashed #9db8aa;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.admission-manifest-import > p,
+.admission-manifest-import__status,
+.admission-manifest-import__error {
+  margin: 7px 0 0;
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.admission-manifest-import__status {
+  color: #1d6045;
+  font-weight: 700;
+}
+
+.admission-manifest-import__error {
+  color: #8a3028;
+  font-weight: 700;
+}
+
 .mono-input,
 .admission-panel code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
