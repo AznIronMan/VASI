@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  DIRECT_EXECUTION_ENTRYPOINTS,
   inspectTrackedSource,
   runtimeDependencyAuditPaths,
   runtimeContractForImage,
@@ -17,6 +18,7 @@ import {
   validateOperationalSchedulerContract,
   validateOperationalAlertHandoffContract,
   validateProductionActivationContract,
+  validateProductionStagingContract,
   validatePublicIngressContract,
   validateReadinessDossierVerifierContract,
   validateRuntimeImageBuildContract,
@@ -93,11 +95,12 @@ describe("release assurance policy", () => {
 
   it("keeps every importable operational CLI symlink-safe and release-assurance inventoried", async () => {
     const tracked = await inspectTrackedSource(root);
-    const result = await validateDirectExecutionContract(root, tracked.files.map((entry) => entry.path));
+    const result = await validateDirectExecutionContract(root, operationalSources(tracked));
     expect(result.failures).toEqual([]);
-    expect(result.filesChecked).toBe(24);
-    expect(result.cliFiles).toHaveLength(21);
+    expect(result.filesChecked).toBe(25);
+    expect(result.cliFiles).toHaveLength(22);
     expect(result.cliFiles).toContain("scripts/activate-production-release.mjs");
+    expect(result.cliFiles).toContain("scripts/stage-production-release.mjs");
     expect(result.cliFiles).toContain("scripts/readiness-trust-anchor.mjs");
     expect(result.cliFiles).toContain("scripts/verify-readiness-dossier.mjs");
     expect(result.cliFiles).toContain("services/database-gateway/server.mjs");
@@ -161,16 +164,16 @@ describe("release assurance policy", () => {
 
   it("imports every inventoried operational CLI without entering main", async () => {
     const tracked = await inspectTrackedSource(root);
-    const result = await validateDirectExecutionContract(root, tracked.files.map((entry) => entry.path));
+    const result = await validateDirectExecutionContract(root, operationalSources(tracked));
     const modules = await Promise.all(result.cliFiles.map((filename) =>
       import(pathToFileURL(path.join(root, filename)).href)
     ));
-    expect(modules).toHaveLength(21);
+    expect(modules).toHaveLength(22);
   });
 
   it("rejects a silent-no-op operational CLI comparison", async () => {
     const tracked = await inspectTrackedSource(root);
-    const clean = await validateDirectExecutionContract(root, tracked.files.map((entry) => entry.path));
+    const clean = await validateDirectExecutionContract(root, operationalSources(tracked));
     const fixture = await mkdtemp(path.join(tmpdir(), "vasi-direct-execution-assurance-"));
     try {
       const files = [
@@ -226,6 +229,34 @@ describe("release assurance policy", () => {
   it("keeps production release activation complete, bounded, and fail-closed", async () => {
     const result = await validateProductionActivationContract(root);
     expect(result).toEqual({ failures: [], filesChecked: 6 });
+  });
+
+  it("keeps production release staging bounded, private, and fail-closed", async () => {
+    const result = await validateProductionStagingContract(root);
+    expect(result).toEqual({ failures: [], filesChecked: 4 });
+  });
+
+  it("rejects an ambient or host-archive production release stager", async () => {
+    const fixture = await mkdtemp(path.join(tmpdir(), "vasi-production-staging-assurance-"));
+    try {
+      for (const filename of [
+        "docs/architecture/fail-closed-release-activation.md",
+        "package.json",
+        "scripts/stage-production-release.mjs",
+        "scripts/stage-production-release.test.mjs",
+      ]) {
+        await mkdir(path.dirname(path.join(fixture, filename)), { recursive: true });
+        await cp(path.join(root, filename), path.join(fixture, filename));
+      }
+      const script = path.join(fixture, "scripts", "stage-production-release.mjs");
+      await writeFile(script, `${await readFile(script, "utf8")}\nspawn("tar", ["-xf", archive]);\n`);
+      const result = await validateProductionStagingContract(fixture);
+      expect(result.failures).toContain(
+        "the production release staging command contains prohibited archive, runtime, or ambient behavior",
+      );
+    } finally {
+      await rm(fixture, { force: true, recursive: true });
+    }
   });
 
   it("rejects an over-broad or destructive production release activator", async () => {
@@ -578,7 +609,7 @@ curl https://monitor.example.test\n`,
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.48.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.49.0")).toMatchObject({
       allowedOptionalPackagePaths: [
         "node_modules/@img/colour",
         "node_modules/@img/sharp-libvips-linuxmusl-x64",
@@ -591,7 +622,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.48.0")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.49.0")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -612,7 +643,7 @@ curl https://monitor.example.test\n`,
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.48.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.49.0")).toMatchObject({
       entrypoints: [
         "scripts/backup-custody.mjs",
         "scripts/backup-continuity.mjs",
@@ -626,7 +657,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.48.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.49.0")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",
@@ -643,7 +674,7 @@ curl https://monitor.example.test\n`,
   it("derives a bounded physical prohibition inventory from the exact lock graph", async () => {
     const packageJSON = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
     const packageLock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
-    const allowed = runtimeContractForImage("vasi:0.48.0").allowedOptionalPackagePaths;
+    const allowed = runtimeContractForImage("vasi:0.49.0").allowedOptionalPackagePaths;
     const result = runtimeDependencyAuditPaths(packageJSON, packageLock, allowed);
     expect(result.lockPackageCount).toBeGreaterThan(400);
     expect(result.prohibitedPackagePaths).toContain("node_modules/vitest");
@@ -695,3 +726,10 @@ curl https://monitor.example.test\n`,
     })).toThrow(/outside its assurance bound/i);
   });
 });
+
+function operationalSources(tracked) {
+  return [...new Set([
+    ...tracked.files.map((entry) => entry.path),
+    ...DIRECT_EXECUTION_ENTRYPOINTS,
+  ])];
+}

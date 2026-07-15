@@ -72,6 +72,7 @@ export const DIRECT_EXECUTION_ENTRYPOINTS = Object.freeze([
   "scripts/release-assurance.mjs",
   "scripts/render-database-egress-policy.mjs",
   "scripts/render-private-ingress-egress-policy.mjs",
+  "scripts/stage-production-release.mjs",
   "scripts/verify-readiness-dossier.mjs",
   "scripts/verify-engine-host-runtime.mjs",
   "services/database-gateway/server.mjs",
@@ -1173,6 +1174,72 @@ export async function validateProductionActivationContract(repositoryRoot = root
   return { failures, filesChecked: 6 };
 }
 
+export async function validateProductionStagingContract(repositoryRoot = root) {
+  const failures = [];
+  const files = {
+    documentation: "docs/architecture/fail-closed-release-activation.md",
+    package: "package.json",
+    source: "scripts/stage-production-release.mjs",
+    test: "scripts/stage-production-release.test.mjs",
+  };
+  const sources = {};
+  for (const [name, filename] of Object.entries(files)) {
+    try {
+      sources[name] = await readFile(path.join(repositoryRoot, filename), "utf8");
+    } catch {
+      failures.push(`the production release staging ${name} source is unavailable`);
+      sources[name] = "";
+    }
+  }
+  for (const marker of [
+    'RELEASE_STAGING_SCHEMA = "vasi-production-release-staging/v1"',
+    "const MAXIMUM_ARCHIVE_BYTES = 64 * 1024 * 1024",
+    "const MAXIMUM_DECOMPRESSED_BYTES = 160 * 1024 * 1024",
+    "constants.O_NOFOLLOW",
+    "Readable.from([archiveContents])",
+    'fail("archive_digest_mismatch")',
+    'typeFlag !== "0" && typeFlag !== "5"',
+    "forbiddenPathPatterns",
+    "await readlink(absolute) !== expectedTarget",
+    "publishDirectoryNoReplace",
+    '"--no-clobber", "--no-target-directory"',
+    "VASI production release staging failed closed.",
+  ]) {
+    if (!sources.source.includes(marker)) failures.push(`the production release staging command is missing ${marker}`);
+  }
+  if (
+    /(?<!\.)\b(?:exec|execFile|fork)\s*\(|spawn\s*\(\s*["'`](?:tar|unzip)|["'`](?:docker|podman)["'`]|--remove-orphans|process\.env/.test(sources.source)
+  ) {
+    failures.push("the production release staging command contains prohibited archive, runtime, or ambient behavior");
+  }
+  for (const marker of [
+    "inspects a physical Git archive without changing live state",
+    "normalizes ownership and modes, binds protected state, and publishes once",
+    "rejects traversal, private material, special entries, and duplicate paths",
+    "rejects malformed checksums, ambiguous executable modes, and oversized entries before payload reads",
+    "does not bypass an existing staging lock",
+    "fails with one generic CLI error and no archive or installation facts",
+  ]) {
+    if (!sources.test.includes(marker)) failures.push(`the production release staging test is missing ${marker}`);
+  }
+  try {
+    const packageJSON = JSON.parse(sources.package);
+    if (packageJSON?.scripts?.["release:stage"] !== "node scripts/stage-production-release.mjs") {
+      failures.push("package.json is missing the exact production staging command");
+    }
+  } catch {
+    failures.push("the production release staging package command is invalid");
+  }
+  for (const marker of [
+    "npm run release:stage -- CONFIG_FILE ARCHIVE_FILE RELEASE_ID EXPECTED_SHA256 --dry-run",
+    "does not build images, run migrations, change Docker,",
+    "or change the `current` selector",
+  ]) {
+    if (!sources.documentation.includes(marker)) failures.push(`the production release staging documentation is missing ${marker}`);
+  }
+  return { failures, filesChecked: Object.keys(files).length };
+}
+
 export async function validateDirectExecutionContract(
   repositoryRoot = root,
   trackedFiles = DIRECT_EXECUTION_ENTRYPOINTS,
@@ -1220,6 +1287,8 @@ export async function validateDirectExecutionContract(
     "fails closed for unrelated, missing, malformed, and oversized paths",
     "runs the activation CLI through a selected release path",
     "does not execute main when the activation module is imported",
+    "runs the staging CLI through a selected release path",
+    "does not execute main when the staging module is imported",
   ]) {
     if (!helperTest.includes(marker)) failures.push(`the direct-execution regression test is missing ${marker}`);
   }
@@ -1434,6 +1503,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const publicIngress = await validatePublicIngressContract(root);
   const edgeMonitor = await validateEdgeMonitorContract(root);
   const productionActivation = await validateProductionActivationContract(root);
+  const productionStaging = await validateProductionStagingContract(root);
   const runtimeImageBuild = await validateRuntimeImageBuildContract(root);
   if (source.forbiddenPaths.length) throw new Error(`Forbidden tracked paths: ${source.forbiddenPaths.join(", ")}.`);
   if (source.secretFindings.length) {
@@ -1471,6 +1541,9 @@ async function sourceAssurance(output, { allowDirty }) {
   if (productionActivation.failures.length) {
     throw new Error(`Production activation hardening failed: ${productionActivation.failures.join("; ")}.`);
   }
+  if (productionStaging.failures.length) {
+    throw new Error(`Production staging hardening failed: ${productionStaging.failures.join("; ")}.`);
+  }
   if (runtimeImageBuild.failures.length) {
     throw new Error(`Runtime image build hardening failed: ${runtimeImageBuild.failures.join("; ")}.`);
   }
@@ -1500,6 +1573,7 @@ async function sourceAssurance(output, { allowDirty }) {
     operationalAlertHandoff,
     operationalSchedulers,
     productionActivation,
+    productionStaging,
     publicIngress,
     readinessDossierVerifier,
     runtimeImageBuild,

@@ -11,6 +11,7 @@ import { isDirectExecution } from "./direct-execution.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const helper = path.join(root, "scripts", "direct-execution.mjs");
 const activation = path.join(root, "scripts", "activate-production-release.mjs");
+const staging = path.join(root, "scripts", "stage-production-release.mjs");
 const temporaryDirectories = [];
 
 afterEach(async () => {
@@ -79,6 +80,40 @@ describe("direct operational CLI execution identity", () => {
       "--input-type=module",
       "--eval",
       `await import(${JSON.stringify(pathToFileURL(activation).href)});`,
+    ], {
+      encoding: "utf8",
+      timeout: 5_000,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+  });
+
+  it("runs the staging CLI through a selected release path exactly as a physical path", async () => {
+    const temporary = await mkdtemp(path.join(tmpdir(), "vasi-selected-staging-cli-"));
+    temporaryDirectories.push(temporary);
+    const releaseLink = path.join(temporary, "current");
+    await symlink(root, releaseLink, "dir");
+    const selected = path.join(releaseLink, "scripts", "stage-production-release.mjs");
+
+    for (const entrypoint of [staging, selected]) {
+      const result = spawnSync(process.execPath, [entrypoint], {
+        encoding: "utf8",
+        timeout: 5_000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(64);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("Usage: node scripts/stage-production-release.mjs");
+    }
+  });
+
+  it("does not execute main when the staging module is imported", () => {
+    const result = spawnSync(process.execPath, [
+      "--input-type=module",
+      "--eval",
+      `await import(${JSON.stringify(pathToFileURL(staging).href)});`,
     ], {
       encoding: "utf8",
       timeout: 5_000,

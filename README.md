@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.48.0`
+Version: `0.49.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -633,6 +633,17 @@ reports the configured public fingerprint without disclosing public JWKs,
 certificate subjects or chains, private material, settings, or tenant facts,
 so a reviewer can obtain the trust anchor through an independent channel.
 
+Version 0.49.0 makes protected source-release staging deterministic and
+product-owned. A bounded CLI verifies the approved archive SHA-256 and Git
+commit provenance, parses gzip/USTAR bytes without a host archive utility,
+rejects unsafe types, paths, modes, private material, duplicates, malformed
+headers, and size expansion, then extracts into a private candidate. It
+normalizes ownership and modes, creates exact protected data/listener links,
+re-verifies every file, and publishes once with a Linux atomic no-replace
+rename. Dry-run changes no release, selector, Docker state, migration, provider,
+or setting. Source assurance owns the command, adversarial tests, operator
+contract, and selected-release execution identity.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -782,6 +793,9 @@ assessment remain installation or pilot gates.
 - A fail-closed gateway/engine release activator with protected listener-only
   configuration, exact merged-Compose/image/hardening proof, atomic selection,
   bounded runtime reconciliation, and automatic prior-release recovery.
+- A fail-closed Git release-archive stager with digest/provenance verification,
+  bounded in-process parsing, normalized ownership/modes, exact protected-state
+  links, and atomic no-replace candidate publication.
 
 ## Configuration model
 
@@ -894,14 +908,19 @@ docker compose -f compose.production.yaml --profile release run --rm --build mig
 docker compose -f compose.production.yaml up -d --build app
 ```
 
-Ongoing VASI 0.41.0 and later upgrades must use a protected installation
-configuration and the fail-closed activator after staging the exact archive,
-shared `data` link, images, backup, settings, and migrations. Preflight from
-the selected trusted release, then repeat without `--dry-run` only inside the
-approved cutover window:
+Ongoing upgrades use one protected installation configuration for the
+fail-closed stager and activator. Starting with VASI 0.49.0, stage an approved
+physical Git archive and its SHA-256 digest without changing the selector or
+Docker. Then prepare exact images, backup, settings, and migrations. Preflight
+activation from the selected trusted release, then repeat activation without
+`--dry-run` only inside the approved cutover window:
 
 ```bash
 cd /opt/vasi/current
+npm run release:stage -- /var/lib/vasi-release/gateway.json \
+  /secure/releases/RELEASE_ID.tar.gz RELEASE_ID EXPECTED_SHA256 --dry-run
+npm run release:stage -- /var/lib/vasi-release/gateway.json \
+  /secure/releases/RELEASE_ID.tar.gz RELEASE_ID EXPECTED_SHA256
 npm run release:activate -- /var/lib/vasi-release/gateway.json RELEASE_ID --dry-run
 npm run release:activate -- /var/lib/vasi-release/gateway.json RELEASE_ID
 ```
@@ -957,10 +976,10 @@ docker compose -f compose.engine.yaml up -d --no-build database-gateway engine i
 sudo /usr/bin/env node scripts/probe-engine-egress-boundary.mjs
 ```
 
-For versioned upgrades, stage and prove the engine candidate first and run the
-engine activator with `deployment/activation/engine.example.json` adapted into
-protected installation state. Activate and pass the private-engine gates before
-activating the gateway.
+For versioned upgrades, use `release:stage` to stage and prove the engine
+candidate first, then run the engine activator with
+`deployment/activation/engine.example.json` adapted into protected installation
+state. Activate and pass the private-engine gates before activating the gateway.
 
 `engine`, `integration-gateway`, and `worker` have no `ports` mappings.
 `private-ingress` is the narrow service facade and binds only

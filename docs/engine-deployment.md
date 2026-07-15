@@ -335,9 +335,22 @@ exact installation paths and approved loopback or private listener, protect
 both files as mode `0600`, and never place them in a source archive or
 environment file.
 
-After the exact release, `data` symlink, images, matched backup, settings,
-migrations, and host runtime prerequisite are ready, run the dry preflight from
-the selected trusted release:
+Starting with VASI 0.49.0, stage the approved physical Git archive first. This
+verifies its expected SHA-256, Git commit provenance, bounded entry contract,
+normalized ownership/modes, and exact protected `data` and listener links
+without changing Docker or the `current` selector:
+
+```bash
+cd /opt/vasi-engine/current
+npm run release:stage -- /var/lib/vasi-release/engine.json \
+  /secure/releases/RELEASE_ID.tar.gz RELEASE_ID EXPECTED_SHA256 --dry-run
+npm run release:stage -- /var/lib/vasi-release/engine.json \
+  /secure/releases/RELEASE_ID.tar.gz RELEASE_ID EXPECTED_SHA256
+```
+
+After exact images, matched backup, settings, migrations, and the host runtime
+prerequisite are ready, run the dry activation preflight from the selected
+trusted release:
 
 ```bash
 cd /opt/vasi-engine/current

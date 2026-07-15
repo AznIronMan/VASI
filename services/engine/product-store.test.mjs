@@ -199,7 +199,7 @@ describe("tenant readiness dossier export", () => {
       fixture.database,
       settings(),
       "installation-test",
-      { engineVersion: "0.48.0", signingProvider },
+      { engineVersion: "0.49.0", signingProvider },
     );
 
     const exported = await store.exportTenantReadiness(actor, {
@@ -214,7 +214,7 @@ describe("tenant readiness dossier export", () => {
           adapterPolicy: {
             destinationAllowlistCounts: { smtpHosts: 1 },
           },
-          engineVersion: "0.48.0",
+          engineVersion: "0.49.0",
         },
         integrations: [{
           adapterId: "smtp",
@@ -314,7 +314,7 @@ describe("tenant readiness dossier export", () => {
     const fixture = readinessExportDatabase();
     const provider = readinessSigningProvider();
     const store = createProductStore(fixture.database, settings(), "installation-test", {
-      engineVersion: "0.48.0",
+      engineVersion: "0.49.0",
       signingProvider: { ...provider, signDetached: () => [] },
     });
     await expect(store.exportTenantReadiness(actor, {

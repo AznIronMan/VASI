@@ -1,6 +1,7 @@
 # Fail-closed production release activation
 
-Status: implemented in VASI 0.41.0; corrected in VASI 0.41.1 and 0.46.2.
+Status: implemented in VASI 0.41.0; corrected in VASI 0.41.1 and 0.46.2;
+protected archive staging implemented in VASI 0.49.0.
 
 VASI source archives are deliberately sanitized: they contain no installation
 address, credential, bootstrap database, or live Compose override. Production
@@ -55,6 +56,49 @@ protect them outside the repository, then substitute only reviewed local paths
 and the reserved listener. Never put the resulting files in source control, a
 source archive, an environment file, a support bundle, or command output.
 
+## Protected archive staging
+
+VASI 0.49.0 makes the source-archive boundary a first-party fail-closed step.
+Create a deterministic Git archive from the approved commit, with the release
+identifier as its one top-level directory, and retain its independently
+approved SHA-256 digest. The archive must be a canonical physical regular file
+owned by root, the invoking deployment account, or the configured release
+owner; it must not be group/world writable and cannot exceed 64 MiB.
+
+From an already selected trusted release, inspect without writing first:
+
+```bash
+npm run release:stage -- CONFIG_FILE ARCHIVE_FILE RELEASE_ID EXPECTED_SHA256 --dry-run
+```
+
+Require the bounded JSON result with `status: "ready"`, then omit `--dry-run`
+to stage the candidate. The command uses the same protected activation JSON
+and listener overlay. It does not build images, run migrations, change Docker,
+or change the `current` selector. Staging is safe to complete before the
+separately approved cutover window.
+
+The stager hashes one size-bounded read of the physical archive and parses
+those same immutable bytes without invoking a host archive utility. It accepts
+only gzip-compressed USTAR with one leading Git global-PAX commit identifier,
+one exact release root, and ordered regular files/directories. It rejects
+additional extensions, links, devices, duplicate or parentless entries,
+traversal, noncanonical names, ambiguous executable bits, private/runtime
+paths, unexpected trailers, and archives exceeding entry, file, expanded, or
+decompressed limits. `package.json` must identify private package `vasi` at the
+release version, and the role's sanitized Compose file must exist.
+
+Extraction occurs in a private random directory under the configured release
+root. The stager creates files without following links, verifies every digest,
+normalizes the candidate root to `0750`, directories and executable files to
+`0755`, other files to `0644`, and every entry to the configured release owner.
+It then creates and verifies exact absolute `data` and `compose.live.yaml`
+links to protected installation state. A private staging lock serializes the
+operation. Linux publication uses a same-filesystem, no-replace rename and
+verifies the published inode; an existing candidate is never replaced. A
+failed attempt removes only its private temporary directory and lock. A stale
+lock after abrupt host/process loss requires operator inspection before manual
+removal.
+
 ## Candidate proof
 
 Before any mutation, activation proves all of the following:
@@ -107,8 +151,9 @@ dry-run; operators must require and retain the bounded JSON result.
 
 ## Activation sequence
 
-Stage the exact source release, its `data` link, all exact images, settings and
-compatible migrations first. Take and verify the required matched backup.
+Stage the exact source release with `release:stage`, then prepare all exact
+images, settings, and compatible migrations. Take and verify the required
+matched backup.
 From the selected trusted release, preflight the candidate:
 
 ```bash
