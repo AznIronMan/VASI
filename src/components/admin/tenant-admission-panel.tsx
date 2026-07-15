@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
+import { COMPANY_PROVISIONED_EVENT } from "@/components/admin/tenant-provisioning-panel";
+
 import type {
   AdminTenantAdmission,
   TenantAdmissionGate,
@@ -64,8 +66,9 @@ export function TenantAdmissionPanel() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/admin/product/tenant-admissions", { cache: "no-store" })
-      .then(async (response) => {
+    const load = () => {
+      setPending(true);
+      fetch("/api/admin/product/tenant-admissions", { cache: "no-store" }).then(async (response) => {
         const body = await response.json() as AdminTenantAdmission[] & { error?: string };
         if (!response.ok || !Array.isArray(body)) {
           throw new Error(body.error || "Tenant admission records are unavailable.");
@@ -80,7 +83,13 @@ export function TenantAdmissionPanel() {
         setMessageType("error");
       })
       .finally(() => { if (active) setPending(false); });
-    return () => { active = false; };
+    };
+    load();
+    window.addEventListener(COMPANY_PROVISIONED_EVENT, load);
+    return () => {
+      active = false;
+      window.removeEventListener(COMPANY_PROVISIONED_EVENT, load);
+    };
   }, []);
 
   const record = useMemo(

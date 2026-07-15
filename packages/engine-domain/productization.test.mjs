@@ -77,8 +77,13 @@ describe("productized installation and tenant profiles", () => {
   });
 
   it("requires administrator-ready tenant slugs and bounded profiles", () => {
-    expect(validateTenantProvisionInput({ name: "Example Company", slug: "example-company" })).toMatchObject({
+    expect(validateTenantProvisionInput({
       name: "Example Company",
+      ownerEmail: " OWNER@EXAMPLE.COM ",
+      slug: "example-company",
+    })).toMatchObject({
+      name: "Example Company",
+      ownerEmail: "owner@example.com",
       slug: "example-company",
     });
     expect(() => validateTenantProvisionInput({ name: "Example", slug: "UPPER CASE" })).toThrow(/slug/i);

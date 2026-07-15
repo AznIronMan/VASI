@@ -1,6 +1,16 @@
 # Productized tenancy, integrations, and deployment
 
-Status: implemented in VASI 0.11.0 and extended through VASI 0.26.0.
+Status: implemented in VASI 0.11.0 and extended through VASI 0.27.0.
+
+VASI 0.27.0 promotes company creation from the first-slice compatibility tool
+to the supported internal administrator console. The gateway requires a
+strict company name, normalized identifier, initial owner email, and explicit
+invitation preference. The private engine commits the company, administrator
+membership, owner-email grant, default profile, disabled bindings, pending
+admission, and hash-chained configuration events atomically. Login invitation
+delivery is a separate post-commit identity operation with an explicit
+outcome; it cannot roll back or ambiguously hide a durable company. See
+[Company provisioning and owner handoff](company-provisioning-and-owner-handoff.md).
 
 VASI 0.25.0 adds immutable tenant production admission. Provisioned tenants
 can prepare governed configuration while pending, but request issuance and

@@ -110,7 +110,10 @@ export function createProductStore(database, settings, installationId) {
            values ($1, $2, '{owner}', $3, 'installation_provisioning')`,
           [tenantId, actor.principalId, actor.email || null],
         );
-        if (input.ownerEmail && input.ownerEmail !== actor.email?.toLowerCase()) {
+        const ownerGrantCreated = Boolean(
+          input.ownerEmail && input.ownerEmail !== actor.email?.toLowerCase(),
+        );
+        if (ownerGrantCreated) {
           await client.query(
             `insert into "vasi_engine"."tenant_membership_grant"
               ("id", "tenantId", "email", "roles", "status", "createdByPrincipalId")
@@ -123,7 +126,7 @@ export function createProductStore(database, settings, installationId) {
         await appendConfigurationEvent(client, {
           actorPrincipalId: actor.principalId,
           eventData: {
-            ownerGrantCreated: Boolean(input.ownerEmail && input.ownerEmail !== actor.email?.toLowerCase()),
+            ownerGrantCreated,
             profileHash: profile.profileHash,
             profileRevision: profile.revision,
             slug: input.slug,
@@ -138,6 +141,10 @@ export function createProductStore(database, settings, installationId) {
           admission,
           id: tenantId,
           name: input.name,
+          owner: {
+            email: input.ownerEmail || actor.email?.toLowerCase() || null,
+            grantCreated: ownerGrantCreated,
+          },
           permissions: permissionsForRoles(["owner"]),
           profile,
           roles: ["owner"],

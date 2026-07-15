@@ -150,6 +150,22 @@ export type AdminTenantAdmission = {
   tenant: { id: string; name: string; slug: string };
 };
 
+export type ProvisionedCompany = OwnerTenant & {
+  admission: Omit<AdminTenantAdmission, "tenant">;
+  owner: { email: string | null; grantCreated: boolean };
+  profile: OwnerTenantProfile;
+};
+
+export type OwnerInvitationOutcome = {
+  expiresAt?: string;
+  status: "sent" | "existing_account" | "not_required" | "skipped" | "delivery_failed";
+};
+
+export type AdminCompanyProvisioningResult = {
+  company: ProvisionedCompany;
+  invitation: OwnerInvitationOutcome;
+};
+
 export type OwnerArtifact = {
   byteLength?: number;
   chunkCount?: number;

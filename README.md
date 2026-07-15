@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.26.0`
+Version: `0.27.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -308,6 +308,19 @@ history, retention state, and legal holds remain intact. The internal console
 shows the last stop outcome; recovery requires fresh gate approval and newly
 issued participant work.
 
+Version 0.27.0 makes first-company provisioning and owner handoff a supported
+internal-administrator workflow. A strict gateway command sends only the
+normalized company name, identifier, and initial owner email to the private
+engine. In one engine transaction VASI creates the company, administrator
+membership, requested owner grant, immutable tenant profile, disabled
+integration bindings, pending production-admission record, and hash-chained
+configuration events. The optional login invitation is deliberately attempted
+only after that durable transaction. The admin console distinguishes sent,
+existing-account, not-required, skipped, and delivery-failed outcomes, so an
+email outage cannot cause an operator to create a duplicate company or mistake
+mail delivery for owner authorization. Provisioning never admits production;
+all eight assurance gates still require independent attributable approval.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -326,6 +339,9 @@ assessment remain installation or pilot gates.
 - Internal-host-only identity administration, operator allowlisting,
   invitations, connector health/disconnection, password controls, account
   disablement, session revocation, and audit records.
+- Administrator-only company provisioning with a transactionally durable
+  initial-owner grant, separately reported login invitation outcome, and an
+  explicit pending-production handoff to the eight assurance gates.
 - Administrator-only, immutable tenant production admission with eight exact
   digest-bound assurance gates, fail-closed issuance/outbound enforcement, and
   an atomic audited stop for all non-terminal tenant work.

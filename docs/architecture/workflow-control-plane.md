@@ -1,6 +1,6 @@
 # Workflow and company-owner control plane
 
-Status: implemented in VASI 0.6.0 and extended through VASI 0.23.0.
+Status: implemented in VASI 0.6.0 and extended through VASI 0.27.0.
 
 ## Ownership boundary
 
@@ -14,6 +14,13 @@ the stable V·Sign principal when the recipient first lists their companies.
 
 The productized owner gateway is restricted to the configured private origin
 and uses the same engine contracts without direct engine or database access.
+
+VASI 0.27.0 exposes that bootstrap in the internal administrator console. The
+requested owner receives a transactionally durable email grant in the private
+engine. A separately attempted V·Sign invitation only helps the owner establish
+or reuse an identity account; invitation delivery is not membership evidence
+and does not change tenant admission. See
+[Company provisioning and owner handoff](company-provisioning-and-owner-handoff.md).
 
 ## Draft, publication, and execution
 

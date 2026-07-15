@@ -7,6 +7,7 @@ import type {
   EvidenceTenant,
   IssuedEvidenceRequest,
 } from "@/lib/evidence-types";
+import type { AdminCompanyProvisioningResult } from "@/lib/owner-types";
 
 export function EvidenceConsole({
   baseURL,
@@ -28,13 +29,20 @@ export function EvidenceConsole({
     setPending("tenant");
     setMessage(undefined);
     try {
-      const tenant = await api<EvidenceTenant>("/api/admin/evidence/tenants", {
-        body: JSON.stringify({ name: data.get("name"), slug: data.get("slug") }),
+      const result = await api<AdminCompanyProvisioningResult>("/api/admin/product/tenants", {
+        body: JSON.stringify({
+          inviteOwner: data.get("inviteOwner") === "on",
+          name: data.get("name"),
+          ownerEmail: data.get("ownerEmail"),
+          slug: data.get("slug"),
+        }),
         method: "POST",
       });
-      setTenants((current) => [...current, tenant]);
+      setTenants((current) => [...current, result.company]);
       form.reset();
-      setMessage("Company evidence space created.");
+      setMessage(result.invitation.status === "delivery_failed"
+        ? "Company evidence space and owner grant created, but the login invitation was not delivered."
+        : "Company evidence space and owner handoff created.");
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -107,7 +115,9 @@ export function EvidenceConsole({
           <p className="eyebrow eyebrow--green">COMPANY SPACE</p>
           <h2>Create a company</h2>
           <label className="field"><span>Company name</span><input name="name" minLength={2} maxLength={160} required /></label>
+          <label className="field"><span>Initial owner email</span><input name="ownerEmail" type="email" maxLength={320} required /></label>
           <label className="field"><span>Identifier</span><input name="slug" pattern="[a-z0-9][a-z0-9-]{0,62}[a-z0-9]" minLength={2} maxLength={64} placeholder="example-company" required /></label>
+          <label className="company-provisioning__invite"><input name="inviteOwner" type="checkbox" defaultChecked /><span>Email a login invitation after provisioning.</span></label>
           <button className="primary-button" disabled={Boolean(pending)} type="submit">{pending === "tenant" ? "Creating…" : "Create company space"}</button>
         </form>
 

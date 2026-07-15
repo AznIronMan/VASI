@@ -1485,6 +1485,68 @@ input::placeholder {
   min-height: 48px;
 }
 
+.company-provisioning {
+  align-items: start;
+  background: #f7fbf9;
+}
+
+.company-provisioning form {
+  grid-template-columns: 1fr;
+}
+
+.company-provisioning .form-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.company-provisioning__invite {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.company-provisioning__invite input {
+  margin-top: 2px;
+  accent-color: var(--green-700);
+}
+
+.company-provisioning > .admin-message,
+.company-provisioning__result {
+  grid-column: 1 / -1;
+}
+
+.company-provisioning__result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 15px;
+  border-top: 1px solid #d8e4df;
+}
+
+.company-provisioning__result div {
+  display: grid;
+  margin-right: auto;
+  gap: 3px;
+}
+
+.company-provisioning__result strong {
+  color: var(--green-950);
+  font: 600 15px/1.3 Georgia, "Times New Roman", serif;
+}
+
+.company-provisioning__result span,
+.company-provisioning__result a {
+  color: var(--ink-soft);
+  font-size: 10px;
+}
+
+.company-provisioning__result a {
+  color: var(--green-700);
+  font-weight: 800;
+}
+
 .admission-panel {
   display: block;
   align-items: initial;
@@ -1825,6 +1887,12 @@ input::placeholder {
   border: 1px solid #efd2cd;
   color: var(--error);
   background: var(--error-bg);
+}
+
+.admin-message--warning {
+  border: 1px solid #ead59d;
+  color: #76550c;
+  background: #fff7dc;
 }
 
 .admin-users {
@@ -2284,6 +2352,16 @@ input:disabled {
 
   .admin-invite form {
     grid-template-columns: 1fr;
+  }
+
+  .company-provisioning .form-row,
+  .company-provisioning__result {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .company-provisioning__result {
+    display: grid;
   }
 
   .admission-gates,

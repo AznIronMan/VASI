@@ -77,6 +77,13 @@ Approved routes are:
 
 Everything else returns 404 after service authentication.
 
+VASI 0.27.0 adds no engine migration. The supported gateway administrator
+workflow posts a strict company and initial-owner command to the existing
+`/v1/owner/tenants` route. The engine transaction returns its durable owner
+grant outcome; the gateway then handles the optional identity invitation as a
+separate, explicitly reported step. Deploying the release does not create a
+tenant or approve production admission.
+
 ## Initialize
 
 Requirements are Docker Engine with Compose, PostgreSQL 15 or newer, an HTTPS

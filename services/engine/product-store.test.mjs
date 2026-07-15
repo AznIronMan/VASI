@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { hashCanonicalJSON } from "../../packages/engine-crypto/index.mjs";
 import {
   applyTenantAdmissionDecision,
+  defaultInstallationProfile,
   defaultTenantAdmission,
   TENANT_ADMISSION_GATES,
+  validateInstallationProfile,
 } from "../../packages/engine-domain/productization.mjs";
 import { createProductStore } from "./product-store.mjs";
 
@@ -13,6 +15,63 @@ const actor = {
   principalId: "principal-admin",
   roles: ["admin"],
 };
+
+describe("tenant provisioning", () => {
+  it("commits the requested owner grant and reports the durable handoff", async () => {
+    const profile = validateInstallationProfile(defaultInstallationProfile());
+    const client = {
+      query: vi.fn(async (sql, values = []) => {
+        const statement = String(sql);
+        if (["begin", "commit", "rollback"].includes(statement)) return result();
+        if (statement.includes('from "vasi_engine"."installation_profile_pointer"')) {
+          return result([{
+            id: "installation-profile-1",
+            profile,
+            profileHash: hashCanonicalJSON(profile),
+            revision: 1,
+          }]);
+        }
+        if (statement.includes('count(*)::integer as "count"')) return result([{ count: 0 }]);
+        if (statement.includes('select "lastSequence", "lastHash"')) {
+          return result([{ lastHash: "0".repeat(64), lastSequence: 0 }]);
+        }
+        if (statement.includes('select 1 from "vasi_engine"."integration_binding_pointer"')) {
+          return result();
+        }
+        if (statement.includes('select 1 from "vasi_engine"."tenant_admission_pointer"')) {
+          return result();
+        }
+        if (/^(insert|update)/.test(statement.trim())) return result();
+        throw new Error(`Unexpected provisioning query: ${statement} (${values.length} values)`);
+      }),
+      release: vi.fn(),
+    };
+    const store = createProductStore(
+      { connect: vi.fn(async () => client) },
+      settings(),
+      "installation-test",
+    );
+
+    const provisioned = await store.provisionTenant(actor, {
+      name: "Example Company",
+      ownerEmail: "OWNER@EXAMPLE.COM",
+      slug: "example-company",
+    });
+
+    expect(provisioned).toMatchObject({
+      admission: { revision: 1, status: "pending" },
+      name: "Example Company",
+      owner: { email: "owner@example.com", grantCreated: true },
+      roles: ["owner"],
+      slug: "example-company",
+    });
+    const ownerGrant = client.query.mock.calls.find(([sql]) =>
+      String(sql).includes('insert into "vasi_engine"."tenant_membership_grant"')
+    );
+    expect(ownerGrant?.[1]?.[2]).toBe("owner@example.com");
+    expect(client.query.mock.calls.at(-1)?.[0]).toBe("commit");
+  });
+});
 
 describe("tenant production stop", () => {
   it("atomically revokes active requests, suppresses notifications, and records both audit layers", async () => {

@@ -272,6 +272,13 @@ a fresh approval for the selected gate and new participant requests; a stop
 cannot recall a provider operation that completed before the stop obtained its
 exclusive admission lock.
 
+VASI 0.27.0 makes the initial company/owner bootstrap operationally explicit.
+The private engine commits the tenant boundary and owner-email grant before the
+gateway attempts identity invitation delivery. The internal console reports a
+mail failure as partial success and directs the operator to retry only the
+invitation, preventing duplicate tenant creation. New tenants remain pending;
+this workflow does not satisfy, approve, or bypass any pilot admission row.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

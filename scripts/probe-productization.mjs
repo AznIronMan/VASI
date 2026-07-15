@@ -39,10 +39,20 @@ if (installationUpdate.body.revision !== installation.body.revision + 1) {
 
 const tenant = await expectCall(owner, "POST", "/v1/owner/tenants", {
   name: "Productized Tenant Proof",
+  ownerEmail: member.email,
   slug: `product-${randomUUID()}`,
 }, 200, "tenant provisioning");
+if (tenant.body.owner?.email !== member.email || tenant.body.owner?.grantCreated !== true) {
+  throw new Error("Tenant provisioning did not report the requested durable owner grant.");
+}
+const ownerHandoff = await expectCall(member, "GET", "/v1/owner/tenants", undefined, 200, "initial owner grant claim");
+const handedOffTenant = ownerHandoff.body.find((entry) => entry.id === tenant.body.id);
+if (!handedOffTenant?.roles?.includes("owner")) {
+  throw new Error("The initial owner grant was not claimed as an engine-owned membership.");
+}
 const otherTenant = await expectCall(otherOwner, "POST", "/v1/owner/tenants", {
   name: "Isolated Product Tenant",
+  ownerEmail: otherOwner.email,
   slug: `product-isolated-${randomUUID()}`,
 }, 200, "isolated tenant provisioning");
 await expectCall(owner, "POST", "/v1/owner/tenant-profile-read", {
