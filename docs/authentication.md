@@ -188,6 +188,17 @@ DNS MX lookup and recognizes Microsoft 365, Google Workspace, and known Zoho
 Mail infrastructure. This lookup describes a domain's likely identity provider
 and never checks whether a user account exists.
 
+The provider check is available only on the configured public host and rejects
+cross-site browser requests. Fixed consumer domains require no DNS. Custom
+domains consume atomic PostgreSQL client and installation buckets before DNS;
+the table stores only domain-separated HMAC keys, never an email, domain, or raw
+address. Same-domain work is coalesced, active and queued lookups are bounded,
+the first-party resolver is cancelled on timeout, MX responses are strictly
+limited, and only authoritative negative results receive a short negative
+cache. Saturation or transient DNS failure yields a neutral recommendation so
+the user can still choose any configured provider. See the
+[bounded provider-recommendation decision](architecture/bounded-provider-recommendation.md).
+
 When a configured provider is found, its SSO action is the primary choice. On
 sign-in, username/password and password recovery are hidden initially under an
 accessible `Other methods` disclosure. Registration keeps the manual-password

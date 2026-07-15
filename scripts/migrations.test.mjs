@@ -76,4 +76,19 @@ describe("gateway migration ledger", () => {
     expect(migration).toContain('"expiresAt" > "windowStartedAt"');
     expect(migration).toContain("raw client addresses are never stored");
   });
+
+  it("adds a generalized opaque gateway throttle after public verification", async () => {
+    const ledger = await readFile(path.join(root, "scripts", "migrations.mjs"), "utf8");
+    const migration = await readFile(
+      path.join(root, "database", "gateway-rate-limit.sql"),
+      "utf8",
+    );
+
+    expect(ledger.indexOf("0009_gateway_rate_limit"))
+      .toBeGreaterThan(ledger.indexOf("0008_public_verification_rate_limit"));
+    expect(migration).toContain('"keyDigest" text primary key');
+    expect(migration).toContain("^[a-f0-9]{64}$");
+    expect(migration).toContain('"expiresAt" > "windowStartedAt"');
+    expect(migration).toContain("raw client addresses and request values are never stored");
+  });
 });

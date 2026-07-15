@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.37.0`
+Version: `0.38.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -478,6 +478,17 @@ traffic one shared bucket, and denies verification when throttle storage is
 unavailable. The deployment contract requires the edge to strip inbound
 forwarding headers and configure only exact approved proxy networks.
 
+Version 0.38.0 bounds the SSO-first custom-domain provider detector. The route
+is public-host-only, rejects cross-site browser traffic, and consumes atomic
+per-client plus installation-wide PostgreSQL limits before DNS. Counter keys
+are context-separated client/global HMACs and contain no raw address, email,
+domain, or request value. Same-domain requests coalesce; active and queued lookups,
+resolver time, retry count, and MX response shape are fixed. Timeout and
+transient failure are not cached, while common consumer domains remain locally
+available without spending DNS budget. Saturation degrades to the existing
+provider-choice screen instead of creating unbounded work or forcing a manual
+password.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -494,7 +505,7 @@ assessment remain installation or pilot gates.
   public-verification rate limits, and a pre-parser 64 KiB authentication
   request-body boundary.
 - Microsoft, Google, Yahoo, Zoho, Apple-ready, and manual authentication with an
-  SSO-first participant experience.
+  SSO-first participant experience and bounded, durable provider detection.
 - Internal-host-only identity administration, operator allowlisting,
   invitations, connector health/disconnection, password controls, account
   disablement, session revocation, command-correlated immutable audit evidence,

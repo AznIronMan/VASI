@@ -149,6 +149,15 @@ process-local throttle. Configure and verify the trusted reverse-proxy boundary
 before cutover; no engine migration or engine-first compatibility dependency is
 introduced by this release.
 
+VASI 0.38.0 adds gateway migration `0009_gateway_rate_limit`. It creates a
+separate mutable, expiry-indexed table for atomic public-gateway client and
+installation counters. Only domain-separated HMAC keys are stored. The table
+is used first by custom-domain provider recommendation; it changes no identity
+or engine row. Apply the gateway migration before replacing the gateway. The
+0.37.0 runtime ignores the additive table and remains rollback-compatible, but
+does not enforce the new durable DNS-work boundary. No engine migration or
+engine-first compatibility dependency is introduced.
+
 ## Initialize
 
 Requirements are Docker Engine with Compose, PostgreSQL 15 or newer, an HTTPS
