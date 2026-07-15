@@ -1,6 +1,6 @@
 # Recurring operational scheduler contract
 
-Status: implemented in VASI 0.24.0 and extended through VASI 0.36.2.
+Status: implemented in VASI 0.24.0 and extended through VASI 0.36.3.
 
 VASI ships the recurring host controls needed to keep a healthy release from
 silently degrading after deployment. The portable contract uses hardened
@@ -128,7 +128,10 @@ inspect public TLS while keeping private containers deny-by-default. Services
 use a read-only host view, private temporary and device namespaces, bounded
 capabilities, no privilege escalation, native syscall architecture, restrictive
 umask, and idle scheduling where applicable. Containers retain their separate
-non-root, read-only, capability-dropped Compose contracts.
+non-root, read-only, capability-dropped Compose contracts. Their release-time
+image assurance separately checks the physical filesystem for npm/npx and
+every declared-development or lock-marked development/optional dependency,
+with only the exact application `sharp` runtime closure explicitly allowed.
 
 The engine deployment-perimeter service runs Node directly on the trusted host
 because it must inspect public TLS and protected host storage. It intentionally

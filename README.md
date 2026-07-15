@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.36.2`
+Version: `0.36.3`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -453,6 +453,19 @@ absence of declared or lock-marked nonproduction residue, and protected
 settings runtime import. The recurring systemd service runs it before every
 perimeter check, so a fresh cutover or rollback cannot silently depend on
 missing or stale host packages.
+
+Version 0.36.3 minimizes the physical dependency surface of every production
+container role. Production-only Docker stages now use exact-lockfile installs
+that omit development and optional packages, disable lifecycle scripts, and
+avoid audit/funding network side effects. Release assurance derives every
+declared-development and lock-marked development/optional package path from the
+exact manifests and checks the filesystem of each hardened image as its
+intended user. npm, npx, undeclared exceptions, and residue such as build/test
+tooling stop the release before scanning or deployment. The standalone Next.js
+application has a six-path, role-specific exception for its required Alpine
+x64 `sharp` image runtime; the unrelated optional PostgreSQL Cloudflare adapter
+is explicitly removed. Source assurance also rejects weakened Docker install
+or pruning instructions.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

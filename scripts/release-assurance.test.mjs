@@ -7,11 +7,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   inspectTrackedSource,
+  runtimeDependencyAuditPaths,
   runtimeContractForImage,
   validateAutomationContract,
   validateComposeContracts,
   validateEngineHostRuntimeContract,
   validateOperationalSchedulerContract,
+  validateRuntimeImageBuildContract,
   validateVersionAlignment,
 } from "./release-assurance.mjs";
 
@@ -66,6 +68,43 @@ describe("release assurance policy", () => {
   it("keeps the direct engine host runtime exact and lifecycle-script-free", async () => {
     const result = await validateEngineHostRuntimeContract(root);
     expect(result).toEqual({ failures: [], filesChecked: 3 });
+  });
+
+  it("keeps every production image dependency stage exact and minimized", async () => {
+    const result = await validateRuntimeImageBuildContract(root);
+    expect(result).toEqual({ failures: [], filesChecked: 2 });
+  });
+
+  it("rejects weakened production image dependency installation or pruning", async () => {
+    const fixture = await mkdtemp(path.join(tmpdir(), "vasi-image-build-assurance-"));
+    try {
+      await cp(path.join(root, "Dockerfile"), path.join(fixture, "Dockerfile"));
+      await cp(path.join(root, "Dockerfile.engine"), path.join(fixture, "Dockerfile.engine"));
+      const gateway = path.join(fixture, "Dockerfile");
+      const engine = path.join(fixture, "Dockerfile.engine");
+      await writeFile(
+        gateway,
+        (await readFile(gateway, "utf8"))
+          .replace(" --omit=optional --ignore-scripts --no-audit --no-fund", "")
+          .replace("RUN rm -rf /app/node_modules/pg-cloudflare\n", ""),
+      );
+      await writeFile(
+        engine,
+        (await readFile(engine, "utf8")).replace("--ignore-scripts", "--foreground-scripts"),
+      );
+      const result = await validateRuntimeImageBuildContract(fixture);
+      expect(result.failures).toContain(
+        "Dockerfile production-dependencies must use the exact production dependency install",
+      );
+      expect(result.failures).toContain(
+        "Dockerfile.engine dependencies must use the exact production dependency install",
+      );
+      expect(result.failures).toContain(
+        "Dockerfile must remove the unrelated standalone optional dependency before USER node",
+      );
+    } finally {
+      await rm(fixture, { force: true, recursive: true });
+    }
   });
 
   it("rejects a weakened engine host runtime preparation contract", async () => {
@@ -138,12 +177,20 @@ describe("release assurance policy", () => {
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.36.2")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.36.3")).toMatchObject({
+      allowedOptionalPackagePaths: [
+        "node_modules/@img/colour",
+        "node_modules/@img/sharp-libvips-linuxmusl-x64",
+        "node_modules/@img/sharp-linuxmusl-x64",
+        "node_modules/detect-libc",
+        "node_modules/semver",
+        "node_modules/sharp",
+      ],
       entrypoints: ["server.js"],
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.36.2")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.36.3")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -164,7 +211,7 @@ describe("release assurance policy", () => {
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.36.2")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.36.3")).toMatchObject({
       entrypoints: [
         "scripts/backup-custody.mjs",
         "scripts/backup-continuity.mjs",
@@ -178,7 +225,7 @@ describe("release assurance policy", () => {
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.36.2")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.36.3")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",
@@ -190,5 +237,60 @@ describe("release assurance policy", () => {
       imageUser: "node",
       runUser: "1000:1000",
     }])).toThrow(/no supported runtime contract/i);
+  });
+
+  it("derives a bounded physical prohibition inventory from the exact lock graph", async () => {
+    const packageJSON = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+    const packageLock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
+    const allowed = runtimeContractForImage("vasi:0.36.3").allowedOptionalPackagePaths;
+    const result = runtimeDependencyAuditPaths(packageJSON, packageLock, allowed);
+    expect(result.lockPackageCount).toBeGreaterThan(400);
+    expect(result.prohibitedPackagePaths).toContain("node_modules/vitest");
+    expect(result.prohibitedPackagePaths).toContain("node_modules/vite");
+    expect(result.prohibitedPackagePaths).toContain("node_modules/pg-cloudflare");
+    expect(result.prohibitedPackagePaths).not.toContain("node_modules/sharp");
+    expect(result.prohibitedToolPaths).toContain("/usr/local/bin/npm");
+    expect(result.prohibitedToolPaths).toContain("/usr/local/bin/npx");
+    expect(() => runtimeDependencyAuditPaths(
+      packageJSON,
+      packageLock,
+      ["node_modules/not-a-reviewed-optional-package"],
+    )).toThrow(/unsupported optional-package exception/i);
+  });
+
+  it("rejects unsafe, malformed, and unbounded dependency inventories", () => {
+    const packageJSON = {
+      dependencies: { pg: "8.22.0" },
+      devDependencies: { vitest: "4.1.10" },
+    };
+    const valid = {
+      lockfileVersion: 3,
+      packages: {
+        "": {},
+        "node_modules/pg": {},
+        "node_modules/vitest": { dev: true },
+      },
+    };
+    expect(runtimeDependencyAuditPaths(packageJSON, valid).prohibitedPackagePaths).toEqual([
+      "node_modules/vitest",
+    ]);
+    expect(() => runtimeDependencyAuditPaths(packageJSON, {
+      ...valid,
+      packages: { ...valid.packages, "node_modules/../escape": { dev: true } },
+    })).toThrow(/unsafe package-lock path/i);
+    expect(() => runtimeDependencyAuditPaths(packageJSON, {
+      ...valid,
+      packages: { ...valid.packages, "node_modules/bad": { optional: "yes" } },
+    })).toThrow(/malformed package-lock flags/i);
+    expect(() => runtimeDependencyAuditPaths(packageJSON, {
+      ...valid,
+      packages: Object.fromEntries([
+        ["", {}],
+        ...Array.from({ length: 10000 }, (_, index) => [
+          `node_modules/package-${index}`,
+          { dev: true },
+        ]),
+      ]),
+    })).toThrow(/outside its assurance bound/i);
   });
 });

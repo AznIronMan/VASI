@@ -81,7 +81,7 @@ legal enforceability by itself.
 | CFG-1 | Secret leakage through source, environment, logs, exports, or settings tools | No environment files; mode-0600 SQLite bootstrap; AES-256-GCM PostgreSQL runtime settings; value-redacting CLI; no application secrets in container environments; tracked-source secret gate; export redaction | Host memory, database administrator, and backup custody remain trusted boundaries |
 | CUST-1 | Matched backup disclosure, copy corruption, unsafe pruning, lost recipient key, or false off-host confidence | Verified matched source; no plaintext aggregate archive; streaming fixed-size independently authenticated AES-256-GCM chunks; ephemeral X25519/HKDF and per-recipient authenticated key wraps; application stores public recipients only; whole-package copy digest; strict structure/freshness checks; verified-candidate retention; authenticated offline extraction with no partial output | Installation must prove remote transfer, geographic/organizational separation, private-key custody and recovery, deletion/legal-hold policy, restore drills, and RPO/RTO; a compromised authorized source host can create a false backup |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
-| SUP-1 | Vulnerable, unaccounted, or non-executable image content | Lockfile builds; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; explicit configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial; minimal non-root runtime images without npm | Vulnerability data changes over time, so every release and periodic rescan are required |
+| SUP-1 | Vulnerable, unaccounted, or non-executable image content | Exact-lock production installs omit development/optional packages and lifecycle scripts; source assurance pins that build contract; physical image inspection rejects npm/npx plus every declared-development or lock-marked development/optional path outside the role-specific reviewed `sharp` exception; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial | Vulnerability data changes over time, so every release and periodic rescan are required; the exception is architecture-specific and must be reviewed when the supported image platform changes |
 | AVAIL-1 | Resource exhaustion, dependency outage, or silently stopped recurring control | Pre-parser 64 KiB gateway/authentication body bounds with independent private-engine limits; bounded payloads/chunks/batches; PostgreSQL pool limits; request timeouts; retry ceilings; health checks; read-only readiness load gate; external provider isolation; independent persistent hardened backup, capacity, deployment, operational, and egress timers; release-time scheduler contract validation | Customer-specific capacity, RTO/RPO, reverse-proxy connection/time/body policy, external alert delivery, and denial-of-service protection require measured pilot targets |
 | PRIV-1 | Excess collection, fingerprinting, or misleading evidence interpretation | Purpose-limited fixed fields; unavailable values remain absent; generalized telemetry excludes interaction detail; participant context rejects plugin/font enumeration, invasive fingerprints, precise location, hardware IDs, hidden media, keys/content/coordinates, and secrets; every browser value is labeled supporting; participant history and reviewed data request; redacted public verification and participant reports | Legal/privacy owners must approve notices, lawful basis, retention, and subject-right handling |
 
@@ -96,10 +96,11 @@ and never reads `data/`, `.private/`, or `.tasks/`.
 # tracked-secret policy, version alignment, and Compose hardening.
 npm run assurance:source -- /protected/new-directory
 
-# Each known image first proves its configured/runtime user can read and parse
-# all declared runtime commands in a no-network hardened container. Exact tar exports are then
-# scanned without giving the scanner a Docker socket. Vulnerability reports and
-# CycloneDX image SBOMs are retained.
+# Each known image first proves its configured/runtime user, physical
+# dependency-minimization contract, and declared runtime commands in a
+# no-network hardened container. Exact tar exports are then scanned without
+# giving the scanner a Docker socket. Vulnerability reports and CycloneDX image
+# SBOMs are retained.
 npm run assurance:images -- /protected/new-directory \
   vasi:VERSION vasi-settings:VERSION vasi-engine:VERSION \
   vasi-engine-tools:VERSION vasi-engine-maintenance:VERSION \
@@ -121,12 +122,16 @@ private/runtime paths are tracked, secret signatures are detected, the
 sanitized Compose boundary is weakened, or npm reports a HIGH/CRITICAL
 vulnerability. Image assurance uses a digest-pinned scanner, creates a
 temporary image tar, does not mount the Docker socket into the scanner, and
-fails on an unknown image role, configured-user drift, intended-user command
-read/parse failure, or any fixed or unfixed HIGH/CRITICAL finding. Runtime
-smoke uses no network, a read-only root filesystem, all capabilities dropped,
-and no privilege escalation. The manifest records the Git commit, image IDs,
-runtime-contract result, scanner identity, policy, result summaries, and
-SHA-256 of every generated artifact.
+fails on an unknown image role, configured-user drift, prohibited physical
+dependency/tool path, intended-user command read/parse failure, or any fixed or
+unfixed HIGH/CRITICAL finding. The dependency candidate set is bounded and
+derived from the exact package and lock manifests; path traversal, malformed
+flags, oversized graphs, duplicate exceptions, and exceptions not present in
+that graph fail closed. Inspection uses no network, a read-only root
+filesystem, all capabilities dropped, no privilege escalation, and the
+contract's intended UID. The manifest records the Git commit, image IDs,
+physical dependency result, runtime-contract result, scanner identity, policy,
+result summaries, and SHA-256 of every generated artifact.
 
 These controls are first-party release evidence. They do not replace source
 review, an independent penetration test, manual assistive-technology testing,

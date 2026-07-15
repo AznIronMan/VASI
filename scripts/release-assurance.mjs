@@ -41,6 +41,33 @@ const secretPatterns = [
     pattern: /\b(?:mongodb(?:\+srv)?|mysql|postgres(?:ql)?):\/\/[^\s/:]+:[^\s/@]+@/i,
   },
 ];
+const prohibitedRuntimeToolPaths = Object.freeze([
+  "/usr/bin/npm",
+  "/usr/bin/npx",
+  "/usr/local/bin/npm",
+  "/usr/local/bin/npx",
+  "/usr/local/lib/node_modules/npm",
+]);
+const runtimeDependencyInspector = `
+import { existsSync } from "node:fs";
+
+let candidates;
+try {
+  candidates = JSON.parse(Buffer.from(process.argv[1] || "", "base64url").toString("utf8"));
+} catch {
+  process.exit(2);
+}
+if (
+  !Array.isArray(candidates) || candidates.length > 10000 ||
+  candidates.some((candidate) => typeof candidate !== "string" || candidate.length > 1200)
+) process.exit(2);
+const present = candidates.filter((candidate) => existsSync(candidate));
+process.stdout.write(JSON.stringify({
+  present: present.slice(0, 32),
+  presentCount: present.length,
+  total: candidates.length,
+}));
+`;
 
 export async function inspectTrackedSource(repositoryRoot = root) {
   const tracked = (await capture("git", ["ls-files", "-z"], { cwd: repositoryRoot }))
@@ -494,6 +521,51 @@ export async function validateEngineHostRuntimeContract(repositoryRoot = root) {
   return { failures, filesChecked: 3 };
 }
 
+export async function validateRuntimeImageBuildContract(repositoryRoot = root) {
+  const failures = [];
+  let gatewayDockerfile = "";
+  let engineDockerfile = "";
+  try {
+    gatewayDockerfile = await readFile(path.join(repositoryRoot, "Dockerfile"), "utf8");
+  } catch {
+    failures.push("Dockerfile is missing");
+  }
+  try {
+    engineDockerfile = await readFile(path.join(repositoryRoot, "Dockerfile.engine"), "utf8");
+  } catch {
+    failures.push("Dockerfile.engine is missing");
+  }
+
+  const exactInstall = "RUN npm ci --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund";
+  for (const [filename, contents, stage] of [
+    ["Dockerfile", gatewayDockerfile, "production-dependencies"],
+    ["Dockerfile.engine", engineDockerfile, "dependencies"],
+  ]) {
+    const body = dockerfileStage(contents, stage);
+    if (!body) {
+      failures.push(`${filename} is missing the ${stage} stage`);
+      continue;
+    }
+    const installLines = body.split("\n").filter((line) => /^RUN npm\s/.test(line));
+    if (installLines.length !== 1 || installLines[0] !== exactInstall) {
+      failures.push(`${filename} ${stage} must use the exact production dependency install`);
+    }
+  }
+
+  const standaloneCopy = gatewayDockerfile.indexOf(
+    "COPY --from=builder --chown=node:node /app/.next/standalone ./",
+  );
+  const optionalRemoval = gatewayDockerfile.indexOf("RUN rm -rf /app/node_modules/pg-cloudflare");
+  const nonRootTransition = gatewayDockerfile.indexOf("\nUSER node", standaloneCopy);
+  if (
+    standaloneCopy < 0 || optionalRemoval <= standaloneCopy ||
+    nonRootTransition < 0 || optionalRemoval >= nonRootTransition
+  ) {
+    failures.push("Dockerfile must remove the unrelated standalone optional dependency before USER node");
+  }
+  return { failures, filesChecked: 2 };
+}
+
 async function sourceAssurance(output, { allowDirty }) {
   const dirtyOutput = await capture("git", ["status", "--porcelain=v1"], { cwd: root });
   const dirty = Boolean(dirtyOutput.trim());
@@ -505,6 +577,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const automation = await validateAutomationContract(root);
   const engineHostRuntime = await validateEngineHostRuntimeContract(root);
   const operationalSchedulers = await validateOperationalSchedulerContract(root);
+  const runtimeImageBuild = await validateRuntimeImageBuildContract(root);
   if (source.forbiddenPaths.length) throw new Error(`Forbidden tracked paths: ${source.forbiddenPaths.join(", ")}.`);
   if (source.secretFindings.length) {
     throw new Error(`Tracked secret policy failed: ${source.secretFindings.map((entry) => `${entry.path}:${entry.rule}`).join(", ")}.`);
@@ -522,6 +595,9 @@ async function sourceAssurance(output, { allowDirty }) {
   }
   if (operationalSchedulers.failures.length) {
     throw new Error(`Operational scheduler hardening failed: ${operationalSchedulers.failures.join("; ")}.`);
+  }
+  if (runtimeImageBuild.failures.length) {
+    throw new Error(`Runtime image build hardening failed: ${runtimeImageBuild.failures.join("; ")}.`);
   }
 
   await writeJSON(path.join(output, "tracked-source-files.json"), {
@@ -545,6 +621,7 @@ async function sourceAssurance(output, { allowDirty }) {
     dirty,
     engineHostRuntime,
     operationalSchedulers,
+    runtimeImageBuild,
     sourceFileCount: source.files.length,
     versions: versions.actual,
     vulnerabilityCounts: {
@@ -558,6 +635,8 @@ async function imageAssurance(output, images, { dockerSudo }) {
   if (!images.length) throw new Error("Provide at least one release image to scan.");
   const docker = dockerSudo ? { args: ["docker"], command: "sudo" } : { args: [], command: "docker" };
   const scannerVersion = await dockerCapture(docker, ["run", "--rm", policy.images.scannerImage, "--version"]);
+  const packageJSON = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+  const packageLock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
   const summaries = [];
   const session = await mkdtemp(path.join(tmpdir(), `vasi-images-${randomUUID()}-`));
   const cachePath = path.join(session, "cache");
@@ -572,6 +651,31 @@ async function imageAssurance(output, images, { dockerSudo }) {
       )).trim());
       if (configuredUser !== runtimeContract.imageUser) {
         throw new Error(`Release image ${image} has an unexpected configured runtime user.`);
+      }
+      const dependencyAudit = runtimeDependencyAuditPaths(
+        packageJSON,
+        packageLock,
+        runtimeContract.allowedOptionalPackagePaths,
+      );
+      const prohibitedPaths = [
+        ...dependencyAudit.prohibitedPackagePaths.map((packagePath) => `/app/${packagePath}`),
+        ...dependencyAudit.prohibitedToolPaths,
+      ].sort();
+      const dependencyPayload = Buffer.from(JSON.stringify(prohibitedPaths)).toString("base64url");
+      if (Buffer.byteLength(dependencyPayload) > 64 * 1024) {
+        throw new Error("The runtime dependency inventory exceeds its assurance command bound.");
+      }
+      const inspectionText = await dockerCapture(docker, [
+        "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+        "--security-opt", "no-new-privileges:true", "--user", runtimeContract.runUser,
+        "--entrypoint", "node", image, "--input-type=module", "--eval",
+        runtimeDependencyInspector, dependencyPayload,
+      ]);
+      const inspection = parseRuntimeDependencyInspection(inspectionText, prohibitedPaths);
+      if (inspection.presentCount > 0) {
+        throw new Error(
+          `Release image ${image} contains prohibited runtime dependency paths: ${inspection.present.join(", ")}`,
+        );
       }
       for (const entrypoint of runtimeContract.entrypoints) {
         await dockerCapture(docker, [
@@ -602,6 +706,11 @@ async function imageAssurance(output, images, { dockerSudo }) {
           blocking: blocking.map((entry) => ({ id: entry.VulnerabilityID, package: entry.PkgName, severity: entry.Severity })),
           digest: (await dockerCapture(docker, ["image", "inspect", image, "--format", "{{.Id}}"])) .trim(),
           image,
+          dependencySurface: {
+            allowedOptionalPackagePaths: runtimeContract.allowedOptionalPackagePaths,
+            prohibitedPathsChecked: prohibitedPaths.length,
+            verified: true,
+          },
           runtimeContract: {
             entrypoints: runtimeContract.entrypoints,
             imageUser: runtimeContract.imageUser,
@@ -635,7 +744,11 @@ export function runtimeContractForImage(image, contracts = policy.images.runtime
   const name = untagged.slice(untagged.lastIndexOf("/") + 1);
   const contract = contracts.find((entry) => entry?.image === name);
   if (
-    !contract || !Array.isArray(contract.entrypoints) || !contract.entrypoints.length ||
+    !contract || !Array.isArray(contract.allowedOptionalPackagePaths) ||
+    contract.allowedOptionalPackagePaths.length > 64 ||
+    contract.allowedOptionalPackagePaths.some((packagePath) => !isSafeNodeModulesPackagePath(packagePath)) ||
+    new Set(contract.allowedOptionalPackagePaths).size !== contract.allowedOptionalPackagePaths.length ||
+    !Array.isArray(contract.entrypoints) || !contract.entrypoints.length ||
     contract.entrypoints.length > 16 || contract.entrypoints.some((entrypoint) =>
       typeof entrypoint !== "string" ||
       !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$/.test(entrypoint) ||
@@ -647,11 +760,149 @@ export function runtimeContractForImage(image, contracts = policy.images.runtime
     throw new Error(`Release image ${image} has no supported runtime contract.`);
   }
   return Object.freeze({
+    allowedOptionalPackagePaths: Object.freeze([...contract.allowedOptionalPackagePaths].sort()),
     entrypoints: Object.freeze([...contract.entrypoints]),
     image: contract.image,
     imageUser: contract.imageUser,
     runUser: contract.runUser,
   });
+}
+
+export function runtimeDependencyAuditPaths(packageJSON, packageLock, allowedOptionalPackagePaths = []) {
+  if (
+    !isPlainRecord(packageJSON) || !isPlainRecord(packageLock) ||
+    ![2, 3].includes(packageLock.lockfileVersion) ||
+    !isPlainRecord(packageLock.packages) || !isPlainRecord(packageLock.packages[""]) ||
+    !Array.isArray(allowedOptionalPackagePaths) || allowedOptionalPackagePaths.length > 64 ||
+    new Set(allowedOptionalPackagePaths).size !== allowedOptionalPackagePaths.length
+  ) {
+    throw new Error("The runtime dependency inventory contract is invalid.");
+  }
+  const packageEntries = Object.entries(packageLock.packages);
+  if (packageEntries.length < 1 || packageEntries.length > 10000) {
+    throw new Error("The runtime dependency inventory package graph is outside its assurance bound.");
+  }
+  const productionDependencies = dependencyNames(packageJSON.dependencies, "production");
+  const developmentDependencies = dependencyNames(packageJSON.devDependencies, "development");
+  const prohibited = new Set(
+    developmentDependencies
+      .filter((name) => !productionDependencies.includes(name))
+      .map((name) => `node_modules/${name}`),
+  );
+  for (const [packagePath, metadata] of packageEntries) {
+    if (packagePath === "") continue;
+    if (!isSafeNodeModulesPackagePath(packagePath) || !isPlainRecord(metadata)) {
+      throw new Error("The runtime dependency inventory contains an unsafe package-lock path.");
+    }
+    for (const flag of ["dev", "devOptional", "optional"]) {
+      if (metadata[flag] !== undefined && typeof metadata[flag] !== "boolean") {
+        throw new Error("The runtime dependency inventory contains malformed package-lock flags.");
+      }
+    }
+    if (metadata.dev === true || metadata.devOptional === true || metadata.optional === true) {
+      prohibited.add(packagePath);
+    }
+  }
+  for (const allowedPath of allowedOptionalPackagePaths) {
+    if (!isSafeNodeModulesPackagePath(allowedPath) || !prohibited.has(allowedPath)) {
+      throw new Error("The runtime dependency inventory contains an unsupported optional-package exception.");
+    }
+    prohibited.delete(allowedPath);
+  }
+  return Object.freeze({
+    allowedOptionalPackagePaths: Object.freeze([...allowedOptionalPackagePaths].sort()),
+    lockPackageCount: packageEntries.length,
+    prohibitedPackagePaths: Object.freeze([...prohibited].sort()),
+    prohibitedToolPaths: prohibitedRuntimeToolPaths,
+  });
+}
+
+function dependencyNames(value, label) {
+  if (value === undefined) return [];
+  if (!isPlainRecord(value)) {
+    throw new Error(`The runtime dependency inventory has invalid ${label} dependencies.`);
+  }
+  const names = Object.keys(value);
+  if (
+    names.length > 1000 || names.some((name) => !isSafeNpmPackageName(name)) ||
+    Object.values(value).some((version) => typeof version !== "string" || !version.trim())
+  ) {
+    throw new Error(`The runtime dependency inventory has invalid ${label} dependencies.`);
+  }
+  return names.sort();
+}
+
+function dockerfileStage(contents, stageName) {
+  if (typeof contents !== "string") return "";
+  const body = [];
+  let selected = false;
+  for (const line of contents.split("\n")) {
+    const from = /^FROM\s+\S+(?:\s+AS\s+([A-Za-z0-9_-]+))?\s*$/i.exec(line);
+    if (from) {
+      if (selected) break;
+      selected = from[1]?.toLowerCase() === stageName.toLowerCase();
+      continue;
+    }
+    if (selected) body.push(line);
+  }
+  return body.join("\n");
+}
+
+function isPlainRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isSafeNpmPackageName(value) {
+  if (typeof value !== "string" || value.length < 1 || value.length > 214) return false;
+  const segments = value.startsWith("@") ? value.slice(1).split("/") : [value];
+  if (segments.length !== (value.startsWith("@") ? 2 : 1)) return false;
+  return segments.every((segment) =>
+    segment.length > 0 && segment.length <= 128 && segment !== "." && segment !== ".." &&
+    /^[A-Za-z0-9._-]+$/.test(segment)
+  );
+}
+
+function isSafeNodeModulesPackagePath(value) {
+  if (typeof value !== "string" || value.length < 14 || value.length > 1024) return false;
+  const segments = value.split("/");
+  let cursor = 0;
+  while (cursor < segments.length) {
+    if (segments[cursor] !== "node_modules") return false;
+    cursor += 1;
+    if (cursor >= segments.length) return false;
+    if (segments[cursor].startsWith("@")) {
+      if (
+        cursor + 1 >= segments.length ||
+        !isSafeNpmPackageName(`${segments[cursor]}/${segments[cursor + 1]}`)
+      ) return false;
+      cursor += 2;
+    } else {
+      if (!isSafeNpmPackageName(segments[cursor])) return false;
+      cursor += 1;
+    }
+  }
+  return true;
+}
+
+function parseRuntimeDependencyInspection(text, expectedPaths) {
+  let inspection;
+  try {
+    inspection = JSON.parse(text);
+  } catch {
+    throw new Error("A release image returned malformed runtime dependency evidence.");
+  }
+  const expected = new Set(expectedPaths);
+  if (
+    !isPlainRecord(inspection) || inspection.total !== expectedPaths.length ||
+    !Number.isSafeInteger(inspection.presentCount) || inspection.presentCount < 0 ||
+    inspection.presentCount > expectedPaths.length || !Array.isArray(inspection.present) ||
+    inspection.present.length !== Math.min(inspection.presentCount, 32) ||
+    new Set(inspection.present).size !== inspection.present.length ||
+    inspection.present.some((candidate) => typeof candidate !== "string" || !expected.has(candidate))
+  ) {
+    throw new Error("A release image returned invalid runtime dependency evidence.");
+  }
+  return inspection;
 }
 
 async function main() {

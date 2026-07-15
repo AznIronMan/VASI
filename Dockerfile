@@ -13,7 +13,7 @@ RUN npm run build
 FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS production-dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund
 
 FROM production-dependencies AS migrator
 COPY config ./config
@@ -36,6 +36,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
 
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+RUN rm -rf /app/node_modules/pg-cloudflare
 
 USER node
 EXPOSE 3000
