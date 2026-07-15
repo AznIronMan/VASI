@@ -1,0 +1,109 @@
+# Pilot-admission evidence verification
+
+Status: implemented in VASI 0.52.0.
+
+## Purpose
+
+The immutable tenant-admission record and the separately controlled
+pilot-gate packages have complementary integrity boundaries. Each gate package
+proves its canonical checklist and indexed artifact digests; the signed
+readiness dossier proves the engine's current admission revision. This offline
+verifier closes the final handoff by proving that one technically admitted,
+signed dossier contains the exact reviewer reference, evidence reference, and
+package digest from exactly one canonical manifest for every admission gate.
+
+This is a binding check, not another approval. It does not re-read the indexed
+evidence artifacts, assess their contents, approve a checklist assertion or
+exception, identify or authorize a reviewer, establish certificate-chain or
+timestamp trust, or provide a security, accessibility, legal, privacy, custody,
+capacity, or support opinion. Run the per-gate artifact verifier first and keep
+the accountable external decisions separate.
+
+## Private input contract
+
+Place the eight unchanged manifests in one dedicated physical directory whose
+owner is root or the invoking user and whose mode is `0700`. The directory must
+contain exactly these mode-`0600`, single-link physical regular files:
+
+- `exact_release.json`
+- `isolation_integrity.json`
+- `identity_delivery.json`
+- `privacy_legal.json`
+- `accessibility.json`
+- `malware_content.json`
+- `recovery_custody.json`
+- `capacity_support.json`
+
+The signed JSON or HTML readiness dossier must be a separate mode-`0600`,
+single-link physical file in a mode-`0700` physical directory. Inputs may be
+owned by root or the invoking user. Final symlinks, hardlinks, permissive modes,
+extra or missing manifest entries, nested dossier overlap, unstable reads, and
+noncanonical paths fail closed. Keep the dossier, manifests, artifacts, and
+review records outside the VASI release tree, images, runtime `data/`
+directory, and public web roots under the installation's approved encrypted
+review-record custody.
+
+## Verification contract
+
+The verifier has no network, API, database, settings, credential, signing, or
+artifact-directory path. It reuses the product's existing strict dossier
+verifier and pilot-gate manifest validator rather than interpreting either
+format independently. Verification requires:
+
+1. an exact JSON or byte-reproducible script-free HTML dossier no larger than
+   2 MiB, using the signed `vasi-tenant-readiness-export/v2` schema with a valid
+   VASI integrity signature;
+2. an `admitted` current revision in which all eight immutable gates are
+   approved;
+3. exactly eight canonical manifests, each no larger than 1 MiB and bound to
+   the gate named by its fixed filename;
+4. an exact match for every gate's manifest `packageDigest`,
+   `evidenceReference`, and `reviewerReference` in the signed dossier;
+5. one consistent opaque `scopeReference` across all eight manifests; and
+6. review time no later than the immutable gate decision, gate decisions no
+   later than the admission revision, and the admission revision no later than
+   dossier capture.
+
+An independently obtained dossier SHA-256 and VASI integrity-key fingerprint
+can be required. The fingerprint must come through a separately authenticated
+channel, not from the dossier or the same transfer.
+
+## Offline use
+
+First verify each manifest against its separately controlled artifact
+directory:
+
+```bash
+npm run pilot:evidence -- verify MANIFEST_FILE EVIDENCE_DIRECTORY \
+  --expected-sha256 LOWERCASE_SHA256
+```
+
+After all eight immutable decisions have been recorded, export a new signed
+readiness dossier and run:
+
+```bash
+npm run pilot:admission:verify -- DOSSIER_FILE MANIFEST_DIRECTORY
+npm run pilot:admission:verify -- DOSSIER_FILE MANIFEST_DIRECTORY \
+  --expected-sha256 LOWERCASE_SHA256 \
+  --expected-key-fingerprint LOWERCASE_SHA256
+```
+
+Success uses the fixed
+`vasi-pilot-admission-evidence-verification/v1` aggregate schema. It reports
+only dossier digest and public integrity-key fingerprint, format/presentation
+and seal states, eight-package count, independently pinned-value results,
+scope/time/binding states, and the explicit
+`artifactVerification: "not_performed"` limitation. It never prints tenant,
+gate, artifact, reviewer, evidence, scope, exception, path, certificate-subject,
+or approval content. Every failure emits one generic message without parsed
+facts or input paths.
+
+Preserve the signed dossier and all eight verified packages with their
+separately authenticated expected digests, external decisions, custody
+history, and underlying artifacts. An investigator still needs those records,
+the tenant audit chain, applicable trust policy, and domain-specific review to
+reach a substantive conclusion.
+
+See [Pilot-gate evidence packages](pilot-gate-evidence-packages.md),
+[Pilot readiness dossier](pilot-readiness-dossier.md), and
+[Tenant production admission](tenant-production-admission.md).

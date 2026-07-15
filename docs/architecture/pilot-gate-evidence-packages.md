@@ -1,6 +1,6 @@
 # Pilot-gate evidence packages
 
-Status: implemented in VASI 0.50.0 and extended in VASI 0.51.0.
+Status: implemented in VASI 0.50.0 and extended through VASI 0.52.0.
 
 ## Purpose and boundary
 
@@ -218,12 +218,25 @@ control and never presents local verification as gate approval.
 
 The console creates the immutable gate decision and server decision time. It
 does not ingest or verify the evidence directory. Export a new signed readiness
-dossier after all decisions so the reviewer can confirm that the gate reference
-and digest were bound into the tenant's current admission revision. Preserve
-the descriptor, manifest, artifacts, separately communicated digest, review
+dossier after all decisions. VASI 0.52.0 supplies a separate offline verifier
+that requires exactly one canonical manifest for every gate and compares all
+eight reviewer references, evidence references, and package digests with the
+signed admitted dossier without uploading or printing them:
+
+```bash
+npm run pilot:admission:verify -- DOSSIER_FILE MANIFEST_DIRECTORY \
+  --expected-key-fingerprint LOWERCASE_SHA256
+```
+
+That final verifier confirms package-to-dossier binding, a shared review scope,
+and review/decision/export time ordering. Its explicit
+`artifactVerification: "not_performed"` result means it does not replace the
+earlier per-package artifact verification. Preserve the descriptor, manifest,
+artifacts, separately communicated digest, review
 decision, readiness dossier, and custody history under the installation's
 retention and legal-hold policy.
 
 See [Tenant production admission](tenant-production-admission.md),
-[Pilot readiness dossier](pilot-readiness-dossier.md), and
+[Pilot readiness dossier](pilot-readiness-dossier.md),
+[Pilot-admission evidence verification](pilot-admission-evidence-verification.md), and
 [Assurance and pilot readiness](../assurance-and-pilot-readiness.md).

@@ -74,6 +74,7 @@ export const DIRECT_EXECUTION_ENTRYPOINTS = Object.freeze([
   "scripts/render-database-egress-policy.mjs",
   "scripts/render-private-ingress-egress-policy.mjs",
   "scripts/stage-production-release.mjs",
+  "scripts/verify-pilot-admission-evidence.mjs",
   "scripts/verify-readiness-dossier.mjs",
   "scripts/verify-engine-host-runtime.mjs",
   "services/database-gateway/server.mjs",
@@ -1694,6 +1695,121 @@ export async function validatePilotGateEvidenceContract(repositoryRoot = root) {
   return { failures, filesChecked: Object.keys(files).length };
 }
 
+export async function validatePilotAdmissionEvidenceContract(repositoryRoot = root) {
+  const failures = [];
+  const files = {
+    cli: "scripts/verify-pilot-admission-evidence.mjs",
+    cliTest: "scripts/verify-pilot-admission-evidence.test.mjs",
+    documentation: "docs/architecture/pilot-admission-evidence-verification.md",
+    fixture: "packages/pilot-admission-evidence/test-fixture.mjs",
+    library: "packages/pilot-admission-evidence/index.mjs",
+    libraryTest: "packages/pilot-admission-evidence/index.test.mjs",
+    package: "package.json",
+  };
+  const sources = {};
+  for (const [name, filename] of Object.entries(files)) {
+    try {
+      sources[name] = await readFile(path.join(repositoryRoot, filename), "utf8");
+    } catch {
+      failures.push(`the pilot-admission evidence ${name} source is unavailable`);
+      sources[name] = "";
+    }
+  }
+
+  for (const marker of [
+    'from "../pilot-gate-evidence/index.mjs"',
+    'from "../readiness-dossier/index.mjs"',
+    '"vasi-pilot-admission-evidence-verification/v1"',
+    "TENANT_ADMISSION_GATES.map((gateId) => `${gateId}.json`).sort()",
+    "constants.O_NOFOLLOW",
+    "Buffer.byteLength(value) > 4_096",
+    "before.nlink !== 1n",
+    "(Number(before.mode) & 0o7777) !== 0o600",
+    "(Number(metadata.mode) & 0o7777) !== 0o700",
+    'fail("manifest_inventory_mismatch")',
+    "verifyReadinessDossierBytes(contents, options)",
+    "validateReadinessExport(exported);",
+    "exported.schema !== SIGNED_READINESS_EXPORT_SCHEMA",
+    'admission.status !== "admitted"',
+    "gate.evidenceDigest !== manifest.packageDigest",
+    "gate.evidenceReference !== manifest.evidenceReference",
+    "gate.reviewerReference !== manifest.reviewerReference",
+    "scopes.size !== 1",
+    "reviewedAt > decidedAt || decidedAt > revisionCreatedAt || decidedAt > capturedAt",
+    'artifactVerification: "not_performed"',
+  ]) {
+    if (!sources.library.includes(marker)) {
+      failures.push(`the pilot-admission evidence library is missing ${marker}`);
+    }
+  }
+  if (/\bconsole\.|process\.(?:stdout|stderr)|JSON\.stringify\(error|node:(?:child_process|http|https)|\bfetch\s*\(/.test(sources.library)) {
+    failures.push("the pilot-admission evidence library contains an output, network, process, or error-disclosure path");
+  }
+  for (const marker of [
+    'from "../packages/pilot-admission-evidence/index.mjs"',
+    "--expected-sha256",
+    "--expected-key-fingerprint",
+    "VASI pilot-admission evidence verification failed.",
+    ["if (isDirectExecution(import.meta.url, ", "process.argv[1])) {"].join(""),
+  ]) {
+    if (!sources.cli.includes(marker)) failures.push(`the pilot-admission evidence CLI is missing ${marker}`);
+  }
+  for (const marker of [
+    "binds exactly eight canonical manifests to signed JSON and HTML dossiers",
+    "rejects every signed dossier-to-manifest reference or digest mismatch",
+    "rejects mixed review scopes and impossible review, decision, or capture ordering",
+    "requires a signed dossier whose immutable technical admission is complete",
+    "rejects missing, extra, renamed, linked, or gate-substituted manifests",
+    "requires private physical inputs and exact canonical UTF-8 presentation",
+    "uses one generic error type for nested dossier, manifest, and filesystem failures",
+  ]) {
+    if (!sources.libraryTest.includes(marker)) {
+      failures.push(`the pilot-admission evidence library test is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    "verifies through physical and selected-release paths with aggregate-only output",
+    "fails with one generic message and no dossier or evidence facts",
+    "remains import-safe and rejects malformed or duplicate options",
+  ]) {
+    if (!sources.cliTest.includes(marker)) {
+      failures.push(`the pilot-admission evidence CLI test is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    "exactly one canonical manifest for every admission gate",
+    "npm run pilot:admission:verify -- DOSSIER_FILE MANIFEST_DIRECTORY",
+    '`artifactVerification: "not_performed"`',
+    "This is a binding check, not another approval.",
+    "Run the per-gate artifact verifier first",
+    "The verifier has no network, API, database, settings, credential, signing, or",
+  ]) {
+    if (!sources.documentation.includes(marker)) {
+      failures.push(`the pilot-admission evidence documentation is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    "createPilotGateEvidenceManifest",
+    "createReadinessExportFixture",
+    "pilotGateAdmissionEvidence(manifest)",
+    "pilotGateManifestJSON(manifest)",
+  ]) {
+    if (!sources.fixture.includes(marker)) {
+      failures.push(`the pilot-admission evidence fixture is missing ${marker}`);
+    }
+  }
+  try {
+    const packageJSON = JSON.parse(sources.package);
+    if (
+      packageJSON.scripts?.["pilot:admission:verify"] !==
+      "node scripts/verify-pilot-admission-evidence.mjs"
+    ) failures.push("package.json is missing the exact pilot-admission evidence command");
+  } catch {
+    failures.push("the pilot-admission evidence package command is invalid");
+  }
+  return { failures, filesChecked: Object.keys(files).length };
+}
+
 async function sourceAssurance(output, { allowDirty }) {
   const dirtyOutput = await capture("git", ["status", "--porcelain=v1"], { cwd: root });
   const dirty = Boolean(dirtyOutput.trim());
@@ -1701,6 +1817,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const commit = (await capture("git", ["rev-parse", "HEAD"], { cwd: root })).trim();
   const source = await inspectTrackedSource(root);
   const directExecution = await validateDirectExecutionContract(root, source.files.map((entry) => entry.path));
+  const pilotAdmissionEvidence = await validatePilotAdmissionEvidenceContract(root);
   const pilotGateEvidence = await validatePilotGateEvidenceContract(root);
   const readinessDossierVerifier = await validateReadinessDossierVerifierContract(root);
   const versions = await validateVersionAlignment(root);
@@ -1725,6 +1842,9 @@ async function sourceAssurance(output, { allowDirty }) {
   }
   if (directExecution.failures.length) {
     throw new Error(`Operational CLI execution hardening failed: ${directExecution.failures.join("; ")}.`);
+  }
+  if (pilotAdmissionEvidence.failures.length) {
+    throw new Error(`Pilot-admission evidence hardening failed: ${pilotAdmissionEvidence.failures.join("; ")}.`);
   }
   if (pilotGateEvidence.failures.length) {
     throw new Error(`Pilot-gate evidence hardening failed: ${pilotGateEvidence.failures.join("; ")}.`);
@@ -1784,6 +1904,7 @@ async function sourceAssurance(output, { allowDirty }) {
     engineHostRuntime,
     operationalAlertHandoff,
     operationalSchedulers,
+    pilotAdmissionEvidence,
     pilotGateEvidence,
     productionActivation,
     productionStaging,

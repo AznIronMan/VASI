@@ -1,6 +1,6 @@
 # Tenant production admission
 
-Status: implemented in VASI 0.25.0 and extended through VASI 0.51.0.
+Status: implemented in VASI 0.25.0 and extended through VASI 0.52.0.
 
 ## Purpose
 
@@ -64,6 +64,13 @@ only the existing opaque reviewer/evidence references and digest. It never
 uploads or retains the manifest and cannot record the decision automatically.
 Artifact-byte and custody verification remain the offline review system's
 responsibility.
+
+VASI 0.52.0 adds the final independent check after all decisions: an offline
+command verifies the signed admitted readiness dossier and exactly eight
+canonical manifests, then compares every recorded reviewer reference, evidence
+reference, and digest. It also requires a shared opaque scope and ordered review,
+decision, revision, and capture times. The command reports aggregates only and
+explicitly does not reverify artifact bytes or make an approval decision.
 
 ## Fail-closed enforcement
 

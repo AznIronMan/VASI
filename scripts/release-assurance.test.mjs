@@ -17,6 +17,7 @@ import {
   validateEngineHostRuntimeContract,
   validateOperationalSchedulerContract,
   validateOperationalAlertHandoffContract,
+  validatePilotAdmissionEvidenceContract,
   validatePilotGateEvidenceContract,
   validateProductionActivationContract,
   validateProductionStagingContract,
@@ -98,12 +99,13 @@ describe("release assurance policy", () => {
     const tracked = await inspectTrackedSource(root);
     const result = await validateDirectExecutionContract(root, operationalSources(tracked));
     expect(result.failures).toEqual([]);
-    expect(result.filesChecked).toBe(26);
-    expect(result.cliFiles).toHaveLength(23);
+    expect(result.filesChecked).toBe(27);
+    expect(result.cliFiles).toHaveLength(24);
     expect(result.cliFiles).toContain("scripts/activate-production-release.mjs");
     expect(result.cliFiles).toContain("scripts/stage-production-release.mjs");
     expect(result.cliFiles).toContain("scripts/readiness-trust-anchor.mjs");
     expect(result.cliFiles).toContain("scripts/pilot-gate-evidence.mjs");
+    expect(result.cliFiles).toContain("scripts/verify-pilot-admission-evidence.mjs");
     expect(result.cliFiles).toContain("scripts/verify-readiness-dossier.mjs");
     expect(result.cliFiles).toContain("services/database-gateway/server.mjs");
     await expect(validateDirectExecutionContract(root, [null])).resolves.toMatchObject({
@@ -115,6 +117,58 @@ describe("release assurance policy", () => {
   it("keeps pilot-gate evidence deterministic, bounded, offline, and privacy-safe", async () => {
     const result = await validatePilotGateEvidenceContract(root);
     expect(result).toEqual({ failures: [], filesChecked: 11 });
+  });
+
+  it("keeps complete pilot-admission binding offline, exact, and privacy-safe", async () => {
+    const result = await validatePilotAdmissionEvidenceContract(root);
+    expect(result).toEqual({ failures: [], filesChecked: 7 });
+  });
+
+  it("rejects a weakened complete pilot-admission evidence contract", async () => {
+    const fixture = await mkdtemp(path.join(tmpdir(), "vasi-pilot-admission-assurance-"));
+    try {
+      const files = [
+        "docs/architecture/pilot-admission-evidence-verification.md",
+        "package.json",
+        "packages/pilot-admission-evidence/index.mjs",
+        "packages/pilot-admission-evidence/index.test.mjs",
+        "packages/pilot-admission-evidence/test-fixture.mjs",
+        "scripts/verify-pilot-admission-evidence.mjs",
+        "scripts/verify-pilot-admission-evidence.test.mjs",
+      ];
+      for (const filename of files) {
+        await mkdir(path.dirname(path.join(fixture, filename)), { recursive: true });
+        await cp(path.join(root, filename), path.join(fixture, filename));
+      }
+      const library = path.join(fixture, "packages/pilot-admission-evidence/index.mjs");
+      await writeFile(
+        library,
+        (await readFile(library, "utf8"))
+          .replace("constants.O_NOFOLLOW", "0")
+          .replace('admission.status !== "admitted"', "false"),
+      );
+      const documentation = path.join(
+        fixture,
+        "docs/architecture/pilot-admission-evidence-verification.md",
+      );
+      await writeFile(
+        documentation,
+        (await readFile(documentation, "utf8"))
+          .replace('`artifactVerification: "not_performed"`', "artifact verified"),
+      );
+      const result = await validatePilotAdmissionEvidenceContract(fixture);
+      expect(result.failures).toContain(
+        "the pilot-admission evidence library is missing constants.O_NOFOLLOW",
+      );
+      expect(result.failures).toContain(
+        'the pilot-admission evidence library is missing admission.status !== "admitted"',
+      );
+      expect(result.failures).toContain(
+        'the pilot-admission evidence documentation is missing `artifactVerification: "not_performed"`',
+      );
+    } finally {
+      await rm(fixture, { force: true, recursive: true });
+    }
   });
 
   it("rejects a weakened pilot-gate evidence contract", async () => {
@@ -241,7 +295,7 @@ describe("release assurance policy", () => {
     const modules = await Promise.all(result.cliFiles.map((filename) =>
       import(pathToFileURL(path.join(root, filename)).href)
     ));
-    expect(modules).toHaveLength(23);
+    expect(modules).toHaveLength(24);
   });
 
   it("rejects a silent-no-op operational CLI comparison", async () => {

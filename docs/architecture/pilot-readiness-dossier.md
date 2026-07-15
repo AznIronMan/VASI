@@ -115,6 +115,21 @@ npm run readiness:verify -- DOSSIER_FILE \
   --expected-key-fingerprint LOWERCASE_SHA256
 ```
 
+After all eight gate decisions are approved, VASI 0.52.0 can also verify the
+complete package-to-dossier handoff offline. Place exactly one canonical
+manifest per gate in the private fixed-name directory and run:
+
+```bash
+npm run pilot:admission:verify -- DOSSIER_FILE MANIFEST_DIRECTORY \
+  --expected-sha256 LOWERCASE_SHA256 \
+  --expected-key-fingerprint LOWERCASE_SHA256
+```
+
+The admission verifier reuses this dossier verifier, requires a signed admitted
+revision, and compares every immutable reviewer reference, evidence reference,
+and digest with the eight manifests. It does not reverify the indexed artifact
+bytes; see [Pilot-admission evidence verification](pilot-admission-evidence-verification.md).
+
 The engine-host command reads the protected installation settings and emits a
 fixed privacy-safe aggregate containing the configured integrity key ID,
 algorithm, fingerprint, and seal profile plus the equivalent bounded

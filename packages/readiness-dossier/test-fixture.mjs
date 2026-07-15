@@ -15,13 +15,35 @@ import {
 
 export function createReadinessExportFixture(
   format = "html",
-  { certificateChainPEM, certificatePrivateKeyPEM, legacy = false, tenantName = "Example Company" } = {},
+  {
+    admissionEvidence,
+    certificateChainPEM,
+    certificatePrivateKeyPEM,
+    legacy = false,
+    tenantName = "Example Company",
+  } = {},
 ) {
-  const gates = TENANT_ADMISSION_GATES.map((id) => ({ id, state: "pending" }));
+  const evidenceByGate = admissionEvidence
+    ? new Map(admissionEvidence.map((entry) => [entry.gateId, entry]))
+    : null;
+  if (evidenceByGate && (
+    evidenceByGate.size !== TENANT_ADMISSION_GATES.length ||
+    TENANT_ADMISSION_GATES.some((id) => !evidenceByGate.has(id))
+  )) throw new Error("The readiness fixture admission evidence is incomplete.");
+  const gates = TENANT_ADMISSION_GATES.map((id) => evidenceByGate
+    ? {
+        decidedAt: evidenceByGate.get(id).decidedAt || "2026-07-15T19:30:00.000Z",
+        evidenceDigest: evidenceByGate.get(id).evidenceDigest,
+        evidenceReference: evidenceByGate.get(id).evidenceReference,
+        id,
+        reviewerReference: evidenceByGate.get(id).reviewerReference,
+        state: "approved",
+      }
+    : { id, state: "pending" });
   const admission = {
     gates,
     schema: "vasi-tenant-admission/v1",
-    status: "pending",
+    status: evidenceByGate ? "admitted" : "pending",
   };
   const tenantId = "11111111-1111-4111-8111-111111111111";
   const tenantProfileHash = "f".repeat(64);
@@ -30,7 +52,9 @@ export function createReadinessExportFixture(
       admissionHash: hashCanonicalJSON(admission),
       gates,
       revision: 2,
-      revisionCreatedAt: "2026-07-15T19:00:00.000Z",
+      revisionCreatedAt: evidenceByGate
+        ? "2026-07-15T19:45:00.000Z"
+        : "2026-07-15T19:00:00.000Z",
       schema: admission.schema,
       status: admission.status,
     },
@@ -51,7 +75,7 @@ export function createReadinessExportFixture(
         mode: "self_hosted",
         publicIngress: "gateway_only",
       },
-      engineVersion: legacy ? "0.47.0" : "0.51.0",
+      engineVersion: legacy ? "0.47.0" : "0.52.0",
       organizationName: "Example Organization",
       productName: "V·Sign",
       profileHash: "d".repeat(64),
@@ -71,11 +95,11 @@ export function createReadinessExportFixture(
     lastProductionStop: null,
     limitations: [...READINESS_DOSSIER_LIMITATIONS],
     readiness: {
-      approvedGateIds: [],
+      approvedGateIds: evidenceByGate ? [...TENANT_ADMISSION_GATES] : [],
       classification: "recorded_evidence_not_certification",
       externalReviewRequired: true,
-      pendingGateIds: [...TENANT_ADMISSION_GATES],
-      technicalAdmissionStatus: "pending",
+      pendingGateIds: evidenceByGate ? [] : [...TENANT_ADMISSION_GATES],
+      technicalAdmissionStatus: evidenceByGate ? "admitted" : "pending",
     },
     schema: "vasi-tenant-readiness-dossier/v1",
     tenant: {

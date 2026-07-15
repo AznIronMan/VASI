@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.51.0`
+Version: `0.52.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -597,7 +597,7 @@ non-reflection, method-override resistance, hostile simple CORS denial, and an
 unauthenticated session response containing only non-cacheable JSON `null`.
 
 Version 0.46.2 makes operational CLI execution identity physical-file based.
-Nineteen importable release, backup, readiness, edge, policy, and database-
+Twenty-four importable release, backup, readiness, edge, policy, and database-
 gateway entrypoints resolve both the invoked path and module URL before
 deciding whether to enter `main`. A trusted `current` release-selector symlink
 therefore runs the command exactly once instead of exiting successfully as a
@@ -668,6 +668,16 @@ returned, and the administrator still records the immutable gate decision
 explicitly. Indexed artifact bytes and custody remain subject to the separate
 offline verification process.
 
+Version 0.52.0 closes the final package-to-admission review gap without moving
+external evidence into VASI. A credential-free offline verifier requires one
+signed technically admitted readiness dossier and exactly one canonical
+manifest for each of the eight gates, then matches every immutable reviewer
+reference, evidence reference, and package digest. It also enforces one shared
+opaque scope plus ordered review, decision, revision, and capture times under
+strict private physical-file boundaries. Output remains aggregate-only and
+explicitly states that artifact bytes were not reverified; per-gate artifact
+verification and accountable external approval remain separate requirements.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -703,6 +713,10 @@ assessment remain installation or pilot gates.
   all eight tenant-admission gates, with exact checklists, strict private-file
   boundaries, aggregate-only verification, and a digest that binds directly to
   immutable admission without ingesting the artifacts.
+- Aggregate-only offline verification that one signed admitted readiness
+  dossier binds exactly those eight manifests, with independently pinnable
+  dossier/key fingerprints, shared scope and temporal ordering, and an explicit
+  boundary that artifact bytes and review sufficiency remain externally checked.
 - Microsoft Graph transactional delivery restricted to its configured mailbox,
   with SMTP as an optional fallback.
 - A local SQLite bootstrap at `data/VASI.settings` containing only the
@@ -885,6 +899,8 @@ npm run db:migrate
 npm run check
 npm run build
 npm run evidence:verify -- /path/to/vasi-evidence-bundle.zip
+npm run pilot:evidence -- verify MANIFEST_FILE EVIDENCE_DIRECTORY
+npm run pilot:admission:verify -- DOSSIER_FILE MANIFEST_DIRECTORY
 npm run deployment:profile -- self-hosted
 npm run backup -- create /secure/backups/vasi-YYYYMMDD
 npm run backup:continuity -- create /secure/backups

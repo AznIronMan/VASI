@@ -545,6 +545,16 @@ manifest or artifact field and discloses only aggregate counts. The browser
 does not verify artifact bytes or approve a gate; accountable owners still rely
 on the offline artifact verification and external review record.
 
+VASI 0.52.0 closes the remaining manual final-review comparison. A
+credential-free offline command requires one signed technically admitted
+readiness dossier and exactly one canonical manifest for every gate, reuses the
+existing signature/presentation and manifest validators, and compares every
+reviewer reference, evidence reference, and digest. It rejects mixed scopes,
+impossible review/decision/revision/capture order, extra or missing entries,
+links, permissive modes, and noncanonical files. Its fixed aggregate result
+states that artifact bytes were not reverified; external reviewer authority,
+assessment sufficiency, trust policy, and approval remain separate.
+
 ## Readiness dossier handoff
 
 VASI 0.45.0 lets an installation administrator export the current state behind
