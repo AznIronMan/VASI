@@ -26,7 +26,7 @@ import { EngineStoreError } from "./errors.mjs";
 import { requireRecentParticipantDataAuthentication } from "./authentication-assurance.mjs";
 import { createSigningProvider } from "./signing-provider.mjs";
 
-const ENGINE_VERSION = "0.40.1";
+const ENGINE_VERSION = "0.40.2";
 const GENESIS_HASH = "0".repeat(64);
 const DATA_EXPORT_SCHEMA = "vasi-participant-data-export/v1";
 

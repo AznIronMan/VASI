@@ -1,6 +1,6 @@
 # Recurring public-edge assurance
 
-Status: implemented in VASI 0.40.0 and corrected in VASI 0.40.1.
+Status: implemented in VASI 0.40.0 and corrected through VASI 0.40.2.
 
 ## Decision
 
@@ -98,6 +98,12 @@ the complete handoff directory after every result.
 The result is aggregate JSON containing only status, listener count, artifact
 count, and scan age. It contains no hostname, container, image, address, path,
 package, vulnerability, certificate, or customer field.
+
+Both cycles share a root-owned lock because runtime validation must not race
+evidence promotion or retention. Legitimate overlap, including the initial
+activation of both persistent timers, waits for up to four minutes. The
+runtime unit's five-minute timeout remains the outer bound, so stalled work
+still fails closed without reporting ordinary short contention as an outage.
 
 ## Installation and proof
 

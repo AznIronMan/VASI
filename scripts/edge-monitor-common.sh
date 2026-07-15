@@ -81,7 +81,11 @@ edge_load_configuration() {
 edge_take_lock() {
   install -d -o root -g root -m 0755 /run/lock
   exec 9>/run/lock/vasi-edge-monitor.lock
-  flock -n 9 || edge_fail
+  # Enabling both persistent timers can legitimately start both services at
+  # once. Serialize that bounded first run instead of turning safe contention
+  # into a false operational alarm. The runtime service's five-minute systemd
+  # timeout remains the outer fail-closed bound.
+  flock -w 240 9 || edge_fail
 }
 
 edge_protect_directory() {

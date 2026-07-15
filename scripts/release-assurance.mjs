@@ -745,6 +745,7 @@ export async function validateEdgeMonitorContract(repositoryRoot = root) {
     "edge-monitor-common.sh": [
       "[ \"$(id -u)\" -eq 0 ] || edge_fail",
       "[ \"$(stat -c %a -- \"$EDGE_CONFIGURATION_FILE\")\" = \"600\" ] || edge_fail",
+      "flock -w 240 9 || edge_fail",
       "--cap-drop ALL --security-opt no-new-privileges:true",
       ".[0].HostConfig.RestartPolicy.Name == \"always\"",
       ".[0].HostConfig.RestartPolicy.Name == \"no\"",
