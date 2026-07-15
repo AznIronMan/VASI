@@ -162,6 +162,14 @@ or engine row. Apply the gateway migration before replacing the gateway. The
 does not enforce the new durable DNS-work boundary. No engine migration or
 engine-first compatibility dependency is introduced.
 
+VASI 0.41.0 adds no database migration. It introduces a fail-closed production
+activator for both roles. Stage and validate the engine release and its exact
+images first, run any required compatible migrations, then activate the engine
+before the gateway. The command proves the protected private-ingress listener,
+shared bootstrap-data link, sanitized-to-live Compose equivalence, exact images
+and runtime hardening before atomically changing `current`; a failed candidate
+restores the prior selector and reconciles the prior project.
+
 ## Initialize
 
 Requirements are Docker Engine with Compose, PostgreSQL 15 or newer, an HTTPS
@@ -313,6 +321,38 @@ settings scope, while public material is embedded in each seal and registered
 with an immutable key/status history. Rotation uses a new key ID and retains
 historical verification material.
 
+## Versioned production activation
+
+For VASI 0.41.0 and later upgrades, keep the installation activation JSON and
+listener-only Compose overlay outside both the release root and engine data
+root. Start from the sanitized files under `deployment/activation`, set the
+exact installation paths and approved loopback or private listener, protect
+both files as mode `0600`, and never place them in a source archive or
+environment file.
+
+After the exact release, `data` symlink, images, matched backup, settings,
+migrations, and host runtime prerequisite are ready, run the dry preflight from
+the selected trusted release:
+
+```bash
+cd /opt/vasi-engine/current
+npm run release:activate -- /var/lib/vasi-release/engine.json RELEASE_ID --dry-run
+```
+
+The first transition from a pre-0.41 release may run the same command from the
+candidate directory. A passing result is aggregate-only and changes neither
+the selector nor Docker runtime. Pause the role's recurring work for the
+bounded cutover, repeat without `--dry-run`, then reapply/prove the outbound
+host policy and run all release checks before resuming timers or activating the
+gateway. The activator establishes `compose.live.yaml` as a link to the stable
+protected overlay so current-working-directory systemd units retain the exact
+listener after cutover and rollback.
+
+The activator does not build, pull, migrate, back up, alter the firewall, or
+change the public edge. See the
+[fail-closed activation decision](architecture/fail-closed-release-activation.md)
+for its exact preflight, rollback, privacy, and residual-trust contract.
+
 ## Outbound isolation
 
 VASI 0.21.2 requires Linux `iptables` with Docker's `DOCKER-USER` chain for
@@ -397,9 +437,10 @@ result. See the
 [outbound-isolation decision](architecture/private-engine-egress.md) for the
 policy semantics, privacy contract, assurance limits, and failure behavior.
 
-## Release
+## Legacy network transition
 
-This network change requires one controlled engine maintenance window. Take
+This one-time pre-0.41 network-layout transition requires a controlled engine
+maintenance window. It is not the ongoing release-upgrade procedure. Take
 and verify a matched backup first. Stop the complete old Compose project so
 Docker can replace the former external data network with the internal one;
 never reuse an old network whose `Internal` value is false.

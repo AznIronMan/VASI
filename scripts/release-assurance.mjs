@@ -20,6 +20,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { parse as parseYAML } from "yaml";
 
 import policy from "../config/assurance-policy.json" with { type: "json" };
+import {
+  parseProtectedOverlay,
+  validateActivationConfigurationValue,
+} from "./activate-production-release.mjs";
 import { parseEdgeMonitorConfiguration } from "./edge-monitor-contract.mjs";
 import {
   auditPublicIngressConfiguration,
@@ -784,6 +788,69 @@ export async function validateEdgeMonitorContract(repositoryRoot = root) {
   return { failures, filesChecked: 9 };
 }
 
+export async function validateProductionActivationContract(repositoryRoot = root) {
+  const failures = [];
+  let packageJSON = {};
+  let source = "";
+  try {
+    packageJSON = JSON.parse(await readFile(path.join(repositoryRoot, "package.json"), "utf8"));
+  } catch {
+    failures.push("package.json is unavailable for production activation assurance");
+  }
+  try {
+    source = await readFile(path.join(repositoryRoot, "scripts", "activate-production-release.mjs"), "utf8");
+  } catch {
+    failures.push("the production release activation command is unavailable");
+  }
+  for (const role of ["gateway", "engine"]) {
+    try {
+      const configuration = validateActivationConfigurationValue(JSON.parse(await readFile(
+        path.join(repositoryRoot, "deployment", "activation", `${role}.example.json`),
+        "utf8",
+      )));
+      const listener = parseProtectedOverlay(await readFile(
+        path.join(repositoryRoot, "deployment", "activation", `${role}.live.example.yaml`),
+        "utf8",
+      ), role);
+      if (
+        configuration.role !== role ||
+        configuration.overlayFile !== `/var/lib/vasi-release/${role}.live.yaml` ||
+        listener.service !== (role === "gateway" ? "app" : "private-ingress")
+      ) {
+        failures.push(`the sanitized ${role} production activation example is inconsistent`);
+      }
+    } catch {
+      failures.push(`the sanitized ${role} production activation example is invalid`);
+    }
+  }
+  if (packageJSON?.scripts?.["release:activate"] !== "node scripts/activate-production-release.mjs") {
+    failures.push("package.json is missing the exact production activation command");
+  }
+  for (const marker of [
+    "vasi-production-release-activation/v1",
+    "The candidate release data binding is not the configured shared data root.",
+    "The protected Compose overlay changed more than the approved listener.",
+    "base.name !== contract.projectName",
+    "await validateDirectory(path.dirname(configuration.overlayFile), [0, uid], true)",
+    "dockerEnvironment()",
+    '"image", "inspect", "--format", "{{.Id}}"',
+    '"up", "-d", "--no-build", "--wait", "--wait-timeout", "120"',
+    'JSON.stringify(service.volumes || []).includes("docker.sock")',
+    "The selected rollback release is not ready.",
+    "await restoreCurrent(configuration.currentLink, prepared.previousTarget)",
+    "await stopRuntime(prepared, commandRunner)",
+    "VASI production release activation failed closed.",
+  ]) {
+    if (!source.includes(marker)) failures.push(`the production activation command is missing ${marker}`);
+  }
+  if (
+    /--remove-orphans|\/(?:var\/run|run)\/docker\.sock|--privileged|--network(?:=|\s+)host|COMPOSE_FILE|COMPOSE_PROJECT_NAME|NODE_OPTIONS/.test(source)
+  ) {
+    failures.push("the production activation command contains prohibited destructive, privileged, or ambient state");
+  }
+  return { failures, filesChecked: 6 };
+}
+
 async function sourceAssurance(output, { allowDirty }) {
   const dirtyOutput = await capture("git", ["status", "--porcelain=v1"], { cwd: root });
   const dirty = Boolean(dirtyOutput.trim());
@@ -797,6 +864,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const operationalSchedulers = await validateOperationalSchedulerContract(root);
   const publicIngress = await validatePublicIngressContract(root);
   const edgeMonitor = await validateEdgeMonitorContract(root);
+  const productionActivation = await validateProductionActivationContract(root);
   const runtimeImageBuild = await validateRuntimeImageBuildContract(root);
   if (source.forbiddenPaths.length) throw new Error(`Forbidden tracked paths: ${source.forbiddenPaths.join(", ")}.`);
   if (source.secretFindings.length) {
@@ -821,6 +889,9 @@ async function sourceAssurance(output, { allowDirty }) {
   }
   if (edgeMonitor.failures.length) {
     throw new Error(`Public edge monitor hardening failed: ${edgeMonitor.failures.join("; ")}.`);
+  }
+  if (productionActivation.failures.length) {
+    throw new Error(`Production activation hardening failed: ${productionActivation.failures.join("; ")}.`);
   }
   if (runtimeImageBuild.failures.length) {
     throw new Error(`Runtime image build hardening failed: ${runtimeImageBuild.failures.join("; ")}.`);
@@ -848,6 +919,7 @@ async function sourceAssurance(output, { allowDirty }) {
     edgeMonitor,
     engineHostRuntime,
     operationalSchedulers,
+    productionActivation,
     publicIngress,
     runtimeImageBuild,
     sourceFileCount: source.files.length,

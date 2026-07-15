@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.40.2`
+Version: `0.41.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -515,6 +515,16 @@ effective-Nginx handoff into a dedicated root-only runtime directory visible
 to the Docker daemon. It also suppresses non-result Alpine inventory warnings,
 so recurring edge services retain aggregate-only scheduled output.
 
+Version 0.41.0 makes gateway and engine release selection fail closed. A
+product-neutral activator validates canonical protected configuration, an exact
+shared-data link, the sanitized and listener-only merged Compose models, every
+versioned role image, and runtime hardening before Docker or `current` changes.
+It then atomically selects and reconciles the complete role without building or
+removing orphans, verifies exact running images and health, and restores the
+prior selector/runtime on candidate failure. A stable protected overlay link
+keeps recurring controls aligned across cutover and rollback; source assurance
+pins the command and sanitized examples without publishing installation state.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -655,6 +665,9 @@ assessment remain installation or pilot gates.
   gateway/engine backup creation and checks, capacity, deployment perimeter,
   gateway identity operations, private-engine operational readiness, and
   private outbound enforcement, plus exact edge-image and runtime readiness.
+- A fail-closed gateway/engine release activator with protected listener-only
+  configuration, exact merged-Compose/image/hardening proof, atomic selection,
+  bounded runtime reconciliation, and automatic prior-release recovery.
 
 ## Configuration model
 
@@ -756,7 +769,8 @@ logs.
 
 ## Production containers
 
-Create the deployment directory and initialize it from an interactive terminal:
+For initial bootstrap only, create the deployment directory and initialize it
+from an interactive terminal:
 
 ```bash
 install -d -m 700 data
@@ -764,6 +778,23 @@ docker compose -f compose.production.yaml --profile tools run --rm --build setti
 docker compose -f compose.production.yaml --profile release run --rm --build migrate
 docker compose -f compose.production.yaml up -d --build app
 ```
+
+Ongoing VASI 0.41.0 and later upgrades must use a protected installation
+configuration and the fail-closed activator after staging the exact archive,
+shared `data` link, images, backup, settings, and migrations. Preflight from
+the selected trusted release, then repeat without `--dry-run` only inside the
+approved cutover window:
+
+```bash
+cd /opt/vasi/current
+npm run release:activate -- /var/lib/vasi-release/gateway.json RELEASE_ID --dry-run
+npm run release:activate -- /var/lib/vasi-release/gateway.json RELEASE_ID
+```
+
+The first transition from a pre-0.41 release may run the candidate copy. See
+the [fail-closed activation decision](docs/architecture/fail-closed-release-activation.md)
+for protected-file setup, exact preconditions, engine-first ordering, rollback,
+and post-cutover gates. Do not replace that procedure with a raw Compose `up`.
 
 The settings tool performs the one-time ownership transition needed for the
 non-root runtime container. Run later changes through the same tool service:
@@ -795,8 +826,8 @@ not the continuing configuration mechanism.
 
 ## Private engine
 
-The sanitized private-engine Compose contract is separate from the public
-gateway contract:
+For initial bootstrap, the sanitized private-engine Compose contract is
+separate from the public gateway contract:
 
 ```bash
 install -d -m 700 data
@@ -808,6 +839,11 @@ docker compose -f compose.engine.yaml --profile release run --rm --build migrate
 docker compose -f compose.engine.yaml up -d --no-build database-gateway engine integration-gateway worker private-ingress
 sudo /usr/bin/env node scripts/probe-engine-egress-boundary.mjs
 ```
+
+For versioned upgrades, stage and prove the engine candidate first and run the
+engine activator with `deployment/activation/engine.example.json` adapted into
+protected installation state. Activate and pass the private-engine gates before
+activating the gateway.
 
 `engine`, `integration-gateway`, and `worker` have no `ports` mappings.
 `private-ingress` is the narrow service facade and binds only
@@ -937,6 +973,10 @@ threshold, sentinel-mount, and scheduler handoff contracts.
 The [recurring operations decision](docs/architecture/recurring-operational-schedulers.md)
 defines the packaged unit set, independent schedules, hardening, path override,
 PostgreSQL-origin, installation, validation, and alerting contract.
+The [fail-closed production activation decision](docs/architecture/fail-closed-release-activation.md)
+defines protected listener configuration, exact candidate and merged-runtime
+proof, atomic selection, automatic recovery, privacy-bounded output, and the
+surrounding release gates.
 The [public ingress decision](docs/architecture/public-ingress-boundary.md)
 defines the single public application origin, forwarding replacement, edge
 resource bounds, retired-host denial, canonical rendering, effective

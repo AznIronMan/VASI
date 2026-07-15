@@ -1,6 +1,6 @@
 # Recurring operational scheduler contract
 
-Status: implemented in VASI 0.24.0 and extended through VASI 0.40.2.
+Status: implemented in VASI 0.24.0 and extended through VASI 0.41.0.
 
 VASI ships the recurring host controls needed to keep a healthy release from
 silently degrading after deployment. The portable contract uses hardened
@@ -58,6 +58,14 @@ a root-owned systemd drop-in that replaces `WorkingDirectory` and the complete
 `ExecStart` line. Do not edit the tracked unit, add an environment file, embed a
 secret, or weaken the service sandbox. The override is deployment state and
 must be covered by the installation's configuration review and recovery plan.
+
+VASI 0.41.0 replaces a copied ignored override inside each selected release
+with a release-local `compose.live.yaml` symbolic link to one stable,
+mode-`0600` protected overlay. The fail-closed activator validates the exact
+merged model before establishing that link and changing `current`. This keeps
+all Compose-driven one-shots on the same reviewed listener decision after an
+upgrade or rollback. See the
+[production activation decision](fail-closed-release-activation.md).
 
 ## Installation
 

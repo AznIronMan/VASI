@@ -14,6 +14,7 @@ import {
   validateEdgeMonitorContract,
   validateEngineHostRuntimeContract,
   validateOperationalSchedulerContract,
+  validateProductionActivationContract,
   validatePublicIngressContract,
   validateRuntimeImageBuildContract,
   validateVersionAlignment,
@@ -87,6 +88,43 @@ describe("release assurance policy", () => {
   it("keeps recurring public-edge assurance exact and socket-free", async () => {
     const result = await validateEdgeMonitorContract(root);
     expect(result).toEqual({ failures: [], filesChecked: 9 });
+  });
+
+  it("keeps production release activation complete, bounded, and fail-closed", async () => {
+    const result = await validateProductionActivationContract(root);
+    expect(result).toEqual({ failures: [], filesChecked: 6 });
+  });
+
+  it("rejects an over-broad or destructive production release activator", async () => {
+    const fixture = await mkdtemp(path.join(tmpdir(), "vasi-production-activation-assurance-"));
+    try {
+      await mkdir(path.join(fixture, "deployment", "activation"), { recursive: true });
+      await mkdir(path.join(fixture, "scripts"), { recursive: true });
+      await cp(path.join(root, "package.json"), path.join(fixture, "package.json"));
+      await cp(
+        path.join(root, "scripts", "activate-production-release.mjs"),
+        path.join(fixture, "scripts", "activate-production-release.mjs"),
+      );
+      for (const role of ["gateway", "engine"]) {
+        for (const suffix of ["example.json", "live.example.yaml"]) {
+          await cp(
+            path.join(root, "deployment", "activation", `${role}.${suffix}`),
+            path.join(fixture, "deployment", "activation", `${role}.${suffix}`),
+          );
+        }
+      }
+      const script = path.join(fixture, "scripts", "activate-production-release.mjs");
+      await writeFile(script, `${await readFile(script, "utf8")}\n// --remove-orphans\n`);
+      const overlay = path.join(fixture, "deployment", "activation", "gateway.live.example.yaml");
+      await writeFile(overlay, `${await readFile(overlay, "utf8")}    environment:\n      SECRET: exposed\n`);
+      const result = await validateProductionActivationContract(fixture);
+      expect(result.failures).toContain(
+        "the production activation command contains prohibited destructive, privileged, or ambient state",
+      );
+      expect(result.failures).toContain("the sanitized gateway production activation example is invalid");
+    } finally {
+      await rm(fixture, { force: true, recursive: true });
+    }
   });
 
   it("rejects a mutable or privileged recurring edge monitor", async () => {
@@ -278,7 +316,7 @@ describe("release assurance policy", () => {
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.40.2")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.41.0")).toMatchObject({
       allowedOptionalPackagePaths: [
         "node_modules/@img/colour",
         "node_modules/@img/sharp-libvips-linuxmusl-x64",
@@ -291,7 +329,7 @@ describe("release assurance policy", () => {
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.40.2")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.41.0")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -312,7 +350,7 @@ describe("release assurance policy", () => {
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.40.2")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.41.0")).toMatchObject({
       entrypoints: [
         "scripts/backup-custody.mjs",
         "scripts/backup-continuity.mjs",
@@ -326,7 +364,7 @@ describe("release assurance policy", () => {
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.40.2")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.41.0")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",
@@ -343,7 +381,7 @@ describe("release assurance policy", () => {
   it("derives a bounded physical prohibition inventory from the exact lock graph", async () => {
     const packageJSON = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
     const packageLock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
-    const allowed = runtimeContractForImage("vasi:0.40.2").allowedOptionalPackagePaths;
+    const allowed = runtimeContractForImage("vasi:0.41.0").allowedOptionalPackagePaths;
     const result = runtimeDependencyAuditPaths(packageJSON, packageLock, allowed);
     expect(result.lockPackageCount).toBeGreaterThan(400);
     expect(result.prohibitedPackagePaths).toContain("node_modules/vitest");

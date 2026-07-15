@@ -1,0 +1,4 @@
+services:
+  app:
+    ports: !override
+      - 10.0.0.10:14443:3000

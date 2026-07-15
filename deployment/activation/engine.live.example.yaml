@@ -1,0 +1,4 @@
+services:
+  private-ingress:
+    ports: !override
+      - 10.0.0.11:11121:8443
