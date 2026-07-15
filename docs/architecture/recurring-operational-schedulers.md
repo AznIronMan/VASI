@@ -183,6 +183,15 @@ override, Docker-socket reference, privileged mode, or host networking. The
 release gate complements—rather than replaces—`systemd-analyze verify` and a
 manual run on the target distribution.
 
+VASI 0.46.2 also inventories every importable operational Node CLI. Their
+shared direct-execution helper compares physical resolved files, so commands
+launched through a trusted selected-release symlink cannot exit zero without
+entering `main`. The helper is bounded and fail-closed for malformed or
+unresolvable paths, while an ordinary module import remains side-effect free.
+Release assurance rejects the former literal module-URL comparison, a missing
+or duplicate guard, an unreviewed guarded entrypoint, or omission of the helper
+from the minimized database-gateway runtime image.
+
 ## Output, alerts, and limits
 
 The probes emit only their existing bounded aggregate JSON. Backup results do

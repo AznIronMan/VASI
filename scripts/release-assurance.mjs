@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { finished } from "node:stream/promises";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 import { parse as parseYAML } from "yaml";
 
@@ -31,6 +31,7 @@ import {
   renderPublicIngressConfiguration,
 } from "./public-ingress-config.mjs";
 import { discoverSensitiveRoutes } from "./probe-public-route-isolation.mjs";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const forbiddenPathPatterns = [
@@ -52,6 +53,27 @@ const secretPatterns = [
     pattern: /\b(?:mongodb(?:\+srv)?|mysql|postgres(?:ql)?):\/\/[^\s/:]+:[^\s/@]+@/i,
   },
 ];
+export const DIRECT_EXECUTION_ENTRYPOINTS = Object.freeze([
+  "scripts/activate-production-release.mjs",
+  "scripts/backup-continuity.mjs",
+  "scripts/backup-custody.mjs",
+  "scripts/backup.mjs",
+  "scripts/edge-monitor-contract.mjs",
+  "scripts/probe-capacity-readiness.mjs",
+  "scripts/probe-deployment-readiness.mjs",
+  "scripts/probe-engine-egress-boundary.mjs",
+  "scripts/probe-gateway-operational-readiness.mjs",
+  "scripts/probe-operational-readiness.mjs",
+  "scripts/probe-public-ingress.mjs",
+  "scripts/probe-public-route-isolation.mjs",
+  "scripts/probe-readiness-load.mjs",
+  "scripts/public-ingress-config.mjs",
+  "scripts/release-assurance.mjs",
+  "scripts/render-database-egress-policy.mjs",
+  "scripts/render-private-ingress-egress-policy.mjs",
+  "scripts/verify-engine-host-runtime.mjs",
+  "services/database-gateway/server.mjs",
+]);
 const prohibitedRuntimeToolPaths = Object.freeze([
   "/usr/bin/npm",
   "/usr/bin/npx",
@@ -1138,12 +1160,104 @@ export async function validateProductionActivationContract(repositoryRoot = root
   return { failures, filesChecked: 6 };
 }
 
+export async function validateDirectExecutionContract(
+  repositoryRoot = root,
+  trackedFiles = DIRECT_EXECUTION_ENTRYPOINTS,
+) {
+  const failures = [];
+  const expected = new Set(DIRECT_EXECUTION_ENTRYPOINTS);
+  if (
+    !Array.isArray(trackedFiles) || trackedFiles.length > 2_048 ||
+    trackedFiles.some((filename) => typeof filename !== "string" || filename.length > 512)
+  ) {
+    return {
+      cliFiles: [...DIRECT_EXECUTION_ENTRYPOINTS],
+      failures: ["the direct-execution source inventory is invalid"],
+      filesChecked: 0,
+    };
+  }
+  const candidates = trackedFiles.filter((filename) =>
+    /^(?:scripts|services)\/.+\.mjs$/.test(filename) &&
+    !filename.endsWith(".test.mjs") && !filename.includes("..")
+  ).sort();
+
+  let helper = "";
+  let helperTest = "";
+  let engineDockerfile = "";
+  try {
+    helper = await readFile(path.join(repositoryRoot, "scripts", "direct-execution.mjs"), "utf8");
+    helperTest = await readFile(path.join(repositoryRoot, "scripts", "direct-execution.test.mjs"), "utf8");
+    engineDockerfile = await readFile(path.join(repositoryRoot, "Dockerfile.engine"), "utf8");
+  } catch {
+    failures.push("the direct-execution helper, regression test, or runtime image contract is unavailable");
+  }
+  for (const marker of [
+    "const MAXIMUM_ENTRYPOINT_BYTES = 4_096;",
+    "Buffer.byteLength(invocationPath) > MAXIMUM_ENTRYPOINT_BYTES",
+    'invocationPath.includes("\\0")',
+    "fileURLToPath(moduleURL)",
+    "realpathSync(modulePath) === realpathSync(path.resolve(invocationPath))",
+    "catch {",
+    "return false;",
+  ]) {
+    if (!helper.includes(marker)) failures.push(`the direct-execution helper is missing ${marker}`);
+  }
+  for (const marker of [
+    "release-selector paths",
+    "fails closed for unrelated, missing, malformed, and oversized paths",
+    "runs the activation CLI through a selected release path",
+    "does not execute main when the activation module is imported",
+  ]) {
+    if (!helperTest.includes(marker)) failures.push(`the direct-execution regression test is missing ${marker}`);
+  }
+  if (!engineDockerfile.includes("COPY scripts/direct-execution.mjs ./scripts/direct-execution.mjs")) {
+    failures.push("the database gateway runtime image is missing the direct-execution helper");
+  }
+
+  const discovered = new Set();
+  for (const filename of candidates) {
+    let source;
+    try {
+      source = await readFile(path.join(repositoryRoot, filename), "utf8");
+    } catch {
+      failures.push(`the tracked operational source ${filename} is unavailable`);
+      continue;
+    }
+    if (/import\.meta\.url\s*===\s*pathToFileURL\s*\(/.test(source)) {
+      failures.push(`${filename} contains the vulnerable literal direct-execution comparison`);
+    }
+    const guards = source.match(/if \(isDirectExecution\(import\.meta\.url, process\.argv\[1\]\)\) \{/g) || [];
+    if (!guards.length) continue;
+    discovered.add(filename);
+    if (!expected.has(filename)) {
+      failures.push(`${filename} is an unreviewed direct-execution entrypoint`);
+      continue;
+    }
+    const importPath = filename.startsWith("services/")
+      ? "../../scripts/direct-execution.mjs"
+      : "./direct-execution.mjs";
+    if (
+      guards.length !== 1 ||
+      !source.includes(`import { isDirectExecution } from "${importPath}";`)
+    ) failures.push(`${filename} does not use the exact direct-execution helper contract`);
+  }
+  for (const filename of expected) {
+    if (!discovered.has(filename)) failures.push(`${filename} is missing its direct-execution guard`);
+  }
+  return {
+    cliFiles: [...DIRECT_EXECUTION_ENTRYPOINTS],
+    failures,
+    filesChecked: DIRECT_EXECUTION_ENTRYPOINTS.length + 3,
+  };
+}
+
 async function sourceAssurance(output, { allowDirty }) {
   const dirtyOutput = await capture("git", ["status", "--porcelain=v1"], { cwd: root });
   const dirty = Boolean(dirtyOutput.trim());
   if (dirty && !allowDirty) throw new Error("Release assurance requires a clean Git worktree.");
   const commit = (await capture("git", ["rev-parse", "HEAD"], { cwd: root })).trim();
   const source = await inspectTrackedSource(root);
+  const directExecution = await validateDirectExecutionContract(root, source.files.map((entry) => entry.path));
   const versions = await validateVersionAlignment(root);
   const compose = await validateComposeContracts(root);
   const automation = await validateAutomationContract(root);
@@ -1162,6 +1276,9 @@ async function sourceAssurance(output, { allowDirty }) {
     throw new Error(
       `Gateway request handling uses unbounded request.json(): ${source.unboundedGatewayJSONParsers.join(", ")}.`,
     );
+  }
+  if (directExecution.failures.length) {
+    throw new Error(`Operational CLI execution hardening failed: ${directExecution.failures.join("; ")}.`);
   }
   if (versions.mismatches.length) throw new Error("VASI version declarations are not aligned.");
   if (compose.failures.length) throw new Error(`Compose hardening failed: ${compose.failures.join("; ")}.`);
@@ -1206,6 +1323,7 @@ async function sourceAssurance(output, { allowDirty }) {
     commit,
     automation,
     compose,
+    directExecution,
     dirty,
     edgeMonitor,
     engineHostRuntime,
@@ -1677,7 +1795,7 @@ function usage() {
   process.exit(1);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : "VASI release assurance failed.");
     process.exitCode = 1;

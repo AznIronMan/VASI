@@ -12,7 +12,9 @@ import {
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import { isDirectExecution } from "./direct-execution.mjs";
 
 export const ACTIVATION_SCHEMA = "vasi-production-release-activation/v1";
 
@@ -607,6 +609,6 @@ async function main(argumentsList) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   await main(process.argv.slice(2));
 }

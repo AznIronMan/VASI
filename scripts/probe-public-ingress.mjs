@@ -1,7 +1,7 @@
 import process from "node:process";
 import { request as requestHTTPS } from "node:https";
 import { connect as connectTLS } from "node:tls";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 import packageJSON from "../package.json" with { type: "json" };
 
@@ -606,7 +606,7 @@ function usage() {
   );
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   runPublicIngressProbe(parseArguments(process.argv.slice(2)))
     .then((result) => console.info(JSON.stringify(result, null, 2)))
     .catch((error) => {

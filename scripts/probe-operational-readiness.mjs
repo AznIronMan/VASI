@@ -1,5 +1,5 @@
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 import policy from "../config/assurance-policy.json" with { type: "json" };
 import packageJSON from "../package.json" with { type: "json" };
@@ -121,7 +121,7 @@ function parseArguments(argumentsList) {
   return thresholds;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   runOperationalReadinessProbe({ thresholds: parseArguments(process.argv.slice(2)) })
     .then((result) => {
       console.info(JSON.stringify(result, null, 2));

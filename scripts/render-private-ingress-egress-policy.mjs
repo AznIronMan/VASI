@@ -1,5 +1,5 @@
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 export const PRIVATE_INGRESS_EGRESS_CHAIN = "VASI_INGRESS_EGRESS";
 export const PRIVATE_INGRESS_EGRESS_POLICY_SCHEMA = "vasi-private-ingress-egress-policy/v1";
@@ -85,7 +85,7 @@ function parseArguments(args) {
   return parsed;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   let parsed;
   try {
     parsed = parseArguments(process.argv.slice(2));

@@ -3,6 +3,8 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { isDirectExecution } from "./direct-execution.mjs";
+
 export const ENGINE_HOST_RUNTIME_SCHEMA = "vasi-engine-host-runtime/v1";
 
 export class EngineHostRuntimeError extends Error {
@@ -188,7 +190,7 @@ function fail(code) {
   throw new EngineHostRuntimeError(code);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   verifyEngineHostRuntime()
     .then((result) => console.info(JSON.stringify(result)))
     .catch((error) => {

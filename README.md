@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.46.1`
+Version: `0.46.2`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -595,6 +595,16 @@ v3 live ingress proof now uses raw TLS requests to verify hostile Host and
 absolute-form target isolation, exact normalization denials, forwarded-host
 non-reflection, method-override resistance, hostile simple CORS denial, and an
 unauthenticated session response containing only non-cacheable JSON `null`.
+
+Version 0.46.2 makes operational CLI execution identity physical-file based.
+Nineteen importable release, backup, readiness, edge, policy, and database-
+gateway entrypoints resolve both the invoked path and module URL before
+deciding whether to enter `main`. A trusted `current` release-selector symlink
+therefore runs the command exactly once instead of exiting successfully as a
+silent no-op. Missing, malformed, unrelated, looping, or oversized paths fail
+closed; ordinary module imports remain side-effect free. Source assurance owns
+the exact entrypoint inventory and rejects the former literal URL comparison,
+a missing helper guard, or an unreviewed new guarded CLI.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

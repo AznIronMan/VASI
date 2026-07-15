@@ -3,7 +3,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import process from "node:process";
 import { statfs } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 import policy from "../config/assurance-policy.json" with { type: "json" };
 import packageJSON from "../package.json" with { type: "json" };
@@ -499,7 +499,7 @@ function parseArguments(argumentsList) {
   return parsed;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   runCapacityReadinessProbe(parseArguments(process.argv.slice(2)))
     .then((result) => console.info(JSON.stringify(result, null, 2)))
     .catch((error) => {

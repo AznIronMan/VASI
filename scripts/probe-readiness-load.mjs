@@ -1,6 +1,6 @@
 import { performance } from "node:perf_hooks";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 import policy from "../config/assurance-policy.json" with { type: "json" };
 
@@ -153,7 +153,7 @@ function usage() {
   process.exit(1);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   runReadinessLoadProbe(parseArguments(process.argv.slice(2)))
     .then((summary) => console.info(JSON.stringify(summary, null, 2)))
     .catch((error) => {

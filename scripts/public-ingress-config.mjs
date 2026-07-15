@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 const MAXIMUM_CONFIG_BYTES = 4 * 1024 * 1024;
 const MAXIMUM_TOKENS = 100_000;
@@ -686,7 +686,7 @@ function usage() {
   );
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : "VASI public ingress configuration failed.");
     process.exitCode = 1;

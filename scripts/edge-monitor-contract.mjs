@@ -7,7 +7,7 @@ import {
 } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 import policy from "../config/edge-monitor-policy.json" with { type: "json" };
 
@@ -471,7 +471,7 @@ async function main() {
   throw new Error("Usage: edge-monitor-contract validate-config|create-manifest|verify-evidence ...");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   main().catch(() => {
     console.error("VASI edge monitor contract rejected its bounded input.");
     process.exitCode = 1;

@@ -3,7 +3,7 @@ import { statfs } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import process from "node:process";
 import tls from "node:tls";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 import policy from "../config/assurance-policy.json" with { type: "json" };
 import packageJSON from "../package.json" with { type: "json" };
@@ -371,7 +371,7 @@ function usage() {
   throw new Error("Usage: node scripts/probe-deployment-readiness.mjs [HTTPS_ORIGIN] --scope gateway|engine --storage ABSOLUTE_PATH [threshold options]");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   runDeploymentReadinessCLI(process.argv.slice(2))
     .then((result) => console.info(JSON.stringify(result, null, 2)))
     .catch((error) => {

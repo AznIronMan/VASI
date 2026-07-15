@@ -5,9 +5,10 @@ import { isIP } from "node:net";
 import net from "node:net";
 import process from "node:process";
 import { DatabaseSync } from "node:sqlite";
-import { pathToFileURL } from "node:url";
 
-export const DATABASE_GATEWAY_VERSION = "0.46.1";
+import { isDirectExecution } from "../../scripts/direct-execution.mjs";
+
+export const DATABASE_GATEWAY_VERSION = "0.46.2";
 export const DATABASE_GATEWAY_HEALTH_SCHEMA = "vasi-database-gateway-health/v1";
 const DEFAULT_SETTINGS_PATH = "/app/data/VASI.settings";
 const MAXIMUM_ADDRESSES = 16;
@@ -229,7 +230,7 @@ async function main() {
   process.once("SIGTERM", shutdown);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   main().catch(() => {
     console.error("VASI database gateway failed.");
     process.exitCode = 1;

@@ -1,7 +1,9 @@
 import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+
+import { isDirectExecution } from "./direct-execution.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SENSITIVE_API_NAMESPACES = Object.freeze(["admin", "evidence", "owner", "workspace"]);
@@ -484,7 +486,7 @@ function usage() {
   throw new Error("Usage: node scripts/probe-public-route-isolation.mjs HTTPS_ORIGIN [--timeout-ms N]");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   runPublicRouteIsolationProbe(parseArguments(process.argv.slice(2)))
     .then((result) => console.info(JSON.stringify(result, null, 2)))
     .catch((error) => {

@@ -1,7 +1,7 @@
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -11,6 +11,7 @@ import {
   runtimeContractForImage,
   validateAutomationContract,
   validateComposeContracts,
+  validateDirectExecutionContract,
   validateEdgeMonitorContract,
   validateEngineHostRuntimeContract,
   validateOperationalSchedulerContract,
@@ -87,6 +88,67 @@ describe("release assurance policy", () => {
   it("keeps every production image dependency stage exact and minimized", async () => {
     const result = await validateRuntimeImageBuildContract(root);
     expect(result).toEqual({ failures: [], filesChecked: 2 });
+  });
+
+  it("keeps every importable operational CLI symlink-safe and release-assurance inventoried", async () => {
+    const tracked = await inspectTrackedSource(root);
+    const result = await validateDirectExecutionContract(root, tracked.files.map((entry) => entry.path));
+    expect(result.failures).toEqual([]);
+    expect(result.filesChecked).toBe(22);
+    expect(result.cliFiles).toHaveLength(19);
+    expect(result.cliFiles).toContain("scripts/activate-production-release.mjs");
+    expect(result.cliFiles).toContain("services/database-gateway/server.mjs");
+    await expect(validateDirectExecutionContract(root, [null])).resolves.toMatchObject({
+      failures: ["the direct-execution source inventory is invalid"],
+      filesChecked: 0,
+    });
+  });
+
+  it("imports every inventoried operational CLI without entering main", async () => {
+    const tracked = await inspectTrackedSource(root);
+    const result = await validateDirectExecutionContract(root, tracked.files.map((entry) => entry.path));
+    const modules = await Promise.all(result.cliFiles.map((filename) =>
+      import(pathToFileURL(path.join(root, filename)).href)
+    ));
+    expect(modules).toHaveLength(19);
+  });
+
+  it("rejects a silent-no-op operational CLI comparison", async () => {
+    const tracked = await inspectTrackedSource(root);
+    const clean = await validateDirectExecutionContract(root, tracked.files.map((entry) => entry.path));
+    const fixture = await mkdtemp(path.join(tmpdir(), "vasi-direct-execution-assurance-"));
+    try {
+      const files = [
+        "Dockerfile.engine",
+        "scripts/direct-execution.mjs",
+        "scripts/direct-execution.test.mjs",
+        ...clean.cliFiles,
+      ];
+      for (const filename of new Set(files)) {
+        await mkdir(path.dirname(path.join(fixture, filename)), { recursive: true });
+        await cp(path.join(root, filename), path.join(fixture, filename));
+      }
+      const activation = path.join(fixture, "scripts", "activate-production-release.mjs");
+      await writeFile(
+        activation,
+        (await readFile(activation, "utf8")).replace(
+          "if (isDirectExecution(import.meta.url, process.argv[1])) {",
+          [
+            "if (process.argv[1] && import.meta.url === ",
+            "pathToFileURL(process.argv[1]).href) {",
+          ].join(""),
+        ),
+      );
+      const result = await validateDirectExecutionContract(fixture, clean.cliFiles);
+      expect(result.failures).toContain(
+        "scripts/activate-production-release.mjs contains the vulnerable literal direct-execution comparison",
+      );
+      expect(result.failures).toContain(
+        "scripts/activate-production-release.mjs is missing its direct-execution guard",
+      );
+    } finally {
+      await rm(fixture, { force: true, recursive: true });
+    }
   });
 
   it("keeps the canonical public ingress bounded and independently auditable", async () => {
@@ -449,7 +511,7 @@ curl https://monitor.example.test\n`,
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.46.1")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.46.2")).toMatchObject({
       allowedOptionalPackagePaths: [
         "node_modules/@img/colour",
         "node_modules/@img/sharp-libvips-linuxmusl-x64",
@@ -462,7 +524,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.46.1")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.46.2")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -483,7 +545,7 @@ curl https://monitor.example.test\n`,
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.46.1")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.46.2")).toMatchObject({
       entrypoints: [
         "scripts/backup-custody.mjs",
         "scripts/backup-continuity.mjs",
@@ -497,7 +559,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.46.1")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.46.2")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",
@@ -514,7 +576,7 @@ curl https://monitor.example.test\n`,
   it("derives a bounded physical prohibition inventory from the exact lock graph", async () => {
     const packageJSON = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
     const packageLock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
-    const allowed = runtimeContractForImage("vasi:0.46.1").allowedOptionalPackagePaths;
+    const allowed = runtimeContractForImage("vasi:0.46.2").allowedOptionalPackagePaths;
     const result = runtimeDependencyAuditPaths(packageJSON, packageLock, allowed);
     expect(result.lockPackageCount).toBeGreaterThan(400);
     expect(result.prohibitedPackagePaths).toContain("node_modules/vitest");

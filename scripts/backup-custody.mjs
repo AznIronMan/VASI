@@ -1,5 +1,5 @@
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 import policy from "../config/assurance-policy.json" with { type: "json" };
 import {
@@ -131,7 +131,7 @@ function usage() {
   return undefined;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   runBackupCustodyCommand(process.argv.slice(2)).catch((error) => {
     if (error?.result) console.error(JSON.stringify(error.result, null, 2));
     console.error(error instanceof BackupCustodyError

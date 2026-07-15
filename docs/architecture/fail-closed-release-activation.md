@@ -1,6 +1,6 @@
 # Fail-closed production release activation
 
-Status: implemented in VASI 0.41.0 and corrected in VASI 0.41.1.
+Status: implemented in VASI 0.41.0; corrected in VASI 0.41.1 and 0.46.2.
 
 VASI source archives are deliberately sanitized: they contain no installation
 address, credential, bootstrap database, or live Compose override. Production
@@ -86,6 +86,24 @@ The command inherits only the minimum Docker client selectors and emits a
 fixed aggregate result containing schema, role, version, service count, image
 count, and status. It does not emit a path, listener, image ID, credential,
 setting, customer value, or captured subprocess output.
+
+## Selected-path execution identity
+
+VASI 0.46.2 resolves the invoked CLI path and the imported module URL to their
+physical regular-file identities before entering `main`. This preserves the
+import-safe module boundary while making both an exact release path and a
+trusted `current` directory symlink execute the command exactly once. A
+missing, unrelated, malformed, looping, NUL-containing, or oversized path
+fails the identity check without executing the operational body or throwing an
+unbounded error.
+
+The same helper protects the complete reviewed set of importable operational
+CLIs, not only activation. Release assurance owns that exact inventory, rejects
+the former literal URL comparison, rejects missing or duplicate guards, and
+requires the database-gateway runtime image to carry the helper. Spawned tests
+prove physical invocation, a release-selector directory symlink, and import-
+only behavior. A zero exit with no activation result is never evidence of a
+dry-run; operators must require and retain the bounded JSON result.
 
 ## Activation sequence
 

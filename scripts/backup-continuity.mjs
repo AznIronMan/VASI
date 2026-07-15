@@ -1,7 +1,7 @@
 import { lstat, open, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 import policy from "../config/assurance-policy.json" with { type: "json" };
 import { BACKUP_SCHEMA, createBackup, validateBackupManifest, verifyBackup } from "./backup.mjs";
@@ -233,7 +233,7 @@ async function main(args) {
   console.info(JSON.stringify(result, null, 2));
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   main(process.argv.slice(2)).catch((error) => {
     if (error?.result) console.error(JSON.stringify(error.result, null, 2));
     console.error(error instanceof BackupContinuityError

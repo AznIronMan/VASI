@@ -1,7 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 import { loadBootstrapSettings } from "./settings-core.mjs";
 
@@ -153,7 +153,7 @@ function parseArguments(args) {
   return parsed;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   const parsed = parseArguments(process.argv.slice(2));
   databaseEgressPolicy(parsed)
     .then((result) => process.stdout.write(parsed.format === "portable-json"

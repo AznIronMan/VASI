@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { isDirectExecution } from "./direct-execution.mjs";
 
 import policy from "../config/assurance-policy.json" with { type: "json" };
 import packageJSON from "../package.json" with { type: "json" };
@@ -149,7 +149,7 @@ function nonnegativeSafeInteger(value, label) {
   return normalized;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   runGatewayOperationalReadinessProbe({
     thresholds: parseGatewayOperationalArguments(process.argv.slice(2)),
   }).then((result) => {

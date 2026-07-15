@@ -344,6 +344,11 @@ cd /opt/vasi-engine/current
 npm run release:activate -- /var/lib/vasi-release/engine.json RELEASE_ID --dry-run
 ```
 
+VASI 0.46.2 resolves this selected-release path to the same physical script as
+the imported module before entering the CLI. Treat only the bounded JSON
+`status: "ready"` result as a successful dry-run; an empty zero-exit invocation
+is invalid release evidence.
+
 The first transition from a pre-0.41 release may run the same command from the
 candidate directory. A passing result is aggregate-only and changes neither
 the selector nor Docker runtime. Pause the role's recurring work for the

@@ -194,7 +194,7 @@ describe("tenant readiness dossier export", () => {
       fixture.database,
       settings(),
       "installation-test",
-      { engineVersion: "0.46.1" },
+      { engineVersion: "0.46.2" },
     );
 
     const exported = await store.exportTenantReadiness(actor, {
@@ -209,7 +209,7 @@ describe("tenant readiness dossier export", () => {
           adapterPolicy: {
             destinationAllowlistCounts: { smtpHosts: 1 },
           },
-          engineVersion: "0.46.1",
+          engineVersion: "0.46.2",
         },
         integrations: [{
           adapterId: "smtp",

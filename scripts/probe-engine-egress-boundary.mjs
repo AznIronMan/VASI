@@ -3,9 +3,11 @@ import { existsSync } from "node:fs";
 import { connect, isIP } from "node:net";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
-export const EGRESS_BOUNDARY_VERSION = "0.46.1";
+import { isDirectExecution } from "./direct-execution.mjs";
+
+export const EGRESS_BOUNDARY_VERSION = "0.46.2";
 export const EGRESS_BOUNDARY_SCHEMA = "vasi-engine-egress-boundary/v2";
 const DEFAULT_DATABASE_CHAIN = "VASI_DATABASE_EGRESS";
 const DEFAULT_INGRESS_CHAIN = "VASI_INGRESS_EGRESS";
@@ -309,7 +311,7 @@ function runBounded(command, args, { cwd = root, timeoutMilliseconds = 15_000 } 
   });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   let parsed;
   try {
     parsed = parseArguments(process.argv.slice(2));
