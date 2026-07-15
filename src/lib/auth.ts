@@ -25,7 +25,8 @@ export function getAuth() {
 async function createAuth() {
   const settings = await getRuntimeSettings();
   const brand = resolveProductBrand(settings);
-  const { adminEmails, adminOrigin, authSecret, baseURL } = resolveServerSettings(settings);
+  const { adminEmails, adminOrigin, authSecret, baseURL, trustedProxyCIDRs } =
+    resolveServerSettings(settings);
   const authenticationOrigins = [baseURL, adminOrigin];
   const allowedHosts = [...new Set(authenticationOrigins.map((origin) => new URL(origin).host))];
   const socialProviders: NonNullable<BetterAuthOptions["socialProviders"]> = {};
@@ -110,6 +111,15 @@ async function createAuth() {
     database: getDatabase(),
     disabledPaths: ["/is-username-available"],
     trustedOrigins: [...authenticationOrigins, "https://appleid.apple.com"],
+    advanced: {
+      ipAddress: {
+        ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
+        ipv6Subnet: 64,
+        trustedProxies: trustedProxyCIDRs,
+      },
+      trustedProxyHeaders: false,
+      useSecureCookies: new URL(baseURL).protocol === "https:",
+    },
     socialProviders,
     plugins: [
       username({

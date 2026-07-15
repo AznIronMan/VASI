@@ -1,10 +1,12 @@
 import type { RuntimeSettings } from "@/lib/runtime-settings";
+import { parseTrustedProxyCIDRs } from "@/lib/client-address";
 
 export type ResolvedServerSettings = {
   adminEmails: string[];
   adminOrigin: string;
   authSecret: string;
   baseURL: string;
+  trustedProxyCIDRs: string[];
 };
 
 export function resolveServerSettings(
@@ -15,6 +17,7 @@ export function resolveServerSettings(
   const baseURL = required(settings, "BETTER_AUTH_URL");
   const adminOrigin = required(settings, "VASI_ADMIN_ORIGIN");
   const adminEmails = parseAdminEmails(required(settings, "VASI_ADMIN_EMAILS"));
+  const trustedProxyCIDRs = parseTrustedProxyCIDRs(settings.VASI_TRUSTED_PROXY_CIDRS);
 
   if (authSecret.length < 32) {
     throw new Error("BETTER_AUTH_SECRET must contain at least 32 characters.");
@@ -37,6 +40,7 @@ export function resolveServerSettings(
     adminOrigin: parsedAdminOrigin.origin,
     authSecret,
     baseURL: parsedBaseURL.origin,
+    trustedProxyCIDRs,
   };
 }
 

@@ -139,6 +139,16 @@ reviewed exports. New privacy-status jobs remain in the dedicated
 `participant_pending` state, which the prior worker deliberately cannot claim,
 until the current worker returns.
 
+VASI 0.37.0 adds gateway migration
+`0008_public_verification_rate_limit`. It creates only mutable, expiry-indexed
+public-verification throttle state keyed by a domain-separated HMAC; it stores
+no raw client address and changes no identity or private-engine table. Apply the
+gateway migration before replacing the gateway. The prior runtime can operate
+after this additive migration for immediate rollback, but it retains only its
+process-local throttle. Configure and verify the trusted reverse-proxy boundary
+before cutover; no engine migration or engine-first compatibility dependency is
+introduced by this release.
+
 ## Initialize
 
 Requirements are Docker Engine with Compose, PostgreSQL 15 or newer, an HTTPS

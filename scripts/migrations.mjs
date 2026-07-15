@@ -35,6 +35,10 @@ export const GATEWAY_MIGRATIONS = Object.freeze([
     name: "0007_admin_audit_chain",
     path: path.join(repositoryRoot, "database", "admin-audit-chain.sql"),
   },
+  {
+    name: "0008_public_verification_rate_limit",
+    path: path.join(repositoryRoot, "database", "public-verification-rate-limit.sql"),
+  },
 ].map((migration) => Object.freeze(migration)));
 
 export async function runMigrations(bootstrap = loadBootstrapSettings()) {

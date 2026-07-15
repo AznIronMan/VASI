@@ -90,11 +90,14 @@ network service, or database. `--json` produces a machine-readable result. A
 sealed record JSON can be verified directly with the same command.
 
 The public `/verify` page accepts only an exact 64-character manifest
-fingerprint. The gateway applies same-origin enforcement and bounded per-client
-rate limiting, creates a narrowly scoped short-lived verification assertion,
+fingerprint. The gateway applies same-origin enforcement and a PostgreSQL-backed
+atomic rate limit, creates a narrowly scoped short-lived verification assertion,
 and returns no participant identity, responses, document content, tenant name,
-or requester information. Known and unknown lookups are recorded in the
-append-only access ledger.
+or requester information. The throttle uses only a domain-separated HMAC of a
+strictly resolved client bucket, groups IPv6 by `/64`, gives ambiguous requests
+one shared bucket, and fails closed when state is unavailable. The throttle
+table never stores a raw client address. Known and unknown lookups are recorded
+in the append-only access ledger.
 
 ## Signing keys and optional certificates
 

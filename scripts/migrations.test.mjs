@@ -61,4 +61,19 @@ describe("gateway migration ledger", () => {
     expect(migration).toContain("before truncate on \"vasi_admin_audit\"");
     expect(migration).toContain('drop constraint if exists "vasi_admin_audit_actorUserId_fkey"');
   });
+
+  it("uses an opaque durable throttle after the administrator audit migration", async () => {
+    const ledger = await readFile(path.join(root, "scripts", "migrations.mjs"), "utf8");
+    const migration = await readFile(
+      path.join(root, "database", "public-verification-rate-limit.sql"),
+      "utf8",
+    );
+
+    expect(ledger.indexOf("0008_public_verification_rate_limit"))
+      .toBeGreaterThan(ledger.indexOf("0007_admin_audit_chain"));
+    expect(migration).toContain('"keyDigest" text primary key');
+    expect(migration).toContain("^[a-f0-9]{64}$");
+    expect(migration).toContain('"expiresAt" > "windowStartedAt"');
+    expect(migration).toContain("raw client addresses are never stored");
+  });
 });

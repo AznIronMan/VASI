@@ -1,6 +1,6 @@
 # Identity-administration audit integrity
 
-Status: implemented in VASI 0.34.0.
+Status: implemented in VASI 0.34.0 and extended in VASI 0.37.0.
 
 ## Decision
 
@@ -51,10 +51,13 @@ not. Operators must review current state before retrying an ambiguous command.
 ## Privacy and interpretation
 
 Command context may contain the authenticated administrator user and session
-references, first trusted-proxy-reported source address, and a bounded user-agent
-string. These are supporting observations, not independent proof of a person,
-device, location, or MFA. Reverse-proxy trust configuration remains part of the
-deployment boundary.
+references, one strictly parsed source address selected by a right-to-left walk
+of the configured trusted-proxy chain, and a bounded user-agent string.
+Malformed or ambiguous chains produce no address. These are supporting
+observations, not independent proof of a person, device, location, or MFA. The
+edge must strip client-supplied forwarding headers and keep the gateway origin
+unreachable directly; reverse-proxy trust remains part of the deployment
+boundary.
 
 Metadata must be a bounded JSON object. Application validation rejects secret,
 credential, authorization, cookie, password, token, private-key, message-body,

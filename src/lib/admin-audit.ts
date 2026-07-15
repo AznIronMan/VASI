@@ -7,6 +7,9 @@ import {
   type AdminAuditChainRow,
 } from "../../packages/admin-audit/index.mjs";
 import { database } from "@/lib/database";
+import { resolveTrustedClientAddress } from "@/lib/client-address";
+import { getRuntimeSettings } from "@/lib/runtime-settings";
+import { resolveServerSettings } from "@/lib/server-settings";
 
 export type AdminAuditPhase = "ambiguous" | "event" | "failed" | "started" | "succeeded";
 export type AdminAuditTerminalPhase = Exclude<AdminAuditPhase, "event" | "started">;
@@ -79,15 +82,13 @@ export async function beginAdminAuditCommand({
   session: AuditSession;
   targetUserId?: string | null;
 }): Promise<AdminAuditCommand> {
+  const { trustedProxyCIDRs } = resolveServerSettings(await getRuntimeSettings());
   const command: AdminAuditCommand = Object.freeze({
     action: auditToken(action, "action"),
     actorSessionId: auditToken(session.session.id, "actor session"),
     actorUserId: auditToken(session.user.id, "actor user"),
     commandId: randomUUID(),
-    ipAddress: boundedHeader(
-      request.headers.get("x-forwarded-for")?.split(",")[0] ||
-        request.headers.get("x-real-ip"),
-    ),
+    ipAddress: resolveTrustedClientAddress(request.headers, trustedProxyCIDRs) || null,
     requestId: randomUUID(),
     targetUserId: targetUserId ? auditToken(targetUserId, "target user") : null,
     userAgent: boundedHeader(request.headers.get("user-agent")),

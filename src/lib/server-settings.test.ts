@@ -49,4 +49,15 @@ describe("server settings", () => {
       ).adminEmails,
     ).toEqual(["one@example.com", "two@example.com"]);
   });
+
+  it("validates and returns only canonical trusted proxy networks", () => {
+    expect(resolveServerSettings({
+      ...validSettings,
+      VASI_TRUSTED_PROXY_CIDRS: "10.0.0.0/8, 2001:db8::/32",
+    }, true).trustedProxyCIDRs).toEqual(["10.0.0.0/8", "2001:db8::/32"]);
+    expect(() => resolveServerSettings({
+      ...validSettings,
+      VASI_TRUSTED_PROXY_CIDRS: "10.0.0.1/8",
+    }, true)).toThrow("canonical network address");
+  });
 });

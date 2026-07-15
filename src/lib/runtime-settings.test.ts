@@ -22,6 +22,7 @@ describe("runtime settings", () => {
     expect(settings.MICROSOFT_TENANT_ID).toBe("common");
     expect(settings.APPLE_LOGIN_ENABLED).toBe("false");
     expect(settings.SMTP_PORT).toBe("587");
+    expect(settings.VASI_TRUSTED_PROXY_CIDRS).toBe("");
   });
 
   it("fails closed when required installation settings are missing", () => {

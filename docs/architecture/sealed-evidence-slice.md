@@ -33,8 +33,9 @@ chain updates with a row lock and hashes canonical VASI JSON containing:
 - previous hash and authoritative server receive time;
 - bounded actor principal, gateway session, roles, email, available provider
   method/subject, and authentication time;
-- available gateway-observed IP/header, user-agent, language, and browser client
-  hints, labeled as contextual rather than proof of a person's comprehension;
+- an available strictly parsed client address selected from the approved proxy
+  chain, user-agent, language, and browser client hints, labeled as contextual
+  rather than proof of identity, location, or a person's comprehension;
 - exact workflow content hash, interaction, response, and server duration; and
 - engine version and typed event payload.
 

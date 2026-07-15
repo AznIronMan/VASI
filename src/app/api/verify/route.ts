@@ -1,27 +1,44 @@
 import { randomUUID } from "node:crypto";
 
 import { boundedJSONObject } from "@/lib/bounded-json";
+import { resolveTrustedClientAddress } from "@/lib/client-address";
 import { requestEngineAction, type EngineActor } from "@/lib/engine-client";
 import { hasExpectedMutationOrigin, isRequestForOrigin } from "@/lib/host-policy";
 import { getRuntimeSettings } from "@/lib/runtime-settings";
 import { resolveServerSettings } from "@/lib/server-settings";
-
-const attempts = new Map<string, { count: number; expiresAt: number }>();
-const WINDOW_MILLISECONDS = 60_000;
-const WINDOW_LIMIT = 20;
+import { consumePublicVerificationRateLimit } from "@/lib/public-verification-rate-limit";
 
 export async function POST(request: Request) {
   const settings = await getRuntimeSettings();
-  const { baseURL } = resolveServerSettings(settings);
+  const { authSecret, baseURL, trustedProxyCIDRs } = resolveServerSettings(settings);
   if (!isRequestForOrigin(request.headers, baseURL)) return new Response(null, { status: 404 });
   if (!hasExpectedMutationOrigin(request.headers, baseURL)) {
     return Response.json({ error: "Invalid request origin." }, { status: 403 });
   }
-  const client = clientAddress(request.headers);
-  if (!acceptAttempt(client)) {
+  const client = resolveTrustedClientAddress(request.headers, trustedProxyCIDRs);
+  let rateLimit;
+  try {
+    rateLimit = await consumePublicVerificationRateLimit({
+      address: client,
+      authSecret,
+    });
+  } catch {
+    console.error(JSON.stringify({ event: "public_verification_rate_limit_unavailable" }));
+    return Response.json(
+      { error: "Verification is temporarily unavailable." },
+      { headers: { "cache-control": "no-store", "retry-after": "60" }, status: 503 },
+    );
+  }
+  if (!rateLimit.accepted) {
     return Response.json(
       { error: "Too many verification attempts. Try again shortly." },
-      { headers: { "cache-control": "no-store", "retry-after": "60" }, status: 429 },
+      {
+        headers: {
+          "cache-control": "no-store",
+          "retry-after": String(rateLimit.retryAfterSeconds),
+        },
+        status: 429,
+      },
     );
   }
   const parsed = await boundedJSONObject(request);
@@ -42,7 +59,7 @@ export async function POST(request: Request) {
     principalId: "vasi-public-verifier",
     requestContext: {
       acceptLanguage: bounded(request.headers.get("accept-language")),
-      ipAddress: bounded(client),
+      ipAddress: client,
       userAgent: bounded(request.headers.get("user-agent")),
     },
     roles: ["verification"],
@@ -57,25 +74,6 @@ export async function POST(request: Request) {
     headers: { "cache-control": "no-store", "referrer-policy": "no-referrer" },
     status: result.status || 502,
   });
-}
-
-function acceptAttempt(key: string) {
-  const now = Date.now();
-  for (const [candidate, state] of attempts) {
-    if (state.expiresAt <= now) attempts.delete(candidate);
-  }
-  const state = attempts.get(key);
-  if (!state) {
-    attempts.set(key, { count: 1, expiresAt: now + WINDOW_MILLISECONDS });
-    return true;
-  }
-  state.count += 1;
-  return state.count <= WINDOW_LIMIT;
-}
-
-function clientAddress(headers: Headers) {
-  return headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headers.get("x-real-ip")?.trim() || "unknown";
 }
 
 function bounded(value?: string | null) {

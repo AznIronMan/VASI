@@ -3,6 +3,7 @@
   { "scope": "gateway", "name": "BETTER_AUTH_SECRET", "required": true, "secret": true },
   { "scope": "gateway", "name": "VASI_ADMIN_ORIGIN", "required": true, "secret": false },
   { "scope": "gateway", "name": "VASI_ADMIN_EMAILS", "required": true, "secret": false },
+  { "scope": "gateway", "name": "VASI_TRUSTED_PROXY_CIDRS", "required": false, "secret": false, "default": "" },
   { "scope": "gateway", "name": "MICROSOFT_CLIENT_ID", "required": false, "secret": false },
   { "scope": "gateway", "name": "MICROSOFT_CLIENT_SECRET", "required": false, "secret": true },
   { "scope": "gateway", "name": "MICROSOFT_TENANT_ID", "required": false, "secret": false, "default": "common" },

@@ -66,6 +66,38 @@ provider configuration, origins, allowlists, or secrets. Company-specific
 branding within evidence is governed separately by the engine tenant profile
 and is snapshot-bound at request issuance.
 
+## Trusted reverse-proxy address provenance
+
+`VASI_TRUSTED_PROXY_CIDRS` is an optional comma-separated list of canonical IP
+networks for approved intermediate proxies, such as `10.20.0.0/24` or
+`2001:db8:20::/48`. Store it as a non-secret gateway setting and restart the
+gateway after a change. VASI applies the same list to Better Auth rate limiting,
+engine actor evidence, administrator audit, and public verification.
+
+The edge proxy must remove client-supplied `Forwarded`, `X-Forwarded-For`, and
+`X-Real-IP` headers before setting its controlled values. A single proxy should
+set one client address rather than append an inbound value. In a reviewed
+multi-proxy chain, each proxy must append only its authenticated immediate peer,
+and the setting must include only the exact intermediate proxy networks. Keep
+the application port loopback/private and unreachable except through that
+proxy; the application cannot independently authenticate a forwarding header
+when its socket peer is outside this deployment boundary.
+
+Every address and network is parsed as strict IPv4 or IPv6. With no configured
+proxy list, only a single address value is attributable; a multi-hop chain is
+discarded. With a list, VASI walks right to left, skips approved proxy networks,
+and uses the first untrusted hop. Malformed, oversized, excessive, or entirely
+trusted chains remain absent rather than becoming evidence. An address is
+supporting proxy-observed context, never independent proof of identity, device,
+location, or control of an account.
+
+The unauthenticated `/verify` throttle stores an HMAC digest of the normalized
+address bucket in PostgreSQL. It never stores the raw address in the throttle
+table. IPv6 addresses share a `/64` bucket, unattributable requests share one
+fail-closed bucket, updates are atomic across processes, and expired state is
+pruned in bounded batches. If throttle storage is unavailable, verification
+returns a temporary-unavailable response instead of bypassing the limit.
+
 ## Identity provider callbacks
 
 Register these HTTPS redirect URIs with the corresponding provider:
@@ -277,7 +309,7 @@ For the sealed slice, V·Sign signs and forwards bounded engine context from the
 authenticated session: stable principal and session IDs, verified email, the
 session-specific authentication method/provider/subject and capture provenance,
 separately labeled linked-provider context, authentication time, roles, and
-available gateway-observed IP headers, user agent, language, and browser client hints.
+an attributable proxy-observed client address, user agent, language, and browser client hints.
 These fields are contextual evidence with stated provenance. VASI does not
 collect raw keystrokes, browser plugin inventories, hidden camera/microphone
 data, or invasive device fingerprints, and does not claim that a user agent or
@@ -334,7 +366,9 @@ PostgreSQL.
    rollout, or run the production migrator service with `--build`; the command
    in the production-container section is safe to repeat and verifies every
    migration checksum.
-4. Keep the origin reachable only through the trusted HTTPS reverse proxy.
+4. Keep the origin reachable only through the trusted HTTPS reverse proxy;
+   strip inbound forwarding headers, set a controlled client address, and
+   configure only reviewed intermediate networks in `VASI_TRUSTED_PROXY_CIDRS`.
 5. Confirm every provider callback and remove unused local callbacks from
    production provider registrations.
 6. Back up `VASI.settings` and PostgreSQL as a matched recovery set. Protect the

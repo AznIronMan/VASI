@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.36.3`
+Version: `0.37.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -467,6 +467,17 @@ x64 `sharp` image runtime; the unrelated optional PostgreSQL Cloudflare adapter
 is explicitly removed. Source assurance also rejects weakened Docker install
 or pruning instructions.
 
+Version 0.37.0 hardens the gateway's client-address trust boundary. Better
+Auth, private-engine actor evidence, administrator audit, and public manifest
+verification now share strict IPv4/IPv6 parsing and a right-to-left trusted
+proxy walk; malformed or ambiguous chains remain absent instead of accepting a
+client-selected leftmost value. Public verification uses an atomic PostgreSQL
+counter that survives restarts and multiple instances, stores only a
+domain-separated address HMAC, groups IPv6 by `/64`, gives unattributable
+traffic one shared bucket, and denies verification when throttle storage is
+unavailable. The deployment contract requires the edge to strip inbound
+forwarding headers and configure only exact approved proxy networks.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -479,7 +490,8 @@ assessment remain installation or pilot gates.
 ## Included
 
 - Next.js 16 and Better Auth with PostgreSQL-backed users, accounts, sessions,
-  verification records, rate limits, and a pre-parser 64 KiB authentication
+  verification records, strict trusted-proxy address provenance, durable
+  public-verification rate limits, and a pre-parser 64 KiB authentication
   request-body boundary.
 - Microsoft, Google, Yahoo, Zoho, Apple-ready, and manual authentication with an
   SSO-first participant experience.

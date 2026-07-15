@@ -1,5 +1,8 @@
 import { database } from "@/lib/database";
+import { resolveTrustedClientAddress } from "@/lib/client-address";
 import type { EngineActor } from "@/lib/engine-client";
+import { getRuntimeSettings } from "@/lib/runtime-settings";
+import { resolveServerSettings } from "@/lib/server-settings";
 
 type SessionIdentity = {
   session: {
@@ -17,13 +20,17 @@ export async function buildEngineActor(
   session: SessionIdentity,
   requestHeaders: Pick<Headers, "get">,
 ): Promise<EngineActor> {
-  const provider = await database.query<{ accountId: string; providerId: string }>(
-    `select "accountId", "providerId" from "account"
-     where "userId" = $1
-     order by "updatedAt" desc
-     limit 1`,
-    [session.user.id],
-  );
+  const [provider, settings] = await Promise.all([
+    database.query<{ accountId: string; providerId: string }>(
+      `select "accountId", "providerId" from "account"
+       where "userId" = $1
+       order by "updatedAt" desc
+       limit 1`,
+      [session.user.id],
+    ),
+    getRuntimeSettings(),
+  ]);
+  const { trustedProxyCIDRs } = resolveServerSettings(settings);
   const linkedProviderId = provider.rows[0]?.providerId;
   const sessionProvider = bounded(session.session.authenticationProvider);
   const roles = String(session.user.role || "user")
@@ -49,10 +56,7 @@ export async function buildEngineActor(
     requestContext: {
       acceptLanguage: bounded(requestHeaders.get("accept-language")),
       clientHints: clientHints(requestHeaders),
-      ipAddress: bounded(
-        requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-          requestHeaders.get("x-real-ip"),
-      ),
+      ipAddress: resolveTrustedClientAddress(requestHeaders, trustedProxyCIDRs),
       userAgent: bounded(requestHeaders.get("user-agent")),
     },
     roles,

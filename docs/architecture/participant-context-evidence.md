@@ -45,9 +45,10 @@ VASI deliberately excludes:
   targets; and
 - credentials, OAuth artifacts, tokens, or reusable session secrets.
 
-User-Agent, low-entropy Client Hints, accepted language, and validated client IP
-remain separately labeled server-observed gateway request context. The browser
-snapshot does not duplicate or strengthen those values.
+User-Agent, low-entropy Client Hints, accepted language, and an attributable
+strictly parsed client address from the approved proxy chain remain separately
+labeled server-observed gateway request context. Ambiguous address data remains
+absent. The browser snapshot does not duplicate or strengthen those values.
 
 ## Authorization, replay, and storage
 
