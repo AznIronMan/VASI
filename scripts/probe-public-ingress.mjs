@@ -17,6 +17,7 @@ const NORMALIZATION_TARGETS = Object.freeze([
   "/%00",
   "//admin",
   "/%5cadmin",
+  "/api/auth/%252e%252e%252fget-session",
 ]);
 const PRIVATE_RESPONSE_MARKERS = Object.freeze([
   "Identity administration",

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { inspectAdversarialBoundary, runPublicIngressProbe } from "./probe-public-ingress.mjs";
 
 const tlsProof = async () => ["TLSv1.2", "TLSv1.3"];
-const adversarialProof = async () => ({ canonicalHostIsolationCases: 3, normalizationDenials: 7 });
+const adversarialProof = async () => ({ canonicalHostIsolationCases: 3, normalizationDenials: 8 });
 const probe = (options) => runPublicIngressProbe({ inspectAdversarial: adversarialProof, ...options });
 
 describe("public ingress black-box probe", () => {
@@ -20,13 +20,13 @@ describe("public ingress black-box probe", () => {
         canonicalHostIsolationCases: 3,
         forwardedHeaders: "not_reflected",
         methodOverride: "denied",
-        normalizationDenials: 7,
+        normalizationDenials: 8,
         sessionPrivacy: "no_store_null",
       },
       bodyLimitBytes: 65_536,
       canonicalRedirect: true,
       crossOriginPreflight: "denied",
-      observedVersion: "0.46.0",
+      observedVersion: "0.46.1",
       pageMethods: { allowed: ["GET", "HEAD"], denied: 5 },
       rateLimit: { accepted: 30, limited: 10, requests: 40 },
       retiredStatus: 404,
@@ -87,7 +87,7 @@ describe("public ingress black-box probe", () => {
       rateRequests: 201,
     })).rejects.toThrow(/between 32 and 200/i);
     await expect(runPublicIngressProbe({
-      inspectAdversarial: async () => ({ canonicalHostIsolationCases: 2, normalizationDenials: 7 }),
+      inspectAdversarial: async () => ({ canonicalHostIsolationCases: 2, normalizationDenials: 8 }),
       inspectTLS: tlsProof,
       origin: "https://public.example.test",
     })).rejects.toThrow(/adversarial request-target proof is incomplete/i);
@@ -102,7 +102,7 @@ describe("public ingress black-box probe", () => {
       new URL("https://public.example.test"),
       1_000,
       raw,
-    )).resolves.toEqual({ canonicalHostIsolationCases: 3, normalizationDenials: 7 });
+    )).resolves.toEqual({ canonicalHostIsolationCases: 3, normalizationDenials: 8 });
   });
 
   it("rejects raw product selection, hostile redirect reflection, and normalized redirects", async () => {
@@ -162,7 +162,7 @@ function ingressFetch({
       return response(retiredBody, retiredStatus, { server: "nginx" });
     }
     if (url.pathname === "/api/health") {
-      return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.46.0" }), 200, {
+      return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.46.1" }), 200, {
         ...secureHeaders(),
         server,
       });

@@ -3,7 +3,7 @@
 Status: implemented in VASI 0.39.0, continuously assured since VASI 0.40.0,
 application-protocol hardened in VASI 0.43.0, and protected-route complete in
 VASI 0.44.0, with adversarial authentication/request-target proof in VASI
-0.46.0.
+0.46.1.
 
 ## Decision
 
@@ -38,9 +38,12 @@ The canonical Nginx profile enforces:
   header buffers, keepalive and downstream send limits;
 - per-client general and authentication request zones plus a concurrent
   connection ceiling, with generic no-store 429 responses and `Retry-After`;
-- an exact pre-proxy guard that returns generic no-store 400 responses for
-  encoded NUL/dot/slash/backslash path material and leading-double-slash
-  request targets rather than allowing proxy/framework normalization;
+- exact location-scoped pre-proxy guards that return generic no-store 400
+  responses for encoded NUL/dot/slash/backslash path material and
+  leading-double-slash request targets rather than allowing proxy/framework
+  normalization; a response-status map adds `no-store` to native and guarded
+  400 responses, while the design deliberately avoids a named 400 error-page
+  redirect because a parser-rejected empty URI cannot safely enter one;
 - five-second connect and 30-second upstream read/send timeouts, request and
   response buffering, socket keepalive, and no automatic upstream retry;
 - direct proxy directives rather than an opaque shared include;
@@ -132,7 +135,7 @@ both accepted and generic 429 responses and verifies `Retry-After` plus
 `no-store`. Version 3 additionally sends raw HTTP/1.1 requests over an
 authorized TLS connection so URL normalization cannot sanitize the probe
 first. It requires hostile Host values and an absolute-form attacker target to
-  select no VASI content or attacker-derived redirect, requires all seven bounded
+  select no VASI content or attacker-derived redirect, requires all eight bounded
 traversal/separator/NUL vectors to return 400/404 without side effects, and
 proves forwarded-host non-reflection plus method-override denial. A hostile
 simple-origin request to Better Auth session introspection must return only

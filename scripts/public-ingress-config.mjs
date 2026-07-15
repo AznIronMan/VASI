@@ -45,6 +45,10 @@ server {
 limit_req_zone $binary_remote_addr zone=vasi_public_general:10m rate=100r/s;
 limit_req_zone $binary_remote_addr zone=vasi_public_auth:10m rate=5r/s;
 limit_conn_zone $binary_remote_addr zone=vasi_public_connections:10m;
+map $status $vasi_public_bad_request_cache_control {
+    default "";
+    400 no-store;
+}
 
 upstream ${settings.gatewayUpstreamName} {
     server ${settings.gatewayUpstreamAddress};
@@ -84,32 +88,27 @@ server {
 
     limit_req_status 429;
     limit_conn_status 429;
+    add_header Cache-Control $vasi_public_bad_request_cache_control always;
 
-    error_page 400 = @vasi_bad_request;
     error_page 413 = @vasi_request_too_large;
     error_page 429 = @vasi_rate_limited;
 
-    if ($request_uri ~* "^(?://|[^?]*%(?:00|25|2e|2f|5c))") {
-        return 400;
-    }
-
     location / {
+        if ($request_uri ~* "^(?://|[^?]*%(?:00|25|2e|2f|5c))") {
+            return 400;
+        }
         limit_req zone=vasi_public_general burst=400 nodelay;
         limit_conn vasi_public_connections 80;
 ${proxyDirectives(settings.gatewayUpstreamName, 8)}
     }
 
     location ^~ /api/auth/ {
+        if ($request_uri ~* "^(?://|[^?]*%(?:00|25|2e|2f|5c))") {
+            return 400;
+        }
         limit_req zone=vasi_public_auth burst=30 nodelay;
         limit_conn vasi_public_connections 80;
 ${proxyDirectives(settings.gatewayUpstreamName, 8)}
-    }
-
-    location @vasi_bad_request {
-        internal;
-        default_type application/json;
-        add_header Cache-Control "no-store" always;
-        return 400 '{"error":"Bad request."}';
     }
 
     location @vasi_request_too_large {
@@ -148,6 +147,7 @@ export function auditPublicIngressConfiguration(source, input) {
     "$binary_remote_addr",
     "zone=vasi_public_connections:10m",
   ], failures, "connection zone");
+  validateBadRequestCacheMap(nodes, failures);
 
   const servers = blocksNamed(nodes, "server");
   const publicServers = servers.filter((server) => serverNames(server).includes(settings.publicHost));
@@ -253,34 +253,32 @@ function validatePublicServers(servers, settings, failures) {
     ["reset_timedout_connection", ["on"]],
     ["limit_req_status", ["429"]],
     ["limit_conn_status", ["429"]],
-    ["error_page", ["400", "=", "@vasi_bad_request"]],
+    ["add_header", ["Cache-Control", "$vasi_public_bad_request_cache_control", "always"]],
     ["error_page", ["413", "=", "@vasi_request_too_large"]],
     ["error_page", ["429", "=", "@vasi_rate_limited"]],
   ]) requireDirective(server, name, args, failures, "public HTTPS server");
-  validateInvalidTargetGuard(server, failures);
   requireNonemptyDirective(server, "ssl_certificate", failures, "public HTTPS server");
   requireNonemptyDirective(server, "ssl_certificate_key", failures, "public HTTPS server");
 
   const locations = directBlocks(server, "location");
   const root = locations.filter((location) => equalArgs(location.args, ["/"]));
   const auth = locations.filter((location) => equalArgs(location.args, ["^~", "/api/auth/"]));
-  const badRequest = locations.filter((location) => equalArgs(location.args, ["@vasi_bad_request"]));
   const tooLarge = locations.filter((location) => equalArgs(location.args, ["@vasi_request_too_large"]));
   const rateLimited = locations.filter((location) => equalArgs(location.args, ["@vasi_rate_limited"]));
   if (
-    locations.length !== 5 || root.length !== 1 || auth.length !== 1 ||
-    badRequest.length !== 1 || tooLarge.length !== 1 || rateLimited.length !== 1
+    locations.length !== 4 || root.length !== 1 || auth.length !== 1 ||
+    tooLarge.length !== 1 || rateLimited.length !== 1
   ) {
     failures.push("the public HTTPS server must expose only the reviewed root, authentication, and error locations");
     return;
   }
+  validateInvalidTargetGuards(server, [root[0], auth[0]], failures);
   validateProxyLocation(root[0], settings.gatewayUpstreamName, failures, "public root location");
   requireDirective(root[0], "limit_req", ["zone=vasi_public_general", "burst=400", "nodelay"], failures, "public root location");
   requireDirective(root[0], "limit_conn", ["vasi_public_connections", "80"], failures, "public root location");
   validateProxyLocation(auth[0], settings.gatewayUpstreamName, failures, "public authentication location");
   requireDirective(auth[0], "limit_req", ["zone=vasi_public_auth", "burst=30", "nodelay"], failures, "public authentication location");
   requireDirective(auth[0], "limit_conn", ["vasi_public_connections", "80"], failures, "public authentication location");
-  validateErrorLocation(badRequest[0], 400, false, failures);
   validateErrorLocation(tooLarge[0], 413, false, failures);
   validateErrorLocation(rateLimited[0], 429, true, failures);
   if (descendantsNamed(server, "proxy_pass").length !== 2) {
@@ -288,19 +286,41 @@ function validatePublicServers(servers, settings, failures) {
   }
 }
 
-function validateInvalidTargetGuard(server, failures) {
-  const guards = directBlocks(server, "if");
-  const expected = ["($request_uri", "~*", "^(?://|[^?]*%(?:00|25|2e|2f|5c)))"];
-  const matching = guards.filter((guard) => equalArgs(guard.args, expected));
-  if (guards.length !== 1 || matching.length !== 1) {
-    failures.push("public HTTPS server must contain the exact invalid request-target guard");
+function validateBadRequestCacheMap(nodes, failures) {
+  const maps = blocksNamed(nodes, "map").filter((block) =>
+    equalArgs(block.args, ["$status", "$vasi_public_bad_request_cache_control"])
+  );
+  if (maps.length !== 1) {
+    failures.push("the effective configuration must contain exactly one bad-request cache map");
     return;
   }
-  const children = matching[0].children || [];
+  const directives = maps[0].children || [];
   if (
-    children.length !== 1 || children[0].children || children[0].name !== "return" ||
-    !equalArgs(children[0].args, ["400"])
-  ) failures.push("public HTTPS invalid request-target guard must return only 400");
+    directives.length !== 2 || directives.some((directive) => directive.children) ||
+    directives[0].name !== "default" || !equalArgs(directives[0].args, [""]) ||
+    directives[1].name !== "400" || !equalArgs(directives[1].args, ["no-store"])
+  ) failures.push("the bad-request cache map must add no-store only to status 400");
+}
+
+function validateInvalidTargetGuards(server, locations, failures) {
+  if (directBlocks(server, "if").length) {
+    failures.push("public HTTPS invalid request-target guards must be scoped to the proxy locations");
+  }
+  const expected = ["($request_uri", "~*", "^(?://|[^?]*%(?:00|25|2e|2f|5c)))"];
+  for (const [index, location] of locations.entries()) {
+    const label = index === 0 ? "root" : "authentication";
+    const guards = directBlocks(location, "if");
+    const matching = guards.filter((guard) => equalArgs(guard.args, expected));
+    if (guards.length !== 1 || matching.length !== 1) {
+      failures.push(`public HTTPS ${label} location must contain the exact invalid request-target guard`);
+      continue;
+    }
+    const children = matching[0].children || [];
+    if (
+      children.length !== 1 || children[0].children || children[0].name !== "return" ||
+      !equalArgs(children[0].args, ["400"])
+    ) failures.push(`public HTTPS ${label} invalid request-target guard must return only 400`);
+  }
 }
 
 function validateRetiredServers(servers, settings, failures) {

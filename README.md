@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.46.0`
+Version: `0.46.1`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -585,7 +585,7 @@ operator identifiers remain excluded. The dossier packages recorded evidence
 for accountable reviewers; it is not certification, a legal opinion, a digital
 signature, or approval of any external pilot gate.
 
-Version 0.46.0 hardens the public authentication boundary against cache and
+Version 0.46.1 hardens the public authentication boundary against cache and
 request-target confusion. Every Better Auth response—including session
 introspection, provider errors, bounded-body denials, and internal-host
 denials—is forced to `Cache-Control: no-store` without discarding provider

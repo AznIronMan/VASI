@@ -464,9 +464,9 @@ of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an
 approved synthetic tenant and test window.
 
-VASI 0.46.0 adds a raw adversarial public-authentication boundary to the
+VASI 0.46.1 adds a raw adversarial public-authentication boundary to the
 repeatable release evidence. It proves canonical-host and absolute-form target
-isolation without following redirects, rejects seven encoded/ambiguous path
+isolation without following redirects, rejects eight encoded/ambiguous path
 forms before proxying, verifies forwarded-host non-reflection and
 method-override denial, and requires hostile-origin session introspection to be
 non-cacheable JSON `null` with no cookie, redirect, or CORS authorization. This

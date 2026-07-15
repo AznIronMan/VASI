@@ -47,6 +47,7 @@ describe("public ingress configuration contract", () => {
     ["request-derived redirect hosts", "return 301 https://vsign.example.com$request_uri;", "return 301 https://$host$request_uri;", "public HTTP redirect"],
     ["appended forwarding chains", "proxy_set_header X-Forwarded-For $remote_addr;", "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;", "replace x-forwarded-for"],
     ["oversized public bodies", "client_max_body_size 64k;", "client_max_body_size 128m;", "client_max_body_size 64k"],
+    ["cacheable native bad requests", "    400 no-store;", "    400 max-age=60;", "bad-request cache map"],
     ["normalized traversal forwarding", "if ($request_uri ~* \"^(?://|[^?]*%(?:00|25|2e|2f|5c))\")", "if ($request_uri ~* \"^/never-match\")", "invalid request-target guard"],
     ["unbounded upstream reads", "proxy_read_timeout 30s;", "proxy_read_timeout 120s;", "proxy_read_timeout 30s"],
     ["opaque proxy includes", "proxy_redirect off;", "proxy_redirect off;\n        include /etc/nginx/proxy_params;", "opaque proxy include"],
@@ -71,6 +72,27 @@ describe("public ingress configuration contract", () => {
     expect(auditPublicIngressConfiguration(missing, auditSettings).failures).toContain(
       "the effective configuration must contain exactly one authentication request zone",
     );
+  });
+
+  it("keeps invalid-target guards inside both proxy locations without a recursive 400 error page", () => {
+    const serverScoped = example.replace(
+      "    location / {\n        if ($request_uri ~* \"^(?://|[^?]*%(?:00|25|2e|2f|5c))\") {\n" +
+        "            return 400;\n        }\n",
+      "    if ($request_uri ~* \"^(?://|[^?]*%(?:00|25|2e|2f|5c))\") {\n" +
+        "        return 400;\n    }\n\n    location / {\n",
+    );
+    expect(auditPublicIngressConfiguration(serverScoped, auditSettings).failures.join("; ")).toContain(
+      "invalid request-target guard",
+    );
+    const missingAuthenticationGuard = example.replace(
+      /    location \^~ \/api\/auth\/ \{\n        if \(\$request_uri[\s\S]*?        \}\n        limit_req/,
+      "    location ^~ /api/auth/ {\n        limit_req",
+    );
+    expect(auditPublicIngressConfiguration(missingAuthenticationGuard, auditSettings).failures).toContain(
+      "public HTTPS authentication location must contain the exact invalid request-target guard",
+    );
+    expect(example).not.toContain("error_page 400");
+    expect(example).not.toContain("location @vasi_bad_request");
   });
 
   it("bounds and validates renderer inputs", () => {

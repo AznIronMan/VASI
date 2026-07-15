@@ -2,6 +2,10 @@
 limit_req_zone $binary_remote_addr zone=vasi_public_general:10m rate=100r/s;
 limit_req_zone $binary_remote_addr zone=vasi_public_auth:10m rate=5r/s;
 limit_conn_zone $binary_remote_addr zone=vasi_public_connections:10m;
+map $status $vasi_public_bad_request_cache_control {
+    default "";
+    400 no-store;
+}
 
 upstream vasi_public_gateway {
     server 127.0.0.1:3000;
@@ -61,16 +65,15 @@ server {
 
     limit_req_status 429;
     limit_conn_status 429;
+    add_header Cache-Control $vasi_public_bad_request_cache_control always;
 
-    error_page 400 = @vasi_bad_request;
     error_page 413 = @vasi_request_too_large;
     error_page 429 = @vasi_rate_limited;
 
-    if ($request_uri ~* "^(?://|[^?]*%(?:00|25|2e|2f|5c))") {
-        return 400;
-    }
-
     location / {
+        if ($request_uri ~* "^(?://|[^?]*%(?:00|25|2e|2f|5c))") {
+            return 400;
+        }
         limit_req zone=vasi_public_general burst=400 nodelay;
         limit_conn vasi_public_connections 80;
         proxy_pass http://vasi_public_gateway;
@@ -96,6 +99,9 @@ server {
     }
 
     location ^~ /api/auth/ {
+        if ($request_uri ~* "^(?://|[^?]*%(?:00|25|2e|2f|5c))") {
+            return 400;
+        }
         limit_req zone=vasi_public_auth burst=30 nodelay;
         limit_conn vasi_public_connections 80;
         proxy_pass http://vasi_public_gateway;
@@ -118,13 +124,6 @@ server {
         proxy_next_upstream off;
         proxy_intercept_errors off;
         proxy_redirect off;
-    }
-
-    location @vasi_bad_request {
-        internal;
-        default_type application/json;
-        add_header Cache-Control "no-store" always;
-        return 400 '{"error":"Bad request."}';
     }
 
     location @vasi_request_too_large {
