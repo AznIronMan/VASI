@@ -1,6 +1,7 @@
 import { toNextJsHandler } from "better-auth/next-js";
 
 import { getAuth } from "@/lib/auth";
+import { boundedRequestBody } from "@/lib/bounded-json";
 import { isRequestForOrigin } from "@/lib/host-policy";
 import { getRuntimeSettings } from "@/lib/runtime-settings";
 import { resolveServerSettings } from "@/lib/server-settings";
@@ -17,6 +18,11 @@ async function isAllowed(request: Request) {
 
 async function handle(request: Request, method: "GET" | "POST") {
   if (!(await isAllowed(request))) return new Response(null, { status: 404 });
+  if (method === "POST") {
+    const bounded = await boundedRequestBody(request);
+    if (!bounded.ok) return bounded.response;
+    request = bounded.request;
+  }
   const handlers = toNextJsHandler(await getAuth());
   return handlers[method](request);
 }

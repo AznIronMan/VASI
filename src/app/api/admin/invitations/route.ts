@@ -1,4 +1,5 @@
 import { authorizeAdminMutation } from "@/lib/admin-access";
+import { boundedJSONObject } from "@/lib/bounded-json";
 import {
   beginAdminAuditCommand,
   finishAdminAuditCommand,
@@ -9,12 +10,9 @@ export async function POST(request: Request) {
   const authorization = await authorizeAdminMutation(request);
   if (!authorization.ok) return authorization.response;
 
-  let body: { email?: unknown };
-  try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "Invalid request." }, { status: 400 });
-  }
+  const parsed = await boundedJSONObject(request);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.value;
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const command = await beginAdminAuditCommand({

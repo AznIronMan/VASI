@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.35.0`
+Version: `0.36.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -433,6 +433,16 @@ offline authenticated extraction are included. VASI still does not select or
 claim an off-host destination, private-key custodian, transfer completion,
 geographic separation, RPO, RTO, or recovery approval.
 
+Version 0.36.0 adds an application-owned byte boundary before gateway request
+parsing. Every VASI JSON mutation route and the Better Auth POST catch-all now
+stream at most 64 KiB, reject an oversized declared length before reading,
+count actual UTF-8/wire bytes across chunks, and return a generic no-store 413
+on overflow. Invalid encoding, malformed JSON, non-object JSON, unreadable or
+truncated streams, and declared/actual length disagreement fail with a generic
+400. Accepted authentication bodies are rebuilt without forwarding an
+untrusted `Content-Length`, preserving JSON and provider form-post callbacks.
+PostgreSQL document upload keeps its separate bounded streaming contract.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -445,7 +455,8 @@ assessment remain installation or pilot gates.
 ## Included
 
 - Next.js 16 and Better Auth with PostgreSQL-backed users, accounts, sessions,
-  verification records, and rate limits.
+  verification records, rate limits, and a pre-parser 64 KiB authentication
+  request-body boundary.
 - Microsoft, Google, Yahoo, Zoho, Apple-ready, and manual authentication with an
   SSO-first participant experience.
 - Internal-host-only identity administration, operator allowlisting,
@@ -544,7 +555,8 @@ assessment remain installation or pilot gates.
   dependency audits, CycloneDX source/image SBOMs, digest-pinned image scanning,
   fail-closed non-root runtime-command smoke checks, runtime version alignment,
   sanitized Compose hardening checks, browser WCAG automation, and bounded
-  read-only readiness load testing.
+  read-only readiness load testing; direct unbounded JSON parsing in gateway
+  request-handling source fails the release gate.
 - An administrator-only operational snapshot and host probe with explicit
   migration, queue, delivery, document-scanning, signing, lifecycle, and
   database thresholds that exclude customer evidence and identity data.

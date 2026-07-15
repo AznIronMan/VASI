@@ -1,4 +1,5 @@
 import { authorizeAdminHeaders, authorizeAdminMutation } from "@/lib/admin-access";
+import { boundedJSONObject } from "@/lib/bounded-json";
 import { buildEngineActor } from "@/lib/engine-actor";
 import { requestEngineAction } from "@/lib/engine-client";
 import { gatewayEngineResponse } from "@/lib/engine-response";
@@ -19,10 +20,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const authorization = await authorizeAdminMutation(request);
   if (!authorization.ok) return authorization.response;
-  const body = await request.json().catch(() => undefined);
+  const parsed = await boundedJSONObject(request);
+  if (!parsed.ok) return parsed.response;
   const result = await requestEngineAction<AdminInstallationProfile>(
     await buildEngineActor(authorization.session, request.headers),
-    { body, method: "POST", path: "/v1/admin/installation-profile" },
+    { body: parsed.value, method: "POST", path: "/v1/admin/installation-profile" },
   );
   return gatewayEngineResponse(result);
 }

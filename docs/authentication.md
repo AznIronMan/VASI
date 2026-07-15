@@ -83,6 +83,14 @@ register it with the provider before enabling that provider for internal admin
 sign-in. Better Auth validates both allowed hosts and trusted origins before
 constructing a host-specific callback.
 
+Every authentication POST is byte-bounded by VASI before Better Auth reads it.
+The gateway accepts no more than 65,536 bytes, checks a declared length before
+reading, independently counts the streamed body, and removes the original
+length header before delegating accepted JSON or provider form-post content.
+Overflow returns a generic 413; malformed or inconsistent transport receives a
+generic 400 without exposing body or parser detail. See the
+[gateway request-body decision](architecture/bounded-gateway-request-bodies.md).
+
 Local callbacks use the same paths on `http://localhost:3000`.
 
 ### Microsoft

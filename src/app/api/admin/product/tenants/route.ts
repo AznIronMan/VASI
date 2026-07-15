@@ -1,4 +1,5 @@
 import { authorizeAdminHeaders, authorizeAdminMutation } from "@/lib/admin-access";
+import { boundedJSONObject } from "@/lib/bounded-json";
 import {
   CompanyProvisioningError,
   validateCompanyProvisioningInput,
@@ -32,7 +33,9 @@ export async function POST(request: Request) {
 
   let input;
   try {
-    input = validateCompanyProvisioningInput(await request.json());
+    const parsed = await boundedJSONObject(request);
+    if (!parsed.ok) return parsed.response;
+    input = validateCompanyProvisioningInput(parsed.value);
   } catch (error) {
     const message = error instanceof CompanyProvisioningError
       ? error.message

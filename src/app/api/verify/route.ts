@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { boundedJSONObject } from "@/lib/bounded-json";
 import { requestEngineAction, type EngineActor } from "@/lib/engine-client";
 import { hasExpectedMutationOrigin, isRequestForOrigin } from "@/lib/host-policy";
 import { getRuntimeSettings } from "@/lib/runtime-settings";
@@ -23,7 +24,9 @@ export async function POST(request: Request) {
       { headers: { "cache-control": "no-store", "retry-after": "60" }, status: 429 },
     );
   }
-  const payload = await request.json().catch(() => undefined);
+  const parsed = await boundedJSONObject(request);
+  if (!parsed.ok) return parsed.response;
+  const payload = parsed.value;
   const fingerprint = typeof payload?.fingerprint === "string"
     ? payload.fingerprint.trim().toLowerCase()
     : "";

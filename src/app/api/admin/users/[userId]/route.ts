@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import { authorizeAdminMutation } from "@/lib/admin-access";
+import { boundedJSONObject } from "@/lib/bounded-json";
 import {
   beginAdminAuditCommand,
   finishAdminAuditCommand,
@@ -29,12 +30,9 @@ export async function POST(
   if (!authorization.ok) return authorization.response;
 
   const { userId } = await params;
-  let action: UserAction;
-  try {
-    action = await request.json() as UserAction;
-  } catch {
-    return Response.json({ error: "Invalid request." }, { status: 400 });
-  }
+  const parsed = await boundedJSONObject(request);
+  if (!parsed.ok) return parsed.response;
+  const action = parsed.value as UserAction;
 
   if (!userId || !action || typeof action.action !== "string") {
     return Response.json({ error: "Invalid request." }, { status: 400 });

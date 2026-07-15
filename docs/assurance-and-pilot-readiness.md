@@ -82,7 +82,7 @@ legal enforceability by itself.
 | CUST-1 | Matched backup disclosure, copy corruption, unsafe pruning, lost recipient key, or false off-host confidence | Verified matched source; no plaintext aggregate archive; streaming fixed-size independently authenticated AES-256-GCM chunks; ephemeral X25519/HKDF and per-recipient authenticated key wraps; application stores public recipients only; whole-package copy digest; strict structure/freshness checks; verified-candidate retention; authenticated offline extraction with no partial output | Installation must prove remote transfer, geographic/organizational separation, private-key custody and recovery, deletion/legal-hold policy, restore drills, and RPO/RTO; a compromised authorized source host can create a false backup |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
 | SUP-1 | Vulnerable, unaccounted, or non-executable image content | Lockfile builds; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; explicit configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial; minimal non-root runtime images without npm | Vulnerability data changes over time, so every release and periodic rescan are required |
-| AVAIL-1 | Resource exhaustion, dependency outage, or silently stopped recurring control | Bounded payloads/chunks/batches; PostgreSQL pool limits; request timeouts; retry ceilings; health checks; read-only readiness load gate; external provider isolation; independent persistent hardened backup, capacity, deployment, operational, and egress timers; release-time scheduler contract validation | Customer-specific capacity, RTO/RPO, external alert delivery, and denial-of-service protection require measured pilot targets |
+| AVAIL-1 | Resource exhaustion, dependency outage, or silently stopped recurring control | Pre-parser 64 KiB gateway/authentication body bounds with independent private-engine limits; bounded payloads/chunks/batches; PostgreSQL pool limits; request timeouts; retry ceilings; health checks; read-only readiness load gate; external provider isolation; independent persistent hardened backup, capacity, deployment, operational, and egress timers; release-time scheduler contract validation | Customer-specific capacity, RTO/RPO, reverse-proxy connection/time/body policy, external alert delivery, and denial-of-service protection require measured pilot targets |
 | PRIV-1 | Excess collection, fingerprinting, or misleading evidence interpretation | Purpose-limited fixed fields; unavailable values remain absent; generalized telemetry excludes interaction detail; participant context rejects plugin/font enumeration, invasive fingerprints, precise location, hardware IDs, hidden media, keys/content/coordinates, and secrets; every browser value is labeled supporting; participant history and reviewed data request; redacted public verification and participant reports | Legal/privacy owners must approve notices, lawful basis, retention, and subject-right handling |
 
 ## Repeatable release evidence
@@ -378,6 +378,16 @@ identity but reveals timestamps, opaque key IDs, recipient count, public
 material, and approximate backup size. Actual remote custody, private-key
 ownership, external scheduling/alert delivery, geographic separation, restore
 approval, and RPO/RTO remain customer operations/security gates.
+
+VASI 0.36.0 places a 65,536-byte streaming boundary before every owned gateway
+JSON parser and Better Auth POST handler. Disposable tests prove exact-limit
+multi-chunk acceptance, actual UTF-8 byte accounting, advertised and streamed
+overflow denial, declared/actual mismatch rejection, invalid encoding and
+parser redaction, public-verifier denial before private-engine contact, and
+provider form-post preservation after the untrusted length header is removed.
+Source assurance rejects direct `request.json()` use in tracked gateway
+request-handling source. Reverse-proxy concurrency, connection, header, idle, and sustained-load
+policy remains installation and pilot evidence.
 
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and

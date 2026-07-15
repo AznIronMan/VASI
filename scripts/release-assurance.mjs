@@ -51,6 +51,7 @@ export async function inspectTrackedSource(repositoryRoot = root) {
     forbiddenPathPatterns.some((pattern) => pattern.test(filename))
   );
   const secretFindings = [];
+  const unboundedGatewayJSONParsers = [];
   const files = [];
   for (const filename of tracked) {
     const absolute = path.join(repositoryRoot, filename);
@@ -64,13 +65,19 @@ export async function inspectTrackedSource(repositoryRoot = root) {
     });
     if (contents.includes(0) || contents.length > 4 * 1024 * 1024) continue;
     const text = contents.toString("utf8");
+    if (
+      /^(?:src\/app\/api|src\/lib)\/.+\.[cm]?[jt]sx?$/.test(filename) &&
+      /\brequest\.json\s*\(/.test(text)
+    ) {
+      unboundedGatewayJSONParsers.push(filename);
+    }
     for (const candidate of secretPatterns) {
       if (candidate.pattern.test(text)) {
         secretFindings.push({ path: filename, rule: candidate.name });
       }
     }
   }
-  return { files, forbiddenPaths, secretFindings };
+  return { files, forbiddenPaths, secretFindings, unboundedGatewayJSONParsers };
 }
 
 export async function validateVersionAlignment(repositoryRoot = root) {
@@ -444,6 +451,11 @@ async function sourceAssurance(output, { allowDirty }) {
   if (source.forbiddenPaths.length) throw new Error(`Forbidden tracked paths: ${source.forbiddenPaths.join(", ")}.`);
   if (source.secretFindings.length) {
     throw new Error(`Tracked secret policy failed: ${source.secretFindings.map((entry) => `${entry.path}:${entry.rule}`).join(", ")}.`);
+  }
+  if (source.unboundedGatewayJSONParsers.length) {
+    throw new Error(
+      `Gateway request handling uses unbounded request.json(): ${source.unboundedGatewayJSONParsers.join(", ")}.`,
+    );
   }
   if (versions.mismatches.length) throw new Error("VASI version declarations are not aligned.");
   if (compose.failures.length) throw new Error(`Compose hardening failed: ${compose.failures.join("; ")}.`);
