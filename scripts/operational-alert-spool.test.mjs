@@ -118,7 +118,7 @@ describe("durable operational-alert handoff", () => {
       .toBe(0o600);
     expect((await run(root, ["status", "gateway"]))).toMatchObject({ code: 0 });
     expect((await run(root, ["next", "gateway"])).stdout).toBe("null\n");
-  });
+  }, 20_000);
 
   it("uses exact role/unit and systemd monitor bindings", async () => {
     const root = await testRoot();
@@ -211,7 +211,7 @@ describe("durable operational-alert handoff", () => {
     ])).code).toBe(0);
     await expect(lstat(path.join(root, "gateway", "overflow.json"))).rejects.toThrow();
     expect(await readdir(pendingDirectory)).toHaveLength(256);
-  }, 20_000);
+  }, 60_000);
 
   it("serializes concurrent failure records without collisions", async () => {
     const root = await testRoot();

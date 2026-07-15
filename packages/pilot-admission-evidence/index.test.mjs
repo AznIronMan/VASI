@@ -1,7 +1,9 @@
 import {
   chmod,
   link,
+  mkdir,
   readFile,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -60,6 +62,106 @@ describe("complete pilot-admission evidence verification", () => {
       expect(disclosed).not.toContain("reviewer:");
       expect(disclosed).not.toContain("scope:pilot-001");
     }
+  });
+
+  it("reverifies every underlying artifact across the exact eight-gate directory set", async () => {
+    for (const format of ["json", "html"]) {
+      const fixture = await trackedFixture({ format });
+      const result = await verifyPilotAdmissionEvidenceSet(
+        fixture.dossierFile,
+        fixture.manifestDirectory,
+        {
+          artifactDirectoryRoot: fixture.artifactDirectoryRoot,
+          expectedDigest: fixture.exported.dossierHash,
+          expectedKeyFingerprint: fixture.exported.attestation.signingKeys[0].fingerprint,
+        },
+      );
+      expect(result).toEqual({
+        admissionEvidence: "matched",
+        artifactBytes: 208,
+        artifacts: 8,
+        artifactVerification: "matched",
+        certificateSeal: "not_present",
+        dossierSha256: fixture.exported.dossierHash,
+        evidencePackages: 8,
+        expectedDigest: "matched",
+        expectedKeyFingerprint: "matched",
+        format,
+        integrityKeyFingerprint: fixture.exported.attestation.signingKeys[0].fingerprint,
+        integritySeal: "verified",
+        presentation: format === "html" ? "exact" : "not_applicable",
+        schema: "vasi-pilot-admission-evidence-verification/v2",
+        scopeBinding: "consistent",
+        status: "pass",
+        temporalBinding: "ordered",
+      });
+      const disclosed = JSON.stringify(result);
+      expect(disclosed).not.toContain("assessment.json");
+      expect(disclosed).not.toContain(fixture.root);
+      expect(disclosed).not.toContain("review-package:");
+      expect(disclosed).not.toContain("reviewer:");
+    }
+  });
+
+  it("rejects changed, linked, permissive, missing, extra, or overlapping artifact roots", async () => {
+    const changed = await trackedFixture();
+    await writeFile(
+      path.join(changed.artifactDirectoryRoot, "exact_release", "assessment.json"),
+      "{\"assessment\":\"changed\"}\n",
+      { mode: 0o600 },
+    );
+    await expectArtifactFailure(changed);
+
+    const linked = await trackedFixture();
+    const linkedArtifact = path.join(
+      linked.artifactDirectoryRoot,
+      "identity_delivery",
+      "assessment.json",
+    );
+    await link(linkedArtifact, path.join(linked.root, "artifact-second-link.json"));
+    await expectArtifactFailure(linked);
+
+    const permissive = await trackedFixture();
+    await chmod(permissive.artifactDirectoryRoot, 0o750);
+    await expectArtifactFailure(permissive);
+
+    const missing = await trackedFixture();
+    await rm(path.join(missing.artifactDirectoryRoot, "accessibility"), { recursive: true });
+    await expectArtifactFailure(missing);
+
+    const extra = await trackedFixture();
+    await mkdir(path.join(extra.artifactDirectoryRoot, "extra"), { mode: 0o700 });
+    await expectArtifactFailure(extra);
+
+    const symlinked = await trackedFixture();
+    const symlinkedGate = path.join(symlinked.artifactDirectoryRoot, "recovery_custody");
+    await rm(symlinkedGate, { recursive: true });
+    await symlink(
+      path.join(symlinked.artifactDirectoryRoot, "exact_release"),
+      symlinkedGate,
+      "dir",
+    );
+    await expectArtifactFailure(symlinked);
+
+    const overlapping = await trackedFixture();
+    await expect(
+      verifyPilotAdmissionEvidenceSet(
+        overlapping.dossierFile,
+        overlapping.manifestDirectory,
+        { artifactDirectoryRoot: overlapping.manifestDirectory },
+      ),
+    ).rejects.toBeInstanceOf(PilotAdmissionEvidenceVerificationError);
+
+    const nested = await trackedFixture();
+    const nestedArtifactRoot = path.join(nested.dossierDirectory, "artifacts");
+    await rename(nested.artifactDirectoryRoot, nestedArtifactRoot);
+    await expect(
+      verifyPilotAdmissionEvidenceSet(
+        nested.dossierFile,
+        nested.manifestDirectory,
+        { artifactDirectoryRoot: nestedArtifactRoot },
+      ),
+    ).rejects.toBeInstanceOf(PilotAdmissionEvidenceVerificationError);
   });
 
   it("rejects every signed dossier-to-manifest reference or digest mismatch", async () => {
@@ -175,5 +277,15 @@ async function trackedFixture(options) {
 async function expectFailure(fixture) {
   await expect(
     verifyPilotAdmissionEvidenceSet(fixture.dossierFile, fixture.manifestDirectory),
+  ).rejects.toBeInstanceOf(PilotAdmissionEvidenceVerificationError);
+}
+
+async function expectArtifactFailure(fixture) {
+  await expect(
+    verifyPilotAdmissionEvidenceSet(
+      fixture.dossierFile,
+      fixture.manifestDirectory,
+      { artifactDirectoryRoot: fixture.artifactDirectoryRoot },
+    ),
   ).rejects.toBeInstanceOf(PilotAdmissionEvidenceVerificationError);
 }

@@ -130,6 +130,18 @@ revision, and compares every immutable reviewer reference, evidence reference,
 and digest with the eight manifests. It does not reverify the indexed artifact
 bytes; see [Pilot-admission evidence verification](pilot-admission-evidence-verification.md).
 
+VASI 0.53.0 can reverify those bytes in the same final run when the separately
+controlled packages are available under the exact eight-directory root:
+
+```bash
+npm run pilot:admission:verify -- DOSSIER_FILE MANIFEST_DIRECTORY \
+  --artifact-root ARTIFACT_DIRECTORY_ROOT \
+  --expected-key-fingerprint LOWERCASE_SHA256
+```
+
+The complete-set result remains aggregate-only and does not interpret the
+artifacts or substitute for the accountable reviews.
+
 The engine-host command reads the protected installation settings and emits a
 fixed privacy-safe aggregate containing the configured integrity key ID,
 algorithm, fingerprint, and seal profile plus the equivalent bounded

@@ -1720,13 +1720,17 @@ export async function validatePilotAdmissionEvidenceContract(repositoryRoot = ro
     'from "../pilot-gate-evidence/index.mjs"',
     'from "../readiness-dossier/index.mjs"',
     '"vasi-pilot-admission-evidence-verification/v1"',
+    '"vasi-pilot-admission-evidence-verification/v2"',
     "TENANT_ADMISSION_GATES.map((gateId) => `${gateId}.json`).sort()",
+    "const expectedArtifactDirectoryNames = Object.freeze([...TENANT_ADMISSION_GATES].sort())",
     "constants.O_NOFOLLOW",
     "Buffer.byteLength(value) > 4_096",
     "before.nlink !== 1n",
     "(Number(before.mode) & 0o7777) !== 0o600",
     "(Number(metadata.mode) & 0o7777) !== 0o700",
     'fail("manifest_inventory_mismatch")',
+    'fail("artifact_directory_inventory_mismatch")',
+    "isWithinOrEqual(dossierDirectory.path, artifactBoundary.path)",
     "verifyReadinessDossierBytes(contents, options)",
     "validateReadinessExport(exported);",
     "exported.schema !== SIGNED_READINESS_EXPORT_SCHEMA",
@@ -1736,7 +1740,10 @@ export async function validatePilotAdmissionEvidenceContract(repositoryRoot = ro
     "gate.reviewerReference !== manifest.reviewerReference",
     "scopes.size !== 1",
     "reviewedAt > decidedAt || decidedAt > revisionCreatedAt || decidedAt > capturedAt",
-    'artifactVerification: "not_performed"',
+    "const verification = await verifyPilotGateEvidenceManifest(",
+    "artifacts += verification.artifacts",
+    "bytes += verification.totalBytes",
+    'artifactVerification: artifactSummary ? "matched" : "not_performed"',
   ]) {
     if (!sources.library.includes(marker)) {
       failures.push(`the pilot-admission evidence library is missing ${marker}`);
@@ -1749,6 +1756,7 @@ export async function validatePilotAdmissionEvidenceContract(repositoryRoot = ro
     'from "../packages/pilot-admission-evidence/index.mjs"',
     "--expected-sha256",
     "--expected-key-fingerprint",
+    "--artifact-root",
     "VASI pilot-admission evidence verification failed.",
     ["if (isDirectExecution(import.meta.url, ", "process.argv[1])) {"].join(""),
   ]) {
@@ -1762,13 +1770,15 @@ export async function validatePilotAdmissionEvidenceContract(repositoryRoot = ro
     "rejects missing, extra, renamed, linked, or gate-substituted manifests",
     "requires private physical inputs and exact canonical UTF-8 presentation",
     "uses one generic error type for nested dossier, manifest, and filesystem failures",
+    "reverifies every underlying artifact across the exact eight-gate directory set",
+    "rejects changed, linked, permissive, missing, extra, or overlapping artifact roots",
   ]) {
     if (!sources.libraryTest.includes(marker)) {
       failures.push(`the pilot-admission evidence library test is missing ${marker}`);
     }
   }
   for (const marker of [
-    "verifies through physical and selected-release paths with aggregate-only output",
+    "verifies complete artifacts through physical and selected-release paths with aggregate-only output",
     "fails with one generic message and no dossier or evidence facts",
     "remains import-safe and rejects malformed or duplicate options",
   ]) {
@@ -1780,9 +1790,12 @@ export async function validatePilotAdmissionEvidenceContract(repositoryRoot = ro
     "exactly one canonical manifest for every admission gate",
     "npm run pilot:admission:verify -- DOSSIER_FILE MANIFEST_DIRECTORY",
     '`artifactVerification: "not_performed"`',
-    "This is a binding check, not another approval.",
-    "Run the per-gate artifact verifier first",
-    "The verifier has no network, API, database, settings, credential, signing, or",
+    '`artifactVerification: "matched"`',
+    "--artifact-root ARTIFACT_DIRECTORY_ROOT",
+    "recomputes every underlying artifact byte count and SHA-256",
+    "This is a binding and optional byte-integrity check, not another approval.",
+    "The original manifest-only mode remains available",
+    "The verifier has no network, API, database, settings, credential, or signing",
   ]) {
     if (!sources.documentation.includes(marker)) {
       failures.push(`the pilot-admission evidence documentation is missing ${marker}`);
@@ -1793,6 +1806,7 @@ export async function validatePilotAdmissionEvidenceContract(repositoryRoot = ro
     "createReadinessExportFixture",
     "pilotGateAdmissionEvidence(manifest)",
     "pilotGateManifestJSON(manifest)",
+    "artifactDirectoryRoot",
   ]) {
     if (!sources.fixture.includes(marker)) {
       failures.push(`the pilot-admission evidence fixture is missing ${marker}`);

@@ -1,6 +1,6 @@
 # Tenant production admission
 
-Status: implemented in VASI 0.25.0 and extended through VASI 0.52.0.
+Status: implemented in VASI 0.25.0 and extended through VASI 0.53.0.
 
 ## Purpose
 
@@ -71,6 +71,12 @@ canonical manifests, then compares every recorded reviewer reference, evidence
 reference, and digest. It also requires a shared opaque scope and ordered review,
 decision, revision, and capture times. The command reports aggregates only and
 explicitly does not reverify artifact bytes or make an approval decision.
+
+VASI 0.53.0 adds an optional complete-set mode. A fixed eight-directory
+artifact root lets the same command re-inventory and hash every artifact using
+the existing per-gate verifier, while returning only aggregate counts/bytes.
+This strengthens final byte-integrity evidence but still does not assess an
+artifact, authorize a reviewer, or make an admission decision.
 
 ## Fail-closed enforcement
 

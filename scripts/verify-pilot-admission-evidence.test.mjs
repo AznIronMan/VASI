@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { rm, symlink } from "node:fs/promises";
+import { rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -19,13 +19,15 @@ afterEach(async () => {
 });
 
 describe("pilot-admission evidence CLI", () => {
-  it("verifies through physical and selected-release paths with aggregate-only output", async () => {
+  it("verifies complete artifacts through physical and selected-release paths with aggregate-only output", async () => {
     const fixture = await trackedFixture();
     const selector = path.join(fixture.root, "current");
     await symlink(root, selector, "dir");
     const argumentsList = [
       fixture.dossierFile,
       fixture.manifestDirectory,
+      "--artifact-root",
+      fixture.artifactDirectoryRoot,
       "--expected-sha256",
       fixture.exported.dossierHash,
       "--expected-key-fingerprint",
@@ -40,7 +42,9 @@ describe("pilot-admission evidence CLI", () => {
       expect(result).toMatchObject({ status: 0, stderr: "" });
       expect(JSON.parse(result.stdout)).toMatchObject({
         admissionEvidence: "matched",
-        artifactVerification: "not_performed",
+        artifactBytes: 208,
+        artifacts: 8,
+        artifactVerification: "matched",
         evidencePackages: 8,
         expectedDigest: "matched",
         expectedKeyFingerprint: "matched",
@@ -48,9 +52,21 @@ describe("pilot-admission evidence CLI", () => {
       });
       expect(result.stdout).not.toContain(fixture.exported.dossier.tenant.name);
       expect(result.stdout).not.toContain("review-package:");
+      expect(result.stdout).not.toContain("assessment.json");
+      expect(result.stdout).not.toContain(fixture.root);
     }
     await expect(runPilotAdmissionEvidenceVerification(argumentsList)).resolves.toMatchObject({
       admissionEvidence: "matched",
+      artifactVerification: "matched",
+      status: "pass",
+    });
+
+    await expect(runPilotAdmissionEvidenceVerification([
+      fixture.dossierFile,
+      fixture.manifestDirectory,
+    ])).resolves.toMatchObject({
+      artifactVerification: "not_performed",
+      schema: "vasi-pilot-admission-evidence-verification/v1",
       status: "pass",
     });
   });
@@ -70,6 +86,25 @@ describe("pilot-admission evidence CLI", () => {
     expect(result.stderr).not.toContain(fixture.root);
     expect(result.stderr).not.toContain(fixture.exported.dossier.tenant.name);
     expect(result.stderr).not.toContain(fixture.exported.attestation.signingKeys[0].fingerprint);
+
+    const artifactFile = path.join(
+      fixture.artifactDirectoryRoot,
+      "exact_release",
+      "assessment.json",
+    );
+    await writeFile(artifactFile, "{\"assessment\":\"changed\"}\n", { mode: 0o600 });
+    const artifactFailure = spawnSync(process.execPath, [
+      cli,
+      fixture.dossierFile,
+      fixture.manifestDirectory,
+      "--artifact-root",
+      fixture.artifactDirectoryRoot,
+    ], { encoding: "utf8", timeout: 5_000 });
+    expect(artifactFailure.status).toBe(1);
+    expect(artifactFailure.stdout).toBe("");
+    expect(artifactFailure.stderr).toBe("VASI pilot-admission evidence verification failed.\n");
+    expect(artifactFailure.stderr).not.toContain(fixture.root);
+    expect(artifactFailure.stderr).not.toContain("assessment.json");
   });
 
   it("remains import-safe and rejects malformed or duplicate options", async () => {

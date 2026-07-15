@@ -32,21 +32,24 @@ export async function createPilotAdmissionEvidenceFixture({
 } = {}) {
   const root = await realpath(await mkdtemp(path.join(tmpdir(), "vasi-pilot-admission-")));
   await chmod(root, 0o700);
+  const artifactDirectoryRoot = path.join(root, "artifacts");
   const dossierDirectory = path.join(root, "dossier");
-  const evidenceDirectory = path.join(root, "evidence");
   const manifestDirectory = path.join(root, "manifests");
-  for (const directory of [dossierDirectory, evidenceDirectory, manifestDirectory]) {
+  for (const directory of [artifactDirectoryRoot, dossierDirectory, manifestDirectory]) {
     await mkdir(directory, { mode: 0o700 });
     await chmod(directory, 0o700);
   }
-  await writeFile(
-    path.join(evidenceDirectory, "assessment.json"),
-    "{\"assessment\":\"reviewed\"}\n",
-    { mode: 0o600 },
-  );
 
   const manifests = [];
   for (const gateId of TENANT_ADMISSION_GATES) {
+    const evidenceDirectory = path.join(artifactDirectoryRoot, gateId);
+    await mkdir(evidenceDirectory, { mode: 0o700 });
+    await chmod(evidenceDirectory, 0o700);
+    await writeFile(
+      path.join(evidenceDirectory, "assessment.json"),
+      "{\"assessment\":\"reviewed\"}\n",
+      { mode: 0o600 },
+    );
     const override = manifestOverrides[gateId] || {};
     const descriptor = {
       artifacts: [{ id: "assessment", mediaType: "application/json", path: "assessment.json" }],
@@ -91,9 +94,9 @@ export async function createPilotAdmissionEvidenceFixture({
   );
   return {
     admissionEvidence,
+    artifactDirectoryRoot,
     dossierDirectory,
     dossierFile,
-    evidenceDirectory,
     exported,
     manifestDirectory,
     manifests,

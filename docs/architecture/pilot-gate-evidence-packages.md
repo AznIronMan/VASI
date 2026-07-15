@@ -1,6 +1,6 @@
 # Pilot-gate evidence packages
 
-Status: implemented in VASI 0.50.0 and extended through VASI 0.52.0.
+Status: implemented in VASI 0.50.0 and extended through VASI 0.53.0.
 
 ## Purpose and boundary
 
@@ -235,6 +235,13 @@ earlier per-package artifact verification. Preserve the descriptor, manifest,
 artifacts, separately communicated digest, review
 decision, readiness dossier, and custody history under the installation's
 retention and legal-hold policy.
+
+VASI 0.53.0 adds a stronger optional mode to that same final verifier. Place
+the eight artifact sets under fixed directories named for their gates and pass
+`--artifact-root ARTIFACT_DIRECTORY_ROOT`. The verifier reuses the per-package
+physical-file implementation to re-inventory and hash all artifacts before it
+returns `artifactVerification: "matched"`; it still does not interpret the
+files or approve any gate.
 
 See [Tenant production admission](tenant-production-admission.md),
 [Pilot readiness dossier](pilot-readiness-dossier.md),

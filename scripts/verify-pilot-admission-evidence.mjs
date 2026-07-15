@@ -5,12 +5,14 @@ import { isDirectExecution } from "./direct-execution.mjs";
 
 export async function runPilotAdmissionEvidenceVerification(argumentsList) {
   const {
+    artifactDirectoryRoot,
     dossierFile,
     expectedDigest,
     expectedKeyFingerprint,
     manifestDirectory,
   } = parseArguments(argumentsList);
   return verifyPilotAdmissionEvidenceSet(dossierFile, manifestDirectory, {
+    artifactDirectoryRoot,
     expectedDigest,
     expectedKeyFingerprint,
   });
@@ -19,7 +21,7 @@ export async function runPilotAdmissionEvidenceVerification(argumentsList) {
 function parseArguments(argumentsList) {
   if (
     !Array.isArray(argumentsList) ||
-    ![2, 4, 6].includes(argumentsList.length) ||
+    ![2, 4, 6, 8].includes(argumentsList.length) ||
     argumentsList.some((value) => typeof value !== "string" || !value)
   ) usage();
   const [dossierFile, manifestDirectory, ...options] = argumentsList;
@@ -29,6 +31,8 @@ function parseArguments(argumentsList) {
     const value = options[index + 1];
     if (option === "--expected-sha256" && parsed.expectedDigest === undefined) {
       parsed.expectedDigest = value;
+    } else if (option === "--artifact-root" && parsed.artifactDirectoryRoot === undefined) {
+      parsed.artifactDirectoryRoot = value;
     } else if (
       option === "--expected-key-fingerprint" && parsed.expectedKeyFingerprint === undefined
     ) {
@@ -43,7 +47,8 @@ function parseArguments(argumentsList) {
 function usage() {
   throw new Error(
     "Usage: node scripts/verify-pilot-admission-evidence.mjs DOSSIER_FILE " +
-    "MANIFEST_DIRECTORY [--expected-sha256 LOWERCASE_SHA256] " +
+    "MANIFEST_DIRECTORY [--artifact-root ARTIFACT_DIRECTORY_ROOT] " +
+    "[--expected-sha256 LOWERCASE_SHA256] " +
     "[--expected-key-fingerprint LOWERCASE_SHA256]",
   );
 }

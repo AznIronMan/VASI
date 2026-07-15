@@ -555,6 +555,15 @@ links, permissive modes, and noncanonical files. Its fixed aggregate result
 states that artifact bytes were not reverified; external reviewer authority,
 assessment sufficiency, trust policy, and approval remain separate.
 
+VASI 0.53.0 closes the optional final byte-reverification gap. When the
+separately controlled artifacts are present, the same offline command requires
+one fixed physical directory per gate and reuses the existing per-gate
+verifier to check exact inventory, ownership, modes, links, stable reads, byte
+counts, and SHA-256 values across the complete set. It returns only total
+artifact count/bytes and a matched state. Artifact meaning, review quality,
+reviewer authority, custody history, and external approval remain outside this
+integrity check.
+
 ## Readiness dossier handoff
 
 VASI 0.45.0 lets an installation administrator export the current state behind

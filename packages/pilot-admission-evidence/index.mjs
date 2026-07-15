@@ -14,6 +14,7 @@ import {
   MAXIMUM_PILOT_GATE_MANIFEST_BYTES,
   pilotGateManifestJSON,
   validatePilotGateManifest,
+  verifyPilotGateEvidenceManifest,
 } from "../pilot-gate-evidence/index.mjs";
 import {
   MAXIMUM_READINESS_DOSSIER_BYTES,
@@ -24,10 +25,13 @@ import {
 
 export const PILOT_ADMISSION_EVIDENCE_VERIFICATION_SCHEMA =
   "vasi-pilot-admission-evidence-verification/v1";
+export const PILOT_ADMISSION_COMPLETE_EVIDENCE_VERIFICATION_SCHEMA =
+  "vasi-pilot-admission-evidence-verification/v2";
 
 const expectedManifestNames = Object.freeze(
   TENANT_ADMISSION_GATES.map((gateId) => `${gateId}.json`).sort(),
 );
+const expectedArtifactDirectoryNames = Object.freeze([...TENANT_ADMISSION_GATES].sort());
 
 export class PilotAdmissionEvidenceVerificationError extends Error {
   constructor(code) {
@@ -40,12 +44,19 @@ export class PilotAdmissionEvidenceVerificationError extends Error {
 export async function verifyPilotAdmissionEvidenceSet(
   dossierFile,
   manifestDirectory,
-  { expectedDigest, expectedKeyFingerprint, uid = process.getuid?.() ?? 0 } = {},
+  {
+    artifactDirectoryRoot,
+    expectedDigest,
+    expectedKeyFingerprint,
+    uid = process.getuid?.() ?? 0,
+  } = {},
 ) {
   try {
     if (
       !Number.isSafeInteger(uid) || uid < 0 ||
-      [dossierFile, manifestDirectory].some((value) =>
+      [dossierFile, manifestDirectory, artifactDirectoryRoot]
+        .filter((value) => value !== undefined)
+        .some((value) =>
         typeof value !== "string" || !value || Buffer.byteLength(value) > 4_096 || value.includes("\0")
       )
     ) fail("invalid_input");
@@ -53,6 +64,18 @@ export async function verifyPilotAdmissionEvidenceSet(
     const dossierPath = path.resolve(dossierFile);
     const dossierDirectory = await validatePrivateDirectory(path.dirname(dossierPath), uid);
     if (isWithinOrEqual(manifestBoundary.path, dossierPath)) fail("overlapping_inputs");
+    const artifactBoundary = artifactDirectoryRoot === undefined
+      ? null
+      : await validateArtifactDirectoryRoot(artifactDirectoryRoot, uid);
+    if (
+      artifactBoundary && (
+        isWithinOrEqual(artifactBoundary.path, dossierPath) ||
+        isWithinOrEqual(dossierDirectory.path, artifactBoundary.path) ||
+        isWithinOrEqual(dossierDirectory.path, manifestBoundary.path) ||
+        isWithinOrEqual(artifactBoundary.path, manifestBoundary.path) ||
+        isWithinOrEqual(manifestBoundary.path, artifactBoundary.path)
+      )
+    ) fail("overlapping_inputs");
 
     const entries = await readdir(manifestBoundary.path, { withFileTypes: true });
     const names = entries.map((entry) => entry.name).sort();
@@ -93,10 +116,16 @@ export async function verifyPilotAdmissionEvidenceSet(
       expectedKeyFingerprint,
     });
     verifyAdmissionBindings(exported, manifests);
+    const artifactSummary = artifactBoundary
+      ? await verifyArtifactDirectories(manifests, artifactBoundary, uid)
+      : null;
 
     return Object.freeze({
       admissionEvidence: "matched",
-      artifactVerification: "not_performed",
+      ...(artifactSummary
+        ? { artifactBytes: artifactSummary.bytes, artifacts: artifactSummary.artifacts }
+        : {}),
+      artifactVerification: artifactSummary ? "matched" : "not_performed",
       certificateSeal: verification.certificateSeal,
       dossierSha256: verification.dossierSha256,
       evidencePackages: manifests.length,
@@ -106,7 +135,9 @@ export async function verifyPilotAdmissionEvidenceSet(
       integrityKeyFingerprint: verification.integrityKeyFingerprint,
       integritySeal: verification.integritySeal,
       presentation: verification.presentation,
-      schema: PILOT_ADMISSION_EVIDENCE_VERIFICATION_SCHEMA,
+      schema: artifactSummary
+        ? PILOT_ADMISSION_COMPLETE_EVIDENCE_VERIFICATION_SCHEMA
+        : PILOT_ADMISSION_EVIDENCE_VERIFICATION_SCHEMA,
       scopeBinding: "consistent",
       status: "pass",
       temporalBinding: "ordered",
@@ -115,6 +146,42 @@ export async function verifyPilotAdmissionEvidenceSet(
     if (error instanceof PilotAdmissionEvidenceVerificationError) throw error;
     fail("verification_unavailable");
   }
+}
+
+async function validateArtifactDirectoryRoot(directory, uid) {
+  const boundary = await validatePrivateDirectory(directory, uid);
+  const entries = await readdir(boundary.path, { withFileTypes: true });
+  const names = entries.map((entry) => entry.name).sort();
+  if (
+    !sameArray(names, expectedArtifactDirectoryNames) ||
+    entries.some((entry) => !entry.isDirectory())
+  ) fail("artifact_directory_inventory_mismatch");
+  return boundary;
+}
+
+async function verifyArtifactDirectories(manifests, boundary, uid) {
+  let artifacts = 0;
+  let bytes = 0;
+  for (let index = 0; index < TENANT_ADMISSION_GATES.length; index += 1) {
+    const gateId = TENANT_ADMISSION_GATES[index];
+    const manifest = manifests[index];
+    const verification = await verifyPilotGateEvidenceManifest(
+      manifest,
+      path.join(boundary.path, gateId),
+      { expectedDigest: manifest.packageDigest, uid },
+    );
+    artifacts += verification.artifacts;
+    bytes += verification.totalBytes;
+  }
+  const entries = await readdir(boundary.path, { withFileTypes: true });
+  const names = entries.map((entry) => entry.name).sort();
+  const metadata = await lstat(boundary.path, { bigint: true });
+  if (
+    !sameArray(names, expectedArtifactDirectoryNames) ||
+    entries.some((entry) => !entry.isDirectory()) ||
+    !sameMetadata(boundary.metadata, metadata)
+  ) fail("artifact_directory_changed");
+  return Object.freeze({ artifacts, bytes });
 }
 
 function readCanonicalManifest(contents) {

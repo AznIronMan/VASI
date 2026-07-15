@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.52.0`
+Version: `0.53.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -678,6 +678,16 @@ strict private physical-file boundaries. Output remains aggregate-only and
 explicitly states that artifact bytes were not reverified; per-gate artifact
 verification and accountable external approval remain separate requirements.
 
+Version 0.53.0 adds an optional strict complete-set mode to that final offline
+verifier. A private artifact root must contain exactly one fixed-name physical
+directory for every gate. The command reuses the per-gate verifier to
+re-inventory and hash every underlying artifact, preserves all existing size,
+mode, owner, link, stable-read, and digest checks, and reports only aggregate
+count/bytes with `artifactVerification: "matched"`. Omitting the root preserves
+the version 1 manifest-only result and its explicit `not_performed` state.
+Neither mode interprets an artifact or replaces reviewer authority, custody,
+trust policy, or accountable approval.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -1106,6 +1116,10 @@ limits.
 The [pilot-gate evidence package decision](docs/architecture/pilot-gate-evidence-packages.md)
 defines the complete per-gate checklist, private offline artifact boundary,
 canonical digest handoff, aggregate verifier, and non-approval limits.
+The [pilot-admission evidence verification decision](docs/architecture/pilot-admission-evidence-verification.md)
+defines the signed-dossier/eight-manifest binding, optional complete artifact
+reverification, private filesystem contract, aggregate output, and external
+approval limits.
 The [requester provenance and participant disclosure decision](docs/architecture/requester-provenance-and-participant-disclosure.md)
 defines the immutable issuance-time requesting user, manifest binding,
 participant pre-action notice, history/data-export behavior, and assurance

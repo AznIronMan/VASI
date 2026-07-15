@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { isDirectExecution } from "./direct-execution.mjs";
 
-export const EGRESS_BOUNDARY_VERSION = "0.52.0";
+export const EGRESS_BOUNDARY_VERSION = "0.53.0";
 export const EGRESS_BOUNDARY_SCHEMA = "vasi-engine-egress-boundary/v2";
 const DEFAULT_DATABASE_CHAIN = "VASI_DATABASE_EGRESS";
 const DEFAULT_INGRESS_CHAIN = "VASI_INGRESS_EGRESS";

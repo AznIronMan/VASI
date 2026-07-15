@@ -145,6 +145,14 @@ describe("release assurance policy", () => {
         library,
         (await readFile(library, "utf8"))
           .replace("constants.O_NOFOLLOW", "0")
+          .replace(
+            "const verification = await verifyPilotGateEvidenceManifest(",
+            "const verification = await Promise.resolve(",
+          )
+          .replace(
+            "isWithinOrEqual(dossierDirectory.path, artifactBoundary.path)",
+            "false",
+          )
           .replace('admission.status !== "admitted"', "false"),
       );
       const documentation = path.join(
@@ -154,7 +162,8 @@ describe("release assurance policy", () => {
       await writeFile(
         documentation,
         (await readFile(documentation, "utf8"))
-          .replace('`artifactVerification: "not_performed"`', "artifact verified"),
+          .replace('`artifactVerification: "not_performed"`', "artifact not checked")
+          .replace("--artifact-root ARTIFACT_DIRECTORY_ROOT", "--artifacts DIRECTORY"),
       );
       const result = await validatePilotAdmissionEvidenceContract(fixture);
       expect(result.failures).toContain(
@@ -164,7 +173,16 @@ describe("release assurance policy", () => {
         'the pilot-admission evidence library is missing admission.status !== "admitted"',
       );
       expect(result.failures).toContain(
+        "the pilot-admission evidence library is missing const verification = await verifyPilotGateEvidenceManifest(",
+      );
+      expect(result.failures).toContain(
+        "the pilot-admission evidence library is missing isWithinOrEqual(dossierDirectory.path, artifactBoundary.path)",
+      );
+      expect(result.failures).toContain(
         'the pilot-admission evidence documentation is missing `artifactVerification: "not_performed"`',
+      );
+      expect(result.failures).toContain(
+        "the pilot-admission evidence documentation is missing --artifact-root ARTIFACT_DIRECTORY_ROOT",
       );
     } finally {
       await rm(fixture, { force: true, recursive: true });
