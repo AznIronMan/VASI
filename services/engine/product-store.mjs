@@ -21,7 +21,10 @@ import {
   validateTenantProfile,
   validateTenantProfileCommand,
   validateTenantProvisionInput,
+  validateTenantReadinessExportCommand,
   validateTenantReference,
+  TENANT_READINESS_DOSSIER_SCHEMA,
+  TENANT_READINESS_EXPORT_SCHEMA,
 } from "../../packages/engine-domain/productization.mjs";
 import { hasTenantPermission, permissionsForRoles } from "../../packages/engine-domain/workflow.mjs";
 import { appendEvent } from "./evidence-events.mjs";
@@ -35,7 +38,7 @@ import {
 
 const GENESIS_HASH = "0".repeat(64);
 
-export function createProductStore(database, settings, installationId) {
+export function createProductStore(database, settings, installationId, { engineVersion = "unknown" } = {}) {
   const credentialSecret = requiredSetting(settings, "ENGINE_INTEGRATION_CONFIG_ENCRYPTION_SECRET");
 
   return Object.freeze({
@@ -357,6 +360,104 @@ export function createProductStore(database, settings, installationId) {
           revision: nextRevision,
           status: input.status,
           createdAt: new Date(),
+        });
+      });
+    },
+
+    async exportTenantReadiness(actor, payload) {
+      requireAdministrator(actor);
+      const input = validateTenantReadinessExportCommand(payload);
+      return transaction(database, async (client) => {
+        await client.query("set transaction isolation level repeatable read");
+        const captured = await client.query(`select CURRENT_TIMESTAMP as "capturedAt"`);
+        const capturedAt = new Date(captured.rows[0].capturedAt).toISOString();
+        const installation = await activeInstallationProfile(client, installationId, false);
+        const tenantResult = await client.query(
+          `select "id", "name", "slug", "status" from "vasi_engine"."tenant"
+           where "id" = $1`,
+          [input.tenantId],
+        );
+        if (!tenantResult.rowCount) throw new EngineStoreError("not_found", 404);
+        const tenant = tenantResult.rows[0];
+        const profile = await activeTenantProfile(client, input.tenantId);
+        const admission = await activeTenantAdmission(client, input.tenantId);
+        const usage = await tenantUsage(client, input.tenantId, profile);
+        const integrations = await activeReadinessIntegrations(client, input.tenantId);
+        const stopState = await tenantWithLastProductionStop(client, input.tenantId);
+        const pendingGateIds = admission.admission.gates
+          .filter((gate) => gate.state === "pending")
+          .map((gate) => gate.id);
+        const approvedGateIds = admission.admission.gates
+          .filter((gate) => gate.state === "approved")
+          .map((gate) => gate.id);
+        const dossier = Object.freeze({
+          admission: Object.freeze({
+            admissionHash: admission.admissionHash,
+            gates: admission.admission.gates,
+            revision: admission.revision,
+            revisionCreatedAt: admission.createdAt,
+            schema: admission.admission.schema,
+            status: admission.status,
+          }),
+          installation: readinessInstallationProjection(installation, engineVersion),
+          integrations: Object.freeze(integrations),
+          lastProductionStop: stopState.lastStopEventData
+            ? readinessProductionStopProjection(stopState)
+            : null,
+          limitations: Object.freeze([
+            "This dossier reports the VASI engine state observed at export; it is not a certification, legal opinion, or independent assessment.",
+            "Recorded gate approvals identify evidence and reviewers but do not establish that the underlying review was sufficient or correct.",
+            "Secrets, credentials, personal contact data, raw integration configuration, and destination allowlist values are deliberately omitted.",
+            "The dossier SHA-256 detects changes to these exported facts; it is not a digital signature or a certificate seal.",
+            "External identity, delivery, custody, recovery, accessibility, legal, security, capacity, and support controls remain installation and customer responsibilities.",
+          ]),
+          readiness: Object.freeze({
+            approvedGateIds: Object.freeze(approvedGateIds),
+            classification: "recorded_evidence_not_certification",
+            externalReviewRequired: true,
+            pendingGateIds: Object.freeze(pendingGateIds),
+            technicalAdmissionStatus: admission.status,
+          }),
+          schema: TENANT_READINESS_DOSSIER_SCHEMA,
+          tenant: Object.freeze({
+            id: tenant.id,
+            name: tenant.name,
+            profile: Object.freeze({
+              defaultRetentionProfile: profile.profile.policies.defaultRetentionProfile,
+              profileHash: profile.profileHash,
+              quotas: profile.profile.quotas,
+              revision: profile.revision,
+            }),
+            slug: tenant.slug,
+            status: tenant.status,
+            usage,
+          }),
+        });
+        const dossierHash = hashCanonicalJSON(dossier);
+        const exportEvent = await appendConfigurationEvent(client, {
+          actorPrincipalId: actor.principalId,
+          eventData: {
+            admissionHash: admission.admissionHash,
+            admissionRevision: admission.revision,
+            dossierHash,
+            format: input.format,
+            installationProfileHash: installation.profileHash,
+            installationProfileRevision: installation.revision,
+            tenantProfileHash: profile.profileHash,
+            tenantProfileRevision: profile.revision,
+          },
+          eventType: "tenant.readiness.exported",
+          scopeId: input.tenantId,
+          scopeType: "tenant",
+          tenantId: input.tenantId,
+        });
+        return Object.freeze({
+          auditEventHash: exportEvent.eventHash,
+          capturedAt,
+          dossier,
+          dossierHash,
+          format: input.format,
+          schema: TENANT_READINESS_EXPORT_SCHEMA,
         });
       });
     },
@@ -1141,6 +1242,70 @@ function integrationProjection(row) {
     id: row.id,
     revision: Number(row.revision),
     status: row.status,
+  });
+}
+
+async function activeReadinessIntegrations(client, tenantId) {
+  const result = await client.query(
+    `select r."adapterId", r."adapterVersion", r."capability", r."configHash",
+            r."createdAt", r."revision", r."status"
+     from "vasi_engine"."integration_binding_pointer" p
+     join "vasi_engine"."integration_binding_revision" r
+       on r."id" = p."activeRevisionId" and r."tenantId" = p."tenantId"
+         and r."capability" = p."capability"
+     where p."tenantId" = $1 order by r."capability"`,
+    [tenantId],
+  );
+  return result.rows.map((row) => Object.freeze({
+    adapterId: row.adapterId,
+    adapterVersion: row.adapterVersion,
+    capability: row.capability,
+    configHash: row.configHash,
+    configurationWithheld: true,
+    revision: Number(row.revision),
+    revisionCreatedAt: new Date(row.createdAt).toISOString(),
+    status: row.status,
+  }));
+}
+
+function readinessInstallationProjection(installation, engineVersion) {
+  const adapters = installation.profile.adapters;
+  return Object.freeze({
+    adapterPolicy: Object.freeze({
+      allowedAdapterIds: adapters.allow,
+      destinationAllowlistCounts: Object.freeze({
+        malwareScannerHosts: adapters.malwareScannerAllowedHosts?.length || 0,
+        microsoftGraphClientIds: adapters.microsoftGraphAllowedClientIds?.length || 0,
+        microsoftGraphSenders: adapters.microsoftGraphAllowedSenders?.length || 0,
+        microsoftGraphTenantIds: adapters.microsoftGraphAllowedTenantIds?.length || 0,
+        smtpHosts: adapters.smtpAllowedHosts.length,
+        webhookHosts: adapters.webhookAllowedHosts.length,
+      }),
+    }),
+    deployment: installation.profile.deployment,
+    engineVersion,
+    organizationName: installation.profile.product.organizationName,
+    productName: installation.profile.product.productName,
+    profileHash: installation.profileHash,
+    provisioning: installation.profile.provisioning,
+    revision: installation.revision,
+  });
+}
+
+function readinessProductionStopProjection(row) {
+  const stop = productionStopProjection(row);
+  return Object.freeze({
+    effects: Object.freeze({
+      revokedAssignmentCount: stop.revokedAssignmentCount,
+      revokedRequestCount: stop.revokedRequestCount,
+      suppressedNotificationCount: stop.suppressedNotificationCount,
+    }),
+    eventHash: stop.eventHash,
+    gateId: stop.gateId,
+    reasonCode: stop.reasonCode,
+    resultingAdmissionRevision: stop.resultingAdmissionRevision,
+    resultingAdmissionStatus: stop.resultingAdmissionStatus,
+    stoppedAt: stop.stoppedAt,
   });
 }
 

@@ -95,8 +95,8 @@ describe("release assurance policy", () => {
       failures: [],
       filesChecked: 15,
       routeIsolation: {
-        methodCount: 53,
-        namespaceMethods: { admin: 16, evidence: 4, owner: 25, request: 3, workspace: 5 },
+        methodCount: 54,
+        namespaceMethods: { admin: 17, evidence: 4, owner: 25, request: 3, workspace: 5 },
       },
     });
   });
@@ -444,7 +444,7 @@ curl https://monitor.example.test\n`,
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.44.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.45.0")).toMatchObject({
       allowedOptionalPackagePaths: [
         "node_modules/@img/colour",
         "node_modules/@img/sharp-libvips-linuxmusl-x64",
@@ -457,7 +457,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.44.0")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.45.0")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -478,7 +478,7 @@ curl https://monitor.example.test\n`,
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.44.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.45.0")).toMatchObject({
       entrypoints: [
         "scripts/backup-custody.mjs",
         "scripts/backup-continuity.mjs",
@@ -492,7 +492,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.44.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.45.0")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",
@@ -509,7 +509,7 @@ curl https://monitor.example.test\n`,
   it("derives a bounded physical prohibition inventory from the exact lock graph", async () => {
     const packageJSON = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
     const packageLock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
-    const allowed = runtimeContractForImage("vasi:0.44.0").allowedOptionalPackagePaths;
+    const allowed = runtimeContractForImage("vasi:0.45.0").allowedOptionalPackagePaths;
     const result = runtimeDependencyAuditPaths(packageJSON, packageLock, allowed);
     expect(result.lockPackageCount).toBeGreaterThan(400);
     expect(result.prohibitedPackagePaths).toContain("node_modules/vitest");

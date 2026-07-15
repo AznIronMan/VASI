@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.44.0`
+Version: `0.45.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -573,6 +573,18 @@ workspace/request pages redirect only to the canonical login origin without a
 cookie. Release assurance fails if route discovery, the bounded denial helper,
 protected-page metadata policy, or any of these black-box checks is weakened.
 
+Version 0.45.0 adds an administrator-only pilot-readiness dossier. The private
+engine captures a repeatable snapshot of the exact installation and tenant
+profile revisions, technical admission decisions, safe integration identities,
+capacity use, and latest production-stop effects. It hashes the canonical
+machine dossier and records every export in the tenant's immutable
+configuration chain. The internal console downloads either machine JSON or a
+printable, script-free human report carrying the same dossier hash. Credentials,
+endpoint and allowlist values, personal contact data, incident references, and
+operator identifiers remain excluded. The dossier packages recorded evidence
+for accountable reviewers; it is not certification, a legal opinion, a digital
+signature, or approval of any external pilot gate.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -599,7 +611,8 @@ assessment remain installation or pilot gates.
   explicit pending-production handoff to the eight assurance gates.
 - Administrator-only, immutable tenant production admission with eight exact
   digest-bound assurance gates, fail-closed issuance/outbound enforcement, and
-  an atomic audited stop for all non-terminal tenant work.
+  an atomic audited stop for all non-terminal tenant work, plus privacy-bounded
+  JSON and human-readable readiness dossiers for external review.
 - Microsoft Graph transactional delivery restricted to its configured mailbox,
   with SMTP as an optional fallback.
 - A local SQLite bootstrap at `data/VASI.settings` containing only the

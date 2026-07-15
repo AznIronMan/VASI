@@ -60,6 +60,7 @@ export function TenantAdmissionPanel() {
   const [selectedTenantId, setSelectedTenantId] = useState("");
   const [editingGate, setEditingGate] = useState<TenantAdmissionGateId>();
   const [stopping, setStopping] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [pending, setPending] = useState(true);
   const [message, setMessage] = useState<string>();
   const [messageType, setMessageType] = useState<"error" | "success">("success");
@@ -189,6 +190,40 @@ export function TenantAdmissionPanel() {
     }
   }
 
+  async function downloadReadiness(format: "html" | "json") {
+    if (!record) return;
+    setExporting(true);
+    setMessage(undefined);
+    try {
+      const response = await fetch("/api/admin/product/tenant-readiness-exports", {
+        body: JSON.stringify({ format, tenantId: record.tenant.id }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error || "The readiness dossier could not be exported.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `vasi-readiness-${record.tenant.id}.${format}`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+      const dossierHash = response.headers.get("x-vasi-dossier-sha256");
+      setMessage(`Readiness ${format.toUpperCase()} exported${dossierHash ? ` with dossier SHA-256 ${dossierHash}` : ""}.`);
+      setMessageType("success");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The readiness dossier could not be exported.");
+      setMessageType("error");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return <section className="admin-invite admission-panel" aria-labelledby="tenant-admission-title">
     <div className="admission-panel__heading">
       <div>
@@ -220,6 +255,16 @@ export function TenantAdmissionPanel() {
     {!records.length && pending && <p>Loading admission records…</p>}
 
     {record && <>
+      <section className="readiness-export" aria-labelledby="readiness-export-title">
+        <div>
+          <h3 id="readiness-export-title">Pilot readiness dossier</h3>
+          <p>Package current hashes, gate references, safe integration facts, capacity, and stop history for accountable review. Credentials, destinations, and personal contact data are omitted.</p>
+        </div>
+        <div className="readiness-export__actions">
+          <button className="secondary-button" disabled={pending || exporting} type="button" onClick={() => void downloadReadiness("html")}>Download human report</button>
+          <button className="table-link" disabled={pending || exporting} type="button" onClick={() => void downloadReadiness("json")}>Download machine JSON</button>
+        </div>
+      </section>
       <div className="admission-gates">
         {record.admission.gates.map((gate) => {
           const copy = gateCopy[gate.id];

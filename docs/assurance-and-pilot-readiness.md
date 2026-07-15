@@ -483,3 +483,20 @@ owner and dated evidence.
 Until the independent, legal/privacy, and named pilot-owner gates are approved,
 VASI may be demonstrated with synthetic data but must not be represented as a
 certified, legally sufficient, or generally production-approved service.
+
+## Readiness dossier handoff
+
+VASI 0.45.0 lets an installation administrator export the current state behind
+the pilot table as a readiness dossier. The engine uses one repeatable database
+snapshot, binds the active installation and tenant profile hashes, complete
+admission revision, privacy-bounded integration facts, capacity use, and latest
+production-stop effects, then hashes the canonical dossier and appends an
+immutable `tenant.readiness.exported` event. JSON and printable HTML carry the
+same dossier hash.
+
+This export makes handoff to named owners traceable; it does not satisfy,
+certify, or independently assess a gate. Credentials, raw integration
+configuration, endpoint and allowlist values, personal contact data, incident
+references, and operator identifiers are deliberately omitted. Reviewers still
+need the separately controlled evidence named by each gate reference. See
+[Pilot readiness dossier](architecture/pilot-readiness-dossier.md).

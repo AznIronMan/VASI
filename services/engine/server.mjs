@@ -27,7 +27,7 @@ import { createReportStore } from "./report-store.mjs";
 import { initializeSigningKeys } from "./signing-provider.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.44.0";
+const ENGINE_VERSION = "0.45.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -44,7 +44,9 @@ const media = createMediaStore(database, settings);
 const lifecycle = createLifecycleStore(database, settings);
 const reports = createReportStore(database, settings);
 const workflows = createWorkflowStore(database, settings);
-const product = createProductStore(database, settings, bootstrap.installationId);
+const product = createProductStore(database, settings, bootstrap.installationId, {
+  engineVersion: ENGINE_VERSION,
+});
 const operations = createOperationsStore(database, { engineVersion: ENGINE_VERSION });
 await initializeSigningKeys(database, settings);
 await product.initialize();
@@ -204,6 +206,7 @@ function dispatchEvidence(action, actor, payload) {
     case "tenant.admission.list": return product.listTenantAdmissions(actor);
     case "tenant.admission.update": return product.updateTenantAdmission(actor, payload);
     case "tenant.production.stop": return product.stopTenantProduction(actor, payload);
+    case "tenant.readiness.export": return product.exportTenantReadiness(actor, payload);
     case "tenant.profile.read": return product.getTenantProfile(actor, payload);
     case "tenant.profile.update": return product.updateTenantProfile(actor, payload);
     case "tenant.usage.read": return product.getTenantUsage(actor, payload);

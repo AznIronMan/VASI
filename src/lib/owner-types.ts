@@ -150,6 +150,91 @@ export type AdminTenantAdmission = {
   tenant: { id: string; name: string; slug: string };
 };
 
+export type TenantReadinessDossier = {
+  admission: {
+    admissionHash: string;
+    gates: TenantAdmissionGate[];
+    revision: number;
+    revisionCreatedAt: string;
+    schema: "vasi-tenant-admission/v1";
+    status: "admitted" | "pending";
+  };
+  installation: {
+    adapterPolicy: {
+      allowedAdapterIds: OwnerIntegration["adapterId"][];
+      destinationAllowlistCounts: {
+        malwareScannerHosts: number;
+        microsoftGraphClientIds: number;
+        microsoftGraphSenders: number;
+        microsoftGraphTenantIds: number;
+        smtpHosts: number;
+        webhookHosts: number;
+      };
+    };
+    deployment: InstallationProfile["deployment"];
+    engineVersion: string;
+    organizationName: string;
+    productName: string;
+    profileHash: string;
+    provisioning: InstallationProfile["provisioning"];
+    revision: number;
+  };
+  integrations: Array<{
+    adapterId: OwnerIntegration["adapterId"];
+    adapterVersion: string;
+    capability: OwnerIntegration["capability"];
+    configHash: string;
+    configurationWithheld: true;
+    revision: number;
+    revisionCreatedAt: string;
+    status: OwnerIntegration["status"];
+  }>;
+  lastProductionStop: null | {
+    effects: {
+      revokedAssignmentCount: number;
+      revokedRequestCount: number;
+      suppressedNotificationCount: number;
+    };
+    eventHash: string;
+    gateId: TenantAdmissionGateId;
+    reasonCode: TenantProductionStopReason;
+    resultingAdmissionRevision: number;
+    resultingAdmissionStatus: "admitted" | "pending";
+    stoppedAt: string;
+  };
+  limitations: string[];
+  readiness: {
+    approvedGateIds: TenantAdmissionGateId[];
+    classification: "recorded_evidence_not_certification";
+    externalReviewRequired: true;
+    pendingGateIds: TenantAdmissionGateId[];
+    technicalAdmissionStatus: "admitted" | "pending";
+  };
+  schema: "vasi-tenant-readiness-dossier/v1";
+  tenant: {
+    id: string;
+    name: string;
+    profile: {
+      defaultRetentionProfile: string;
+      profileHash: string;
+      quotas: TenantProfile["quotas"];
+      revision: number;
+    };
+    slug: string;
+    status: string;
+    usage: OwnerTenantUsage;
+  };
+};
+
+export type AdminTenantReadinessExport = {
+  auditEventHash: string;
+  capturedAt: string;
+  dossier: TenantReadinessDossier;
+  dossierHash: string;
+  format: "html" | "json";
+  schema: "vasi-tenant-readiness-export/v1";
+};
+
 export type ProvisionedCompany = OwnerTenant & {
   admission: Omit<AdminTenantAdmission, "tenant">;
   owner: { email: string | null; grantCreated: boolean };

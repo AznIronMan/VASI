@@ -5,6 +5,7 @@ import {
   applyTenantAdmissionDecision,
   defaultInstallationProfile,
   defaultTenantAdmission,
+  defaultTenantProfile,
   TENANT_ADMISSION_GATES,
   validateInstallationProfile,
 } from "../../packages/engine-domain/productization.mjs";
@@ -184,6 +185,218 @@ function replayProvisionDatabase() {
     database: { connect: vi.fn(async () => client) },
     state,
   };
+}
+
+describe("tenant readiness dossier export", () => {
+  it("exports one repeatable, privacy-bounded snapshot and audits access", async () => {
+    const fixture = readinessExportDatabase();
+    const store = createProductStore(
+      fixture.database,
+      settings(),
+      "installation-test",
+      { engineVersion: "0.45.0" },
+    );
+
+    const exported = await store.exportTenantReadiness(actor, {
+      format: "json",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+    });
+
+    expect(exported).toMatchObject({
+      capturedAt: "2026-07-15T20:00:00.000Z",
+      dossier: {
+        installation: {
+          adapterPolicy: {
+            destinationAllowlistCounts: { smtpHosts: 1 },
+          },
+          engineVersion: "0.45.0",
+        },
+        integrations: [{
+          adapterId: "smtp",
+          capability: "notification.delivery",
+          configurationWithheld: true,
+          status: "active",
+        }],
+        readiness: {
+          classification: "recorded_evidence_not_certification",
+          externalReviewRequired: true,
+          technicalAdmissionStatus: "pending",
+        },
+        schema: "vasi-tenant-readiness-dossier/v1",
+        tenant: {
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "Example Tenant",
+          profile: { defaultRetentionProfile: "tenant_default", revision: 3 },
+          status: "active",
+        },
+      },
+      format: "json",
+      schema: "vasi-tenant-readiness-export/v1",
+    });
+    expect(exported.dossierHash).toBe(hashCanonicalJSON(exported.dossier));
+    const serialized = JSON.stringify(exported);
+    expect(serialized).not.toContain("smtp.internal.example.test");
+    expect(serialized).not.toContain("operator@example.test");
+    expect(serialized).not.toContain("smtp-password-value");
+    expect(serialized).not.toContain("incident:private-case");
+    expect(serialized).not.toContain("principal-admin");
+
+    const auditInsert = fixture.client.query.mock.calls.find(([sql]) =>
+      String(sql).includes('insert into "vasi_engine"."product_configuration_event"')
+    );
+    expect(auditInsert?.[1]?.[5]).toBe("tenant.readiness.exported");
+    expect(auditInsert?.[1]?.[7]).toEqual(expect.objectContaining({
+      dossierHash: exported.dossierHash,
+      format: "json",
+      tenantProfileRevision: 3,
+    }));
+    expect(JSON.stringify(auditInsert?.[1]?.[7])).not.toContain("smtp.internal.example.test");
+    const htmlExported = await store.exportTenantReadiness(actor, {
+      format: "html",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+    });
+    expect(htmlExported.dossier).toEqual(exported.dossier);
+    expect(htmlExported.dossierHash).toBe(exported.dossierHash);
+    expect(htmlExported.format).toBe("html");
+    const auditEvents = fixture.client.query.mock.calls.filter(([sql]) =>
+      String(sql).includes('insert into "vasi_engine"."product_configuration_event"')
+    );
+    expect(auditEvents).toHaveLength(2);
+    expect(auditEvents[1]?.[1]?.[7]).toEqual(expect.objectContaining({
+      dossierHash: exported.dossierHash,
+      format: "html",
+    }));
+    expect(fixture.client.query.mock.calls.at(-1)?.[0]).toBe("commit");
+  });
+
+  it("requires an installation administrator before reading tenant state", async () => {
+    const database = { connect: vi.fn() };
+    const store = createProductStore(database, settings(), "installation-test");
+    await expect(store.exportTenantReadiness(
+      { ...actor, roles: ["owner"] },
+      { format: "html", tenantId: "11111111-1111-4111-8111-111111111111" },
+    )).rejects.toMatchObject({ code: "forbidden", status: 403 });
+    expect(database.connect).not.toHaveBeenCalled();
+  });
+});
+
+function readinessExportDatabase() {
+  const baseInstallation = defaultInstallationProfile();
+  const installationProfile = validateInstallationProfile({
+    ...baseInstallation,
+    adapters: {
+      ...baseInstallation.adapters,
+      smtpAllowedHosts: ["smtp.internal.example.test"],
+    },
+    product: {
+      ...baseInstallation.product,
+      supportEmail: "operator@example.test",
+    },
+  });
+  const tenantProfile = {
+    ...defaultTenantProfile("Example Tenant"),
+    branding: {
+      ...defaultTenantProfile("Example Tenant").branding,
+      supportEmail: "tenant-owner@example.test",
+    },
+  };
+  const admission = defaultTenantAdmission();
+  const client = {
+    query: vi.fn(async (sql) => {
+      const statement = String(sql);
+      if (["begin", "commit", "rollback", "set transaction isolation level repeatable read"].includes(statement)) {
+        return result();
+      }
+      if (statement.includes('CURRENT_TIMESTAMP as "capturedAt"')) {
+        return result([{ capturedAt: new Date("2026-07-15T20:00:00.000Z") }]);
+      }
+      if (statement.includes('from "vasi_engine"."installation_profile_pointer"')) {
+        return result([{
+          id: "installation-profile-4",
+          profile: installationProfile,
+          profileHash: hashCanonicalJSON(installationProfile),
+          revision: 4,
+        }]);
+      }
+      if (statement.includes('from "vasi_engine"."tenant_profile_pointer"')) {
+        return result([{
+          id: "tenant-profile-3",
+          profile: tenantProfile,
+          profileHash: hashCanonicalJSON(tenantProfile),
+          revision: 3,
+        }]);
+      }
+      if (statement.includes('from "vasi_engine"."tenant_admission_pointer"')) {
+        return result([{
+          admission,
+          admissionHash: hashCanonicalJSON(admission),
+          createdAt: new Date("2026-07-15T19:00:00.000Z"),
+          createdByPrincipalId: "principal-admin",
+          id: "tenant-admission-2",
+          revision: 2,
+        }]);
+      }
+      if (statement.includes('(select count(*)::integer from (')) {
+        return result([{
+          activeRequests: 2,
+          artifactBytes: "1024",
+          integrations: 1,
+          members: 3,
+          workflows: 4,
+        }]);
+      }
+      if (statement.includes('from "vasi_engine"."integration_binding_pointer" p')) {
+        return result([{
+          adapterId: "smtp",
+          adapterVersion: "1",
+          capability: "notification.delivery",
+          config: { host: "smtp.internal.example.test" },
+          configHash: "c".repeat(64),
+          createdAt: new Date("2026-07-15T18:00:00.000Z"),
+          credentialEnvelope: "smtp-password-value",
+          revision: 5,
+          status: "active",
+        }]);
+      }
+      if (statement.includes('from "vasi_engine"."tenant" t') && statement.includes('left join lateral')) {
+        return result([{
+          lastStopEventData: {
+            commandId: "private-stop-command",
+            gateId: "privacy_legal",
+            incidentReference: "incident:private-case",
+            reasonCode: "privacy_or_legal",
+            revokedAssignmentCount: 2,
+            resultingAdmissionRevision: 2,
+            resultingAdmissionStatus: "pending",
+            revokedRequestCount: 1,
+            suppressedNotificationCount: 1,
+          },
+          lastStopEventHash: "d".repeat(64),
+          lastStoppedAt: new Date("2026-07-15T17:00:00.000Z"),
+          lastStoppedByPrincipalId: "principal-admin",
+          tenantName: "Example Tenant",
+          tenantSlug: "example-tenant",
+        }]);
+      }
+      if (statement.includes('from "vasi_engine"."tenant"') && statement.includes('where "id" = $1')) {
+        return result([{
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "Example Tenant",
+          slug: "example-tenant",
+          status: "active",
+        }]);
+      }
+      if (statement.includes('insert into "vasi_engine"."product_configuration_chain_head"')) return result();
+      if (statement.includes('from "vasi_engine"."product_configuration_chain_head"')) {
+        return result([{ lastHash: "0".repeat(64), lastSequence: 7 }]);
+      }
+      if (statement.includes('insert into "vasi_engine"."product_configuration_event"')) return result();
+      if (statement.includes('update "vasi_engine"."product_configuration_chain_head"')) return result();
+      throw new Error(`Unexpected readiness export query: ${statement}`);
+    }),
+    release: vi.fn(),
+  };
+  return { client, database: { connect: vi.fn(async () => client) } };
 }
 
 describe("tenant production stop", () => {

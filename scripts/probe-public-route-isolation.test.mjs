@@ -13,8 +13,8 @@ import {
 describe("public sensitive-route isolation", () => {
   it("discovers every current sensitive route method from tracked source", async () => {
     const routes = await discoverSensitiveRoutes();
-    expect(routes).toHaveLength(53);
-    expect(counts(routes)).toEqual({ admin: 16, evidence: 4, owner: 25, request: 3, workspace: 5 });
+    expect(routes).toHaveLength(54);
+    expect(counts(routes)).toEqual({ admin: 17, evidence: 4, owner: 25, request: 3, workspace: 5 });
     expect(routes).toContainEqual({
       audience: "internal",
       method: "DELETE",

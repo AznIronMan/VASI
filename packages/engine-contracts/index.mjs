@@ -16,6 +16,7 @@ const engineRoutes = Object.freeze([
   { action: "tenant.admission.list", method: "GET", path: "/v1/admin/tenant-admissions" },
   { action: "tenant.admission.update", method: "POST", path: "/v1/admin/tenant-admissions" },
   { action: "tenant.production.stop", method: "POST", path: "/v1/admin/tenant-production-stops" },
+  { action: "tenant.readiness.export", method: "POST", path: "/v1/admin/tenant-readiness-exports" },
   { action: "operations.read", method: "GET", path: "/v1/admin/operations" },
   { action: "membership.list", method: "POST", path: "/v1/owner/member-list" },
   { action: "membership.update", method: "POST", path: "/v1/owner/members" },

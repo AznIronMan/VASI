@@ -13,6 +13,7 @@ import {
   validateTenantAdmission,
   validateTenantAdmissionDecisionCommand,
   validateTenantProductionStopCommand,
+  validateTenantReadinessExportCommand,
   validateTenantProfile,
   validateTenantProvisionInput,
 } from "./productization.mjs";
@@ -198,6 +199,31 @@ describe("tenant production admission", () => {
       reasonCode: "unbounded_narrative",
       tenantId: "tenant-1",
     })).toThrow(/reason/i);
+  });
+});
+
+describe("tenant readiness export contract", () => {
+  it("accepts only a tenant UUID and an explicit portable format", () => {
+    expect(validateTenantReadinessExportCommand({
+      format: "json",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+    })).toEqual({
+      format: "json",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+    });
+    expect(() => validateTenantReadinessExportCommand({
+      format: "pdf",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+    })).toThrow(/format is unsupported/i);
+    expect(() => validateTenantReadinessExportCommand({
+      format: "html",
+      tenantId: "tenant-1",
+    })).toThrow(/tenantId must be a UUID/i);
+    expect(() => validateTenantReadinessExportCommand({
+      format: "html",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+      includeSecrets: true,
+    })).toThrow(/includeSecrets is unsupported/i);
   });
 });
 

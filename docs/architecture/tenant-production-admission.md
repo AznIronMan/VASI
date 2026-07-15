@@ -151,7 +151,11 @@ administrator can record or replace an approval, or revoke it after an explicit
 confirmation. The panel displays the immutable revision, actor, time, and
 fingerprint without exposing secrets. It also exposes a separately confirmed
 production stop and shows the last bounded stop outcome and configuration-event
-fingerprint.
+fingerprint. VASI 0.45.0 adds machine JSON and printable human readiness
+dossiers from the same panel. Export is an audited administrative mutation
+because observing and releasing configuration evidence is security-relevant;
+the dossier packages recorded state but cannot approve a gate. See
+[Pilot readiness dossier](pilot-readiness-dossier.md).
 
 The privacy-safe operational snapshot reports active, admitted, disabled, and
 pending-admission tenant counts. Any active tenant without a current admitted

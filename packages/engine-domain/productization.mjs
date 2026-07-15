@@ -3,6 +3,9 @@ import { X509Certificate } from "node:crypto";
 export const TENANT_PROFILE_SCHEMA = "vasi-tenant-profile/v1";
 export const INSTALLATION_PROFILE_SCHEMA = "vasi-installation-profile/v1";
 export const TENANT_ADMISSION_SCHEMA = "vasi-tenant-admission/v1";
+export const TENANT_READINESS_DOSSIER_SCHEMA = "vasi-tenant-readiness-dossier/v1";
+export const TENANT_READINESS_EXPORT_SCHEMA = "vasi-tenant-readiness-export/v1";
+export const TENANT_READINESS_EXPORT_FORMATS = Object.freeze(["html", "json"]);
 export const TENANT_ADMISSION_GATES = Object.freeze([
   "exact_release",
   "isolation_integrity",
@@ -200,6 +203,18 @@ export function validateTenantProductionStopCommand(value) {
     incidentReference: admissionReference(input.incidentReference, "incidentReference"),
     reasonCode,
     tenantId: token(input.tenantId, "tenantId"),
+  });
+}
+
+export function validateTenantReadinessExportCommand(value) {
+  const input = strictObject(value, "tenant readiness export", ["format", "tenantId"]);
+  const format = token(input.format, "format");
+  if (!TENANT_READINESS_EXPORT_FORMATS.includes(format)) {
+    invalid("The tenant readiness export format is unsupported.");
+  }
+  return Object.freeze({
+    format,
+    tenantId: uuid(input.tenantId, "tenantId"),
   });
 }
 
