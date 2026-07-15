@@ -1,14 +1,18 @@
 import process from "node:process";
+import { connect as connectTLS } from "node:tls";
 import { pathToFileURL } from "node:url";
 
 import packageJSON from "../package.json" with { type: "json" };
 
 const MAXIMUM_RESPONSE_BYTES = 65_536;
 const OVERSIZED_AUTHENTICATION_BYTES = 65_537;
+const PAGE_METHODS_DENIED = Object.freeze(["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
+const SUPPORTED_TLS_PROTOCOLS = Object.freeze(["TLSv1.2", "TLSv1.3"]);
 
 export async function runPublicIngressProbe({
   exerciseRateLimit = false,
   fetchImplementation = fetch,
+  inspectTLS = inspectSupportedTLS,
   origin,
   rateRequests = 48,
   retiredOrigin,
@@ -19,6 +23,29 @@ export async function runPublicIngressProbe({
   if (retired?.origin === publicOrigin.origin) throw new Error("The public and retired ingress origins must differ.");
   boundedInteger(timeoutMilliseconds, "timeout", 500, 30_000);
   boundedInteger(rateRequests, "rate request count", 32, 200);
+
+  const tlsProtocols = await inspectTLS(publicOrigin, timeoutMilliseconds);
+  if (
+    !Array.isArray(tlsProtocols) || tlsProtocols.length !== SUPPORTED_TLS_PROTOCOLS.length ||
+    !SUPPORTED_TLS_PROTOCOLS.every((protocol) => tlsProtocols.includes(protocol)) ||
+    new Set(tlsProtocols).size !== tlsProtocols.length
+  ) throw new Error("The public ingress supported TLS protocol contract failed.");
+
+  const redirectPath = "/api/health?canonical-redirect=1";
+  const httpURL = new URL(redirectPath, publicOrigin);
+  httpURL.protocol = "http:";
+  httpURL.port = "";
+  const redirect = await request(fetchImplementation, httpURL, {
+    headers: spoofedHeaders(),
+    timeoutMilliseconds,
+  });
+  if (redirect.response.status !== 301) throw new Error("The public ingress HTTP route is not a permanent canonical redirect.");
+  const redirectLocation = redirect.response.headers.get("location");
+  if (!canonicalRedirectMatches(redirectLocation, httpURL, new URL(redirectPath, publicOrigin))) {
+    throw new Error("The public ingress HTTP route did not use the canonical HTTPS origin.");
+  }
+  requireNoResponseSideEffect(redirect.response, "public HTTP redirect", { allowLocation: true });
+  requireNoServerVersion(redirect.response, "public HTTP redirect");
 
   const health = await request(fetchImplementation, new URL("/api/health", publicOrigin), {
     headers: spoofedHeaders(),
@@ -31,12 +58,7 @@ export async function runPublicIngressProbe({
     healthPayload.version !== packageJSON.version
   ) throw new Error("The public ingress health identity or version is invalid.");
   requireNoStore(health.response, "public health");
-  requireHeader(health.response, "strict-transport-security", "public health");
-  if (health.response.headers.get("x-content-type-options")?.toLowerCase() !== "nosniff") {
-    throw new Error("The public ingress is missing nosniff protection.");
-  }
-  const server = health.response.headers.get("server");
-  if (server && /\/[0-9]/.test(server)) throw new Error("The public ingress discloses its server version.");
+  requireNoServerVersion(health.response, "public health");
 
   const root = await request(fetchImplementation, publicOrigin, {
     headers: spoofedHeaders(),
@@ -45,7 +67,48 @@ export async function runPublicIngressProbe({
   if (root.response.status !== 200 || root.body.length < 1) {
     throw new Error("The public ingress application route is unavailable.");
   }
-  requireHeader(root.response, "strict-transport-security", "public application");
+  requirePublicSecurityHeaders(root.response);
+  requireNoServerVersion(root.response, "public application");
+
+  for (const method of PAGE_METHODS_DENIED) {
+    const denied = await request(fetchImplementation, publicOrigin, {
+      headers: spoofedHeaders(),
+      method,
+      timeoutMilliseconds,
+    });
+    if (denied.response.status !== 405 || denied.body !== "") {
+      throw new Error("The public ingress rendered an application page for a prohibited method.");
+    }
+    requireNoStore(denied.response, "public page method denial");
+    requirePublicSecurityHeaders(denied.response);
+    requireNoResponseSideEffect(denied.response, "public page method denial");
+    const allowed = new Set((denied.response.headers.get("allow") || "").split(",").map((value) => value.trim()));
+    if (allowed.size !== 2 || !allowed.has("GET") || !allowed.has("HEAD")) {
+      throw new Error("The public page method denial returned an invalid Allow contract.");
+    }
+  }
+
+  const hostilePreflight = await request(
+    fetchImplementation,
+    new URL("/api/auth/provider-recommendation", publicOrigin),
+    {
+      headers: {
+        ...spoofedHeaders(),
+        "access-control-request-method": "POST",
+        origin: "https://attacker.invalid",
+      },
+      method: "OPTIONS",
+      timeoutMilliseconds,
+    },
+  );
+  if (![204, 405].includes(hostilePreflight.response.status)) {
+    throw new Error("The hostile cross-origin preflight returned an unexpected status.");
+  }
+  if (
+    hostilePreflight.response.headers.has("access-control-allow-origin") ||
+    hostilePreflight.response.headers.has("access-control-allow-credentials") ||
+    hostilePreflight.response.headers.has("set-cookie")
+  ) throw new Error("The public ingress authorized a hostile cross-origin preflight.");
 
   const oversized = await request(fetchImplementation, new URL("/api/auth/sign-in/email", publicOrigin), {
     body: new Uint8Array(OVERSIZED_AUTHENTICATION_BYTES),
@@ -112,11 +175,63 @@ export async function runPublicIngressProbe({
 
   return Object.freeze({
     bodyLimitBytes: OVERSIZED_AUTHENTICATION_BYTES - 1,
+    canonicalRedirect: true,
+    crossOriginPreflight: "denied",
     observedVersion: healthPayload.version,
+    pageMethods: Object.freeze({ allowed: Object.freeze(["GET", "HEAD"]), denied: PAGE_METHODS_DENIED.length }),
     rateLimit: rateLimit || null,
     retiredStatus,
-    schema: "vasi-public-ingress-probe/v1",
+    schema: "vasi-public-ingress-probe/v2",
     status: "pass",
+    tlsProtocols: Object.freeze([...tlsProtocols].sort()),
+  });
+}
+
+function canonicalRedirectMatches(location, requestURL, expectedURL) {
+  if (!location) return false;
+  try {
+    return new URL(location, requestURL).href === expectedURL.href;
+  } catch {
+    return false;
+  }
+}
+
+export async function inspectSupportedTLS(origin, timeoutMilliseconds) {
+  const target = origin instanceof URL ? origin : validHTTPSOrigin(origin, "public");
+  const protocols = await Promise.all(SUPPORTED_TLS_PROTOCOLS.map((protocol) =>
+    connectTLSProtocol(target, protocol, timeoutMilliseconds)
+  ));
+  return Object.freeze(protocols);
+}
+
+function connectTLSProtocol(origin, protocol, timeoutMilliseconds) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const socket = connectTLS({
+      host: origin.hostname,
+      maxVersion: protocol,
+      minVersion: protocol,
+      port: Number(origin.port || 443),
+      rejectUnauthorized: true,
+      servername: origin.hostname,
+      timeout: timeoutMilliseconds,
+    });
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      if (error) reject(error);
+      else resolve(value);
+    };
+    socket.once("error", () => finish(new Error("The public ingress TLS handshake failed.")));
+    socket.once("timeout", () => finish(new Error("The public ingress TLS handshake timed out.")));
+    socket.once("secureConnect", () => {
+      if (!socket.authorized || socket.getProtocol() !== protocol) {
+        finish(new Error("The public ingress TLS handshake contract failed."));
+      } else {
+        finish(null, protocol);
+      }
+    });
   });
 }
 
@@ -173,8 +288,50 @@ function requireNoStore(response, label) {
   }
 }
 
-function requireHeader(response, name, label) {
-  if (!response.headers.get(name)) throw new Error(`The ${label} response is missing ${name}.`);
+function requireNoResponseSideEffect(response, label, { allowLocation = false } = {}) {
+  if (response.headers.has("set-cookie") || (!allowLocation && response.headers.has("location"))) {
+    throw new Error(`The ${label} response produced a cookie or redirect side effect.`);
+  }
+}
+
+function requireNoServerVersion(response, label) {
+  const server = response.headers.get("server");
+  if (server && /\/[0-9]/.test(server)) throw new Error(`The ${label} response discloses its server version.`);
+  if (response.headers.has("x-powered-by")) throw new Error(`The ${label} response discloses its application runtime.`);
+}
+
+function requirePublicSecurityHeaders(response) {
+  const exact = new Map([
+    ["cross-origin-opener-policy", "same-origin"],
+    ["cross-origin-resource-policy", "same-origin"],
+    ["referrer-policy", "strict-origin-when-cross-origin"],
+    ["x-content-type-options", "nosniff"],
+    ["x-frame-options", "DENY"],
+    ["x-permitted-cross-domain-policies", "none"],
+  ]);
+  for (const [name, value] of exact) {
+    if (response.headers.get(name) !== value) throw new Error(`The public application ${name} contract failed.`);
+  }
+  const hsts = response.headers.get("strict-transport-security") || "";
+  if (!/^max-age=31536000;\s*includeSubDomains$/i.test(hsts)) {
+    throw new Error("The public application HSTS contract failed.");
+  }
+  const csp = new Set((response.headers.get("content-security-policy") || "").split(";").map((value) => value.trim()));
+  for (const directive of [
+    "default-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "upgrade-insecure-requests",
+  ]) {
+    if (!csp.has(directive)) throw new Error(`The public application CSP is missing ${directive}.`);
+  }
+  const permissions = new Set((response.headers.get("permissions-policy") || "").split(",").map((value) => value.trim()));
+  for (const directive of ["camera=()", "microphone=()", "geolocation=()", "browsing-topics=()"]) {
+    if (!permissions.has(directive)) throw new Error(`The public application permissions policy is missing ${directive}.`);
+  }
+  requireNoServerVersion(response, "public application");
 }
 
 function validHTTPSOrigin(value, label) {
@@ -185,7 +342,7 @@ function validHTTPSOrigin(value, label) {
     throw new Error(`The ${label} ingress origin is invalid.`);
   }
   if (
-    origin.protocol !== "https:" || origin.pathname !== "/" || origin.search || origin.hash ||
+    origin.protocol !== "https:" || origin.port || origin.pathname !== "/" || origin.search || origin.hash ||
     origin.username || origin.password
   ) throw new Error(`The ${label} ingress origin must be a credential-free HTTPS origin.`);
   return origin;

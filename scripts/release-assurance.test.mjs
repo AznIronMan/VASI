@@ -91,7 +91,7 @@ describe("release assurance policy", () => {
 
   it("keeps the canonical public ingress bounded and independently auditable", async () => {
     const result = await validatePublicIngressContract(root);
-    expect(result).toEqual({ failures: [], filesChecked: 4 });
+    expect(result).toEqual({ failures: [], filesChecked: 6 });
   });
 
   it("keeps recurring public-edge assurance exact and socket-free", async () => {
@@ -184,6 +184,8 @@ describe("release assurance policy", () => {
     const fixture = await mkdtemp(path.join(tmpdir(), "vasi-public-ingress-assurance-"));
     try {
       await mkdir(path.join(fixture, "deployment", "nginx"), { recursive: true });
+      await mkdir(path.join(fixture, "scripts"), { recursive: true });
+      await mkdir(path.join(fixture, "src"), { recursive: true });
       await cp(
         path.join(root, "deployment", "nginx", "vasi-public.conf.example"),
         path.join(fixture, "deployment", "nginx", "vasi-public.conf.example"),
@@ -192,6 +194,11 @@ describe("release assurance policy", () => {
         path.join(root, "deployment", "nginx", "Dockerfile.overlay"),
         path.join(fixture, "deployment", "nginx", "Dockerfile.overlay"),
       );
+      await cp(
+        path.join(root, "scripts", "probe-public-ingress.mjs"),
+        path.join(fixture, "scripts", "probe-public-ingress.mjs"),
+      );
+      await cp(path.join(root, "src", "proxy.ts"), path.join(fixture, "src", "proxy.ts"));
       const filename = path.join(fixture, "deployment", "nginx", "vasi-public.conf.example");
       await writeFile(
         filename,
@@ -211,6 +218,14 @@ describe("release assurance policy", () => {
       );
       expect(result.failures.join("; ")).toContain("client_max_body_size 64k");
       expect(result.failures.join("; ")).toContain("replace x-forwarded-for");
+      await writeFile(
+        path.join(fixture, "src", "proxy.ts"),
+        (await readFile(path.join(fixture, "src", "proxy.ts"), "utf8"))
+          .replace('"Cache-Control": "no-store",', 'Location: "https://attacker.invalid",'),
+      );
+      expect((await validatePublicIngressContract(fixture)).failures.join("; ")).toContain(
+        'public page method boundary is missing "Cache-Control": "no-store"',
+      );
       await writeFile(
         path.join(fixture, "deployment", "nginx", "Dockerfile.overlay"),
         "FROM nginx:latest\nCOPY . /etc/nginx\n",
@@ -375,7 +390,7 @@ curl https://monitor.example.test\n`,
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.42.1")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.43.0")).toMatchObject({
       allowedOptionalPackagePaths: [
         "node_modules/@img/colour",
         "node_modules/@img/sharp-libvips-linuxmusl-x64",
@@ -388,7 +403,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.42.1")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.43.0")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -409,7 +424,7 @@ curl https://monitor.example.test\n`,
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.42.1")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.43.0")).toMatchObject({
       entrypoints: [
         "scripts/backup-custody.mjs",
         "scripts/backup-continuity.mjs",
@@ -423,7 +438,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.42.1")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.43.0")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",
@@ -440,7 +455,7 @@ curl https://monitor.example.test\n`,
   it("derives a bounded physical prohibition inventory from the exact lock graph", async () => {
     const packageJSON = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
     const packageLock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
-    const allowed = runtimeContractForImage("vasi:0.42.1").allowedOptionalPackagePaths;
+    const allowed = runtimeContractForImage("vasi:0.43.0").allowedOptionalPackagePaths;
     const result = runtimeDependencyAuditPaths(packageJSON, packageLock, allowed);
     expect(result.lockPackageCount).toBeGreaterThan(400);
     expect(result.prohibitedPackagePaths).toContain("node_modules/vitest");

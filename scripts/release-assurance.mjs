@@ -734,6 +734,8 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
   let example = "";
   let overlay = "";
   let packageJSON = {};
+  let pageBoundary = "";
+  let probe = "";
   try {
     example = await readFile(
       path.join(repositoryRoot, "deployment", "nginx", "vasi-public.conf.example"),
@@ -754,6 +756,16 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
     packageJSON = JSON.parse(await readFile(path.join(repositoryRoot, "package.json"), "utf8"));
   } catch {
     failures.push("package.json is unavailable for public ingress assurance");
+  }
+  try {
+    pageBoundary = await readFile(path.join(repositoryRoot, "src", "proxy.ts"), "utf8");
+  } catch {
+    failures.push("the public page method boundary is missing");
+  }
+  try {
+    probe = await readFile(path.join(repositoryRoot, "scripts", "probe-public-ingress.mjs"), "utf8");
+  } catch {
+    failures.push("the public ingress black-box probe is missing");
   }
   if (example) {
     if (example !== renderPublicIngressConfiguration(PUBLIC_INGRESS_EXAMPLE_SETTINGS)) {
@@ -782,7 +794,31 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
   if (packageJSON?.scripts?.["assurance:ingress"] !== "node scripts/probe-public-ingress.mjs") {
     failures.push("package.json is missing the public ingress black-box assurance command");
   }
-  return { failures, filesChecked: 4 };
+  for (const marker of [
+    'const PAGE_METHODS = new Set(["GET", "HEAD"]);',
+    'if (pathname === "/api" || pathname.startsWith("/api/")) return "allow";',
+    'Allow: "GET, HEAD"',
+    '"Cache-Control": "no-store"',
+    "status: 405",
+    'matcher: ["/((?!api(?:/|$)|_next(?:/|$)).*)"]',
+  ]) {
+    if (!pageBoundary.includes(marker)) failures.push(`the public page method boundary is missing ${marker}`);
+  }
+  if (/NextResponse\.(?:redirect|rewrite)|cookies\.(?:set|delete)|\bfetch\s*\(/.test(pageBoundary)) {
+    failures.push("the public page method boundary contains a redirect, cookie, rewrite, or network side effect");
+  }
+  for (const marker of [
+    'const PAGE_METHODS_DENIED = Object.freeze(["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);',
+    'const SUPPORTED_TLS_PROTOCOLS = Object.freeze(["TLSv1.2", "TLSv1.3"]);',
+    'crossOriginPreflight: "denied"',
+    'schema: "vasi-public-ingress-probe/v2"',
+    '"content-security-policy"',
+    '"strict-transport-security"',
+    '"access-control-allow-origin"',
+  ]) {
+    if (!probe.includes(marker)) failures.push(`the public ingress black-box probe is missing ${marker}`);
+  }
+  return { failures, filesChecked: 6 };
 }
 
 export async function validateEdgeMonitorContract(repositoryRoot = root) {

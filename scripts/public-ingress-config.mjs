@@ -55,7 +55,7 @@ server {
     listen 80;
     server_name ${settings.publicHost};
     server_tokens off;
-    return 301 https://$host$request_uri;
+    return 301 https://${settings.publicHost}$request_uri;
 }
 ${retired}
 server {
@@ -212,7 +212,13 @@ function validatePublicServers(servers, settings, failures) {
   }
   requireExactServerName(http[0], settings.publicHost, failures, "public HTTP server");
   requireDirective(http[0], "server_tokens", ["off"], failures, "public HTTP server");
-  requireDirective(http[0], "return", ["301", "https://$host$request_uri"], failures, "public HTTP redirect");
+  requireDirective(
+    http[0],
+    "return",
+    ["301", `https://${settings.publicHost}$request_uri`],
+    failures,
+    "public HTTP redirect",
+  );
   if (descendantsNamed(http[0], "proxy_pass").length) failures.push("the public HTTP redirect must not proxy");
 
   const server = https[0];

@@ -44,6 +44,7 @@ describe("public ingress configuration contract", () => {
   });
 
   it.each([
+    ["request-derived redirect hosts", "return 301 https://vsign.example.com$request_uri;", "return 301 https://$host$request_uri;", "public HTTP redirect"],
     ["appended forwarding chains", "proxy_set_header X-Forwarded-For $remote_addr;", "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;", "replace x-forwarded-for"],
     ["oversized public bodies", "client_max_body_size 64k;", "client_max_body_size 128m;", "client_max_body_size 64k"],
     ["unbounded upstream reads", "proxy_read_timeout 30s;", "proxy_read_timeout 120s;", "proxy_read_timeout 30s"],

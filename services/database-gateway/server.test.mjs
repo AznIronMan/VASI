@@ -89,7 +89,7 @@ describe("minimal PostgreSQL transport gateway", () => {
       expect(await health.json()).toEqual({
         schema: "vasi-database-gateway-health/v1",
         status: "ok",
-        version: "0.42.1",
+        version: "0.43.0",
       });
     } finally {
       await gateway.close();

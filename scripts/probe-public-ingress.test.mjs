@@ -2,91 +2,73 @@ import { describe, expect, it } from "vitest";
 
 import { runPublicIngressProbe } from "./probe-public-ingress.mjs";
 
+const tlsProof = async () => ["TLSv1.2", "TLSv1.3"];
+
 describe("public ingress black-box probe", () => {
-  it("proves health, body, retirement, header, and rate boundaries", async () => {
-    let rateRequest = 0;
-    const fetchImplementation = async (input, init) => {
-      const url = new URL(input);
-      if (url.hostname === "retired.example.test") {
-        return response("Not Found", 404, { server: "nginx" });
-      }
-      if (url.pathname === "/api/health") {
-        return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.42.1" }), 200, secureHeaders());
-      }
-      if (url.pathname === "/" && init.method === "GET") {
-        return response("<html>V Sign</html>", 200, secureHeaders());
-      }
-      if (url.pathname === "/api/auth/sign-in/email") {
-        expect(init.body).toHaveLength(65_537);
-        return response(JSON.stringify({ error: "The request body is too large." }), 413, {
-          "cache-control": "no-store",
-        });
-      }
-      if (url.pathname === "/api/auth/provider-recommendation") {
-        rateRequest += 1;
-        return rateRequest <= 30
-          ? response(JSON.stringify({ configured: true, provider: "google" }), 200)
-          : response(JSON.stringify({ error: "Too many requests." }), 429, {
-            "cache-control": "no-store",
-            "retry-after": "1",
-          });
-      }
-      throw new Error(`Unexpected URL ${url}`);
-    };
+  it("proves protocol, redirect, page, CORS, body, retirement, header, and rate boundaries", async () => {
     await expect(runPublicIngressProbe({
       exerciseRateLimit: true,
-      fetchImplementation,
+      fetchImplementation: ingressFetch(),
+      inspectTLS: tlsProof,
       origin: "https://public.example.test",
       rateRequests: 40,
       retiredOrigin: "https://retired.example.test",
     })).resolves.toMatchObject({
       bodyLimitBytes: 65_536,
-      observedVersion: "0.42.1",
+      canonicalRedirect: true,
+      crossOriginPreflight: "denied",
+      observedVersion: "0.43.0",
+      pageMethods: { allowed: ["GET", "HEAD"], denied: 5 },
       rateLimit: { accepted: 30, limited: 10, requests: 40 },
       retiredStatus: 404,
+      schema: "vasi-public-ingress-probe/v2",
       status: "pass",
+      tlsProtocols: ["TLSv1.2", "TLSv1.3"],
     });
   });
 
-  it("rejects version disclosure, engine exposure, weak bodies, and absent rate enforcement", async () => {
-    const baseline = async (input) => {
-      const url = new URL(input);
-      if (url.hostname === "retired.example.test") return response("VASI private engine", 200);
-      if (url.pathname === "/api/health") {
-        return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.42.1" }), 200, {
-          ...secureHeaders(),
-          server: "nginx/1.28.3",
-        });
-      }
-      return response("ok", 200, secureHeaders());
-    };
+  it("rejects version disclosure, engine exposure, and absent rate enforcement", async () => {
     await expect(runPublicIngressProbe({
-      fetchImplementation: baseline,
+      fetchImplementation: ingressFetch({ server: "nginx/1.28.3" }),
+      inspectTLS: tlsProof,
       origin: "https://public.example.test",
       retiredOrigin: "https://retired.example.test",
     })).rejects.toThrow(/server version/i);
 
-    const noRateLimit = async (input) => {
-      const url = new URL(input);
-      if (url.pathname === "/api/health") {
-        return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.42.1" }), 200, secureHeaders());
-      }
-      if (url.pathname === "/api/auth/sign-in/email") {
-        return response(JSON.stringify({ error: "The request body is too large." }), 413, { "cache-control": "no-store" });
-      }
-      if (url.pathname === "/") return response("root", 200, secureHeaders());
-      return response("{}", 200);
-    };
     await expect(runPublicIngressProbe({
       exerciseRateLimit: true,
-      fetchImplementation: noRateLimit,
+      fetchImplementation: ingressFetch({ rateLimit: false }),
+      inspectTLS: tlsProof,
       origin: "https://public.example.test",
       rateRequests: 32,
     })).rejects.toThrow(/not independently observable/i);
+
+    await expect(runPublicIngressProbe({
+      fetchImplementation: ingressFetch({ retiredBody: "VASI private engine", retiredStatus: 200 }),
+      inspectTLS: tlsProof,
+      origin: "https://public.example.test",
+      retiredOrigin: "https://retired.example.test",
+    })).rejects.toThrow(/content-free denial/i);
+  });
+
+  it.each([
+    ["a request-derived redirect", { redirectLocation: "https://attacker.invalid/api/health?canonical-redirect=1" }, tlsProof, /canonical HTTPS origin/i],
+    ["a malformed redirect", { redirectLocation: "https://[invalid" }, tlsProof, /canonical HTTPS origin/i],
+    ["page rendering for DELETE", { pageMethodStatus: 200 }, tlsProof, /prohibited method/i],
+    ["hostile CORS authorization", { corsHeaders: { "access-control-allow-origin": "https://attacker.invalid" } }, tlsProof, /hostile cross-origin/i],
+    ["an incomplete browser policy", { rootHeaders: secureHeaders({ "content-security-policy": "default-src 'self'" }) }, tlsProof, /CSP is missing/i],
+    ["an incomplete TLS contract", {}, async () => ["TLSv1.3"], /TLS protocol contract/i],
+  ])("rejects %s", async (_label, options, inspectTLS, error) => {
+    await expect(runPublicIngressProbe({
+      fetchImplementation: ingressFetch(options),
+      inspectTLS,
+      origin: "https://public.example.test",
+    })).rejects.toThrow(error);
   });
 
   it("rejects unsafe origins and unbounded request counts", async () => {
     await expect(runPublicIngressProbe({ origin: "http://public.example.test" })).rejects.toThrow(/HTTPS origin/i);
+    await expect(runPublicIngressProbe({ origin: "https://public.example.test:8443" })).rejects.toThrow(/HTTPS origin/i);
     await expect(runPublicIngressProbe({
       origin: "https://public.example.test",
       retiredOrigin: "https://public.example.test",
@@ -98,15 +80,89 @@ describe("public ingress black-box probe", () => {
   });
 });
 
-function response(body, status, headers = {}) {
-  return new Response(body, { headers, status });
+function ingressFetch({
+  corsHeaders = {},
+  pageMethodStatus = 405,
+  rateLimit = true,
+  redirectLocation,
+  retiredBody = "Not Found",
+  retiredStatus = 404,
+  rootHeaders = secureHeaders(),
+  server = "nginx",
+} = {}) {
+  let rateRequest = 0;
+  return async (input, init = {}) => {
+    const url = new URL(input);
+    const method = init.method || "GET";
+    if (url.protocol === "http:") {
+      return response("", 301, {
+        location: redirectLocation || `https://${url.hostname}${url.pathname}${url.search}`,
+        server,
+      });
+    }
+    if (url.hostname === "retired.example.test") {
+      return response(retiredBody, retiredStatus, { server: "nginx" });
+    }
+    if (url.pathname === "/api/health") {
+      return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.43.0" }), 200, {
+        ...secureHeaders(),
+        server,
+      });
+    }
+    if (url.pathname === "/" && method === "GET") {
+      return response("<html>V Sign</html>", 200, rootHeaders);
+    }
+    if (url.pathname === "/" && ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"].includes(method)) {
+      return pageMethodStatus === 405
+        ? response("", 405, { ...rootHeaders, allow: "GET, HEAD", "cache-control": "no-store" })
+        : response("<html>V Sign</html>", pageMethodStatus, rootHeaders);
+    }
+    if (url.pathname === "/api/auth/sign-in/email") {
+      expect(init.body).toHaveLength(65_537);
+      return response(JSON.stringify({ error: "The request body is too large." }), 413, {
+        "cache-control": "no-store",
+      });
+    }
+    if (url.pathname === "/api/auth/provider-recommendation" && method === "OPTIONS") {
+      return response("", 204, corsHeaders);
+    }
+    if (url.pathname === "/api/auth/provider-recommendation") {
+      rateRequest += 1;
+      return !rateLimit || rateRequest <= 30
+        ? response(JSON.stringify({ configured: true, provider: "google" }), 200)
+        : response(JSON.stringify({ error: "Too many requests." }), 429, {
+          "cache-control": "no-store",
+          "retry-after": "1",
+        });
+    }
+    throw new Error(`Unexpected URL ${url} with ${method}`);
+  };
 }
 
-function secureHeaders() {
+function response(body, status, headers = {}) {
+  return new Response([204, 205, 304].includes(status) ? null : body, { headers, status });
+}
+
+function secureHeaders(overrides = {}) {
   return {
     "cache-control": "no-store",
+    "content-security-policy": [
+      "default-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "upgrade-insecure-requests",
+    ].join("; "),
+    "cross-origin-opener-policy": "same-origin",
+    "cross-origin-resource-policy": "same-origin",
+    "permissions-policy": "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
     server: "nginx",
     "strict-transport-security": "max-age=31536000; includeSubDomains",
     "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "x-permitted-cross-domain-policies": "none",
+    ...overrides,
   };
 }

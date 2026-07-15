@@ -127,8 +127,11 @@ The supported Nginx public-edge profile independently applies the same 64 KiB
 ceiling before proxying, uses a lower authentication request rate than the
 general public route, and returns generic no-store 413/429 responses. It
 replaces rather than appends forwarding metadata and clears standardized
-`Forwarded` plus upgrade headers. Validate the effective `nginx -T` state and
-the public black-box behavior as described in the
+`Forwarded` plus upgrade headers. The edge redirects HTTP to the configured
+canonical host, while the application returns an empty no-store 405 for every
+non-GET/HEAD page request without intercepting explicit API methods. Validate
+TLS 1.2/1.3, hostile preflight denial, the complete browser-header policy, the
+effective `nginx -T` state, and the remaining public black-box behavior in the
 [public ingress decision](architecture/public-ingress-boundary.md).
 
 Local callbacks use the same paths on `http://localhost:3000`.
@@ -408,3 +411,7 @@ PostgreSQL.
     replay attempt is rejected, and confirm engine and worker publish no host
     ports. Verify `/api/admin/engine` is 404 on the public host and requires an
     allowlisted administrator on the private host.
+14. Run `npm run assurance:ingress` against the exact public and any retired
+    origins; require canonical redirect, TLS, CORS, page-method, header, body,
+    and retired-route checks to pass. Exercise the rate limit only in an
+    approved release window.

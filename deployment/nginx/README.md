@@ -4,6 +4,11 @@
 Do not edit it into an installation-specific file or add certificates, private
 addresses, or customer hostnames to this directory.
 
+The generated HTTP server redirects to the validated configured public host,
+not `$host` or another request-derived value. The application independently
+rejects non-GET/HEAD page methods; do not replace that contract with an opaque
+edge include or broad method rule that also intercepts reviewed API routes.
+
 Render an installation file with the tracked command and explicit non-secret
 deployment inputs:
 

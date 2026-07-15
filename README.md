@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.42.1`
+Version: `0.43.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -550,6 +550,17 @@ private network namespace with explicit denial of the entire network-I/O
 syscall group. This preserves Docker/systemd runtime compatibility while more
 directly preventing Internet and local Unix-socket transports.
 
+Version 0.43.0 closes public page method confusion and expands adversarial
+protocol assurance. A framework-native pre-render boundary permits only GET
+and HEAD on application pages, downloads, and static paths while leaving every
+explicit API route responsible for its own reviewed methods. Denials are empty,
+no-store 405 responses with an exact `Allow` header and no cookie or redirect
+side effect. The canonical edge redirect now uses the configured public host,
+never request-derived host state. The black-box release probe independently
+requires TLS 1.2 and 1.3, the exact HTTP-to-HTTPS redirect, complete browser
+security headers, hostile cross-origin preflight denial, and all common page
+mutation methods to fail closed.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -1012,7 +1023,8 @@ proof, atomic selection, automatic recovery, privacy-bounded output, and the
 surrounding release gates.
 The [public ingress decision](docs/architecture/public-ingress-boundary.md)
 defines the single public application origin, forwarding replacement, edge
-resource bounds, retired-host denial, canonical rendering, effective
+resource bounds, retired-host denial, canonical configured-host redirection,
+page-method and hostile-preflight denial, browser headers, TLS proof, effective
 configuration audit, live proof, and remaining installation responsibilities.
 The [recurring public-edge assurance decision](docs/architecture/recurring-public-edge-assurance.md)
 defines the strict protected topology contract, exact live-image scan,

@@ -1,6 +1,7 @@
 # Public ingress boundary
 
-Status: implemented in VASI 0.39.0 and continuously assured since VASI 0.40.0.
+Status: implemented in VASI 0.39.0, continuously assured since VASI 0.40.0,
+and application-protocol hardened in VASI 0.43.0.
 
 ## Decision
 
@@ -28,8 +29,9 @@ flowchart LR
 
 The canonical Nginx profile enforces:
 
-- one exact HTTP redirect server and one exact HTTPS application server for
-  the configured V·Sign hostname;
+- one exact HTTP redirect server that names the configured canonical V·Sign
+  host rather than request-derived host state, plus one exact HTTPS application
+  server for that hostname;
 - a 65,536-byte request-body ceiling, bounded body/header read times, bounded
   header buffers, keepalive and downstream send limits;
 - per-client general and authentication request zones plus a concurrent
@@ -42,6 +44,14 @@ The canonical Nginx profile enforces:
   replaced; and
 - server-version concealment, TLS 1.2/1.3, disabled session tickets, and a
   bounded dedicated TLS session cache.
+
+Before rendering, the gateway separately allows only GET and HEAD for page,
+download, and static-resource routes. POST, PUT, PATCH, DELETE, OPTIONS, and
+other methods receive an empty no-store 405 with `Allow: GET, HEAD` and no
+cookie or redirect. Explicit `/api` route handlers remain responsible for
+their individually reviewed methods, body parsers, origin/session checks, and
+authorization. This avoids method confusion without weakening or silently
+intercepting state-changing API behavior.
 
 The general rate is intentionally compatible with the release health/brand
 load gate. Authentication receives its own lower per-client rate. These are
@@ -91,12 +101,15 @@ public host, optional retired host, and gateway upstream name.
 
 ## Live black-box proof
 
-`scripts/probe-public-ingress.mjs` verifies the public version/identity,
-security headers, concealed server version, exact 65,536-byte body boundary,
-and optional retired-host denial. The deliberate rate exercise sends only
-fixed Gmail recommendation requests, which require no DNS and do not consume
-the application's custom-domain ledger. It requires both accepted and generic
-429 responses and verifies `Retry-After` plus `no-store`.
+`scripts/probe-public-ingress.mjs` verifies TLS 1.2 and TLS 1.3 handshakes, the
+exact canonical HTTP-to-HTTPS redirect, public version/identity, the complete
+browser security-header policy, concealed server/application versions, hostile
+cross-origin preflight denial, empty no-store page-method denials, the exact
+65,536-byte body boundary, and optional retired-host denial. The deliberate
+rate exercise sends only fixed Gmail recommendation requests, which require no
+DNS and do not consume the application's custom-domain ledger. It requires
+both accepted and generic 429 responses and verifies `Retry-After` plus
+`no-store`.
 
 The rate exercise can briefly throttle sign-in from the probe's source address.
 Run it only in an approved release window. Ordinary recurring checks should

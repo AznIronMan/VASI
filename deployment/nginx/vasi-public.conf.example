@@ -12,7 +12,7 @@ server {
     listen 80;
     server_name vsign.example.com;
     server_tokens off;
-    return 301 https://$host$request_uri;
+    return 301 https://vsign.example.com$request_uri;
 }
 
 server {
