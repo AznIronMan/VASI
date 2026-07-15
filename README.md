@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.49.0`
+Version: `0.50.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -644,6 +644,19 @@ rename. Dry-run changes no release, selector, Docker state, migration, provider,
 or setting. Source assurance owns the command, adversarial tests, operator
 contract, and selected-release execution identity.
 
+Version 0.50.0 makes the external evidence behind every tenant-admission gate
+deterministic and independently checkable without uploading it to VASI. A
+strict offline descriptor requires the complete gate-specific checklist,
+opaque scope/reviewer/evidence references, dated outcomes, accepted-exception
+references, and exact local artifacts. The bounded CLI rejects extra files,
+unsafe names, traversal, symlinks, hardlinks, permissive modes, unstable reads,
+noncanonical JSON, and output overlap; it creates and verifies a canonical
+manifest whose package SHA-256 maps directly to the existing admission
+`evidenceDigest`. Artifact contents and review facts are never printed,
+interpreted, copied, or transmitted. The package proves integrity and declared
+checklist completeness only—the named independent, legal, accessibility,
+security, custody, and customer owners still make every gate decision.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -675,6 +688,10 @@ assessment remain installation or pilot gates.
   bounded offline verifier for canonical digest, exact HTML-presentation,
   VASI integrity signatures, optional certificate leaf signatures, and
   independently pinned signing-key fingerprints.
+- Deterministic offline packages for the separately controlled evidence behind
+  all eight tenant-admission gates, with exact checklists, strict private-file
+  boundaries, aggregate-only verification, and a digest that binds directly to
+  immutable admission without ingesting the artifacts.
 - Microsoft Graph transactional delivery restricted to its configured mailbox,
   with SMTP as an optional fallback.
 - A local SQLite bootstrap at `data/VASI.settings` containing only the
@@ -1059,6 +1076,9 @@ The [notification delivery evidence decision](docs/architecture/notification-del
 defines explicit delivery purpose, lifecycle suppression, bounded owner status,
 manifest version 7 evidence, provider-acceptance wording, and at-least-once
 limits.
+The [pilot-gate evidence package decision](docs/architecture/pilot-gate-evidence-packages.md)
+defines the complete per-gate checklist, private offline artifact boundary,
+canonical digest handoff, aggregate verifier, and non-approval limits.
 The [requester provenance and participant disclosure decision](docs/architecture/requester-provenance-and-participant-disclosure.md)
 defines the immutable issuance-time requesting user, manifest binding,
 participant pre-action notice, history/data-export behavior, and assurance

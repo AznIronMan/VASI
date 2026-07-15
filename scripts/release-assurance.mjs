@@ -59,6 +59,7 @@ export const DIRECT_EXECUTION_ENTRYPOINTS = Object.freeze([
   "scripts/backup-custody.mjs",
   "scripts/backup.mjs",
   "scripts/edge-monitor-contract.mjs",
+  "scripts/pilot-gate-evidence.mjs",
   "scripts/probe-capacity-readiness.mjs",
   "scripts/probe-deployment-readiness.mjs",
   "scripts/probe-engine-egress-boundary.mjs",
@@ -1486,6 +1487,91 @@ export async function validateReadinessDossierVerifierContract(repositoryRoot = 
   return { failures, filesChecked: Object.keys(files).length };
 }
 
+export async function validatePilotGateEvidenceContract(repositoryRoot = root) {
+  const failures = [];
+  const files = {
+    cli: "scripts/pilot-gate-evidence.mjs",
+    cliTest: "scripts/pilot-gate-evidence.test.mjs",
+    documentation: "docs/architecture/pilot-gate-evidence-packages.md",
+    library: "packages/pilot-gate-evidence/index.mjs",
+    libraryTest: "packages/pilot-gate-evidence/index.test.mjs",
+    package: "package.json",
+  };
+  const sources = {};
+  for (const [name, filename] of Object.entries(files)) {
+    try {
+      sources[name] = await readFile(path.join(repositoryRoot, filename), "utf8");
+    } catch {
+      failures.push(`the pilot-gate evidence ${name} source is unavailable`);
+      sources[name] = "";
+    }
+  }
+
+  for (const marker of [
+    'PILOT_GATE_DESCRIPTOR_SCHEMA = "vasi-pilot-gate-evidence-descriptor/v1"',
+    'PILOT_GATE_MANIFEST_SCHEMA = "vasi-pilot-gate-evidence-manifest/v1"',
+    "MAXIMUM_PILOT_GATE_ARTIFACT_BYTES = 16 * 1024 * 1024",
+    "MAXIMUM_PILOT_GATE_TOTAL_BYTES = 128 * 1024 * 1024",
+    "constants.O_NOFOLLOW",
+    "before.nlink !== 1n",
+    "(Number(before.mode) & 0o7777) !== 0o600",
+    "(Number(metadata.mode) & 0o7777) !== 0o700",
+    "await realpath(resolved) !== resolved",
+    'fail("evidence_inventory_mismatch")',
+    'fail("unreferenced_artifact")',
+    'item.outcome !== "satisfied" && item.outcome !== "accepted_exception"',
+    "digestCanonical(normalized) !== packageDigest",
+    "sameMetadata(boundary.metadata, finalMetadata)",
+    "This manifest proves the integrity and completeness",
+    "VASI does not ingest, copy, upload, interpret, certify, or approve",
+  ]) {
+    if (!sources.library.includes(marker)) failures.push(`the pilot-gate evidence library is missing ${marker}`);
+  }
+  if (/\bconsole\.|process\.(?:stdout|stderr)|JSON\.stringify\(error|node:(?:child_process|http|https)|\bfetch\s*\(/.test(sources.library)) {
+    failures.push("the pilot-gate evidence library contains an output, network, process, or error-disclosure path");
+  }
+  for (const marker of [
+    'from "../packages/pilot-gate-evidence/index.mjs"',
+    "--expected-sha256",
+    "VASI pilot-gate evidence operation failed.",
+    ["if (isDirectExecution(import.meta.url, ", "process.argv[1])) {"].join(""),
+  ]) {
+    if (!sources.cli.includes(marker)) failures.push(`the pilot-gate evidence CLI is missing ${marker}`);
+  }
+  for (const marker of [
+    "creates deterministic canonical manifests and verifies aggregate results",
+    "defines a complete, closed checklist contract for every admission gate",
+    "rejects manifest field, digest, expected-digest, and artifact-content tampering",
+    "rejects extra, linked, permissive, oversized, and overlapping filesystem inputs",
+  ]) {
+    if (!sources.libraryTest.includes(marker)) failures.push(`the pilot-gate evidence library test is missing ${marker}`);
+  }
+  for (const marker of [
+    "creates and independently verifies an aggregate-only package result",
+    "uses one generic operational failure without disclosing inputs",
+    "is import-safe and executes through a selected-release path",
+  ]) {
+    if (!sources.cliTest.includes(marker)) failures.push(`the pilot-gate evidence CLI test is missing ${marker}`);
+  }
+  for (const marker of [
+    "npm run pilot:evidence -- create DESCRIPTOR_FILE EVIDENCE_DIRECTORY OUTPUT_MANIFEST",
+    "npm run pilot:evidence -- verify MANIFEST_FILE EVIDENCE_DIRECTORY",
+    "Integrity packaging is not approval",
+    "must remain outside the VASI release tree",
+  ]) {
+    if (!sources.documentation.includes(marker)) failures.push(`the pilot-gate evidence documentation is missing ${marker}`);
+  }
+  try {
+    const packageJSON = JSON.parse(sources.package);
+    if (packageJSON.scripts?.["pilot:evidence"] !== "node scripts/pilot-gate-evidence.mjs") {
+      failures.push("package.json is missing the exact pilot-gate evidence command");
+    }
+  } catch {
+    failures.push("the pilot-gate evidence package command is invalid");
+  }
+  return { failures, filesChecked: Object.keys(files).length };
+}
+
 async function sourceAssurance(output, { allowDirty }) {
   const dirtyOutput = await capture("git", ["status", "--porcelain=v1"], { cwd: root });
   const dirty = Boolean(dirtyOutput.trim());
@@ -1493,6 +1579,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const commit = (await capture("git", ["rev-parse", "HEAD"], { cwd: root })).trim();
   const source = await inspectTrackedSource(root);
   const directExecution = await validateDirectExecutionContract(root, source.files.map((entry) => entry.path));
+  const pilotGateEvidence = await validatePilotGateEvidenceContract(root);
   const readinessDossierVerifier = await validateReadinessDossierVerifierContract(root);
   const versions = await validateVersionAlignment(root);
   const compose = await validateComposeContracts(root);
@@ -1516,6 +1603,9 @@ async function sourceAssurance(output, { allowDirty }) {
   }
   if (directExecution.failures.length) {
     throw new Error(`Operational CLI execution hardening failed: ${directExecution.failures.join("; ")}.`);
+  }
+  if (pilotGateEvidence.failures.length) {
+    throw new Error(`Pilot-gate evidence hardening failed: ${pilotGateEvidence.failures.join("; ")}.`);
   }
   if (readinessDossierVerifier.failures.length) {
     throw new Error(`Readiness dossier verifier hardening failed: ${readinessDossierVerifier.failures.join("; ")}.`);
@@ -1572,6 +1662,7 @@ async function sourceAssurance(output, { allowDirty }) {
     engineHostRuntime,
     operationalAlertHandoff,
     operationalSchedulers,
+    pilotGateEvidence,
     productionActivation,
     productionStaging,
     publicIngress,

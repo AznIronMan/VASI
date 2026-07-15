@@ -1,6 +1,6 @@
 {
   "name": "vasi",
-  "version": "0.49.0",
+  "version": "0.50.0",
   "private": true,
   "description": "Verified Authorized Signing Infrastructure",
   "engines": {
@@ -58,7 +58,8 @@
     "settings": "node scripts/settings.mjs",
     "settings:init": "node scripts/settings.mjs init",
     "settings:list": "node scripts/settings.mjs list",
-    "ingress:config": "node scripts/public-ingress-config.mjs"
+    "ingress:config": "node scripts/public-ingress-config.mjs",
+    "pilot:evidence": "node scripts/pilot-gate-evidence.mjs"
   },
   "dependencies": {
     "better-auth": "1.6.23",

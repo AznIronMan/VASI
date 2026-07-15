@@ -527,6 +527,16 @@ Until the independent, legal/privacy, and named pilot-owner gates are approved,
 VASI may be demonstrated with synthetic data but must not be represented as a
 certified, legally sufficient, or generally production-approved service.
 
+VASI 0.50.0 adds a deterministic offline handoff for the separately controlled
+files behind each row. The versioned descriptor requires the row's complete
+checklist, artifact bindings, review time, and opaque scope/reviewer/evidence
+references. Creation and verification require private physical files, reject
+extras and unsafe links or names, recompute every SHA-256, and disclose only an
+aggregate result. The manifest `packageDigest` is the gate's `evidenceDigest`.
+This makes substitution and incomplete handoff detectable; it does not perform
+the review, authorize the reviewer, accept an exception, or approve the gate.
+See [Pilot-gate evidence packages](architecture/pilot-gate-evidence-packages.md).
+
 ## Readiness dossier handoff
 
 VASI 0.45.0 lets an installation administrator export the current state behind

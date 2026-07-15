@@ -1,6 +1,6 @@
 # Tenant production admission
 
-Status: implemented in VASI 0.25.0 and extended in VASI 0.26.0.
+Status: implemented in VASI 0.25.0 and extended through VASI 0.50.0.
 
 ## Purpose
 
@@ -49,6 +49,13 @@ colon, and hyphen. VASI deliberately rejects URLs, uploaded approval files,
 credentials, and unrestricted narrative notes in this control plane. The
 underlying reviewed package remains in the installation's approved records
 system; its digest makes later substitution detectable.
+
+VASI 0.50.0 provides a deterministic offline package for that separately
+controlled evidence. It enforces the complete gate-specific checklist, indexes
+only strict local artifacts, derives the exact admission digest, and verifies
+the package again without network or VASI access. Packaging proves file
+integrity and checklist completeness, not review sufficiency or approval. See
+[Pilot-gate evidence packages](pilot-gate-evidence-packages.md).
 
 ## Fail-closed enforcement
 
@@ -156,6 +163,9 @@ dossiers from the same panel. Export is an audited administrative mutation
 because observing and releasing configuration evidence is security-relevant;
 the dossier packages recorded state but cannot approve a gate. See
 [Pilot readiness dossier](pilot-readiness-dossier.md).
+
+The evidence-package manifest and artifacts remain outside the VASI release and
+database; the console receives only their opaque references and package digest.
 
 The privacy-safe operational snapshot reports active, admitted, disabled, and
 pending-admission tenant counts. Any active tenant without a current admitted
