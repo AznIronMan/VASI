@@ -79,6 +79,7 @@ legal enforceability by itself.
 | OUT-1 | SSRF, credential disclosure, duplicate or obsolete delivery/scan, misleading delivery claims, or provider response leakage | Installation exact Graph tenant/application/sender and SMTP/webhook/scanner host allowlists; fixed Graph origins; encrypted revisioned credentials; isolated integration process; explicit notification purpose; terminal-state suppression; bounded owner status; provider-acceptance wording; manifest-sealed immutable attempts; strict signed contracts; redaction and idempotency | Graph and SMTP are at-least-once; an in-flight call cannot be recalled; provider acceptance does not prove inbox delivery or reading; webhook consumers must enforce idempotency; scanner service operation remains customer/provider controlled |
 | NET-1 | Private process obtains general outbound access or database egress broadens | Engine and worker use internal networks; private ingress adds only a dedicated listener bridge whose host chain allows established replies and denies new flows; integration gateway alone joins provider egress; end-to-end PostgreSQL TLS crosses a minimal fixed-target raw bridge; exact IPv4/port host policies; IPv6 disabled; persistent refresh and bounded live denial/policy/listener/database proof; release checks reject network, mount, capability, marker, image, and unit drift | Host/Docker/kernel/DNS administrators remain trusted; provider destinations also depend on integration application allowlists; IPv6-only databases require a future reviewed adapter |
 | CFG-1 | Secret leakage through source, environment, logs, exports, or settings tools | No environment files; mode-0600 SQLite bootstrap; AES-256-GCM PostgreSQL runtime settings; value-redacting CLI; no application secrets in container environments; tracked-source secret gate; export redaction | Host memory, database administrator, and backup custody remain trusted boundaries |
+| CUST-1 | Matched backup disclosure, copy corruption, unsafe pruning, lost recipient key, or false off-host confidence | Verified matched source; no plaintext aggregate archive; streaming fixed-size independently authenticated AES-256-GCM chunks; ephemeral X25519/HKDF and per-recipient authenticated key wraps; application stores public recipients only; whole-package copy digest; strict structure/freshness checks; verified-candidate retention; authenticated offline extraction with no partial output | Installation must prove remote transfer, geographic/organizational separation, private-key custody and recovery, deletion/legal-hold policy, restore drills, and RPO/RTO; a compromised authorized source host can create a false backup |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
 | SUP-1 | Vulnerable, unaccounted, or non-executable image content | Lockfile builds; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; explicit configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial; minimal non-root runtime images without npm | Vulnerability data changes over time, so every release and periodic rescan are required |
 | AVAIL-1 | Resource exhaustion, dependency outage, or silently stopped recurring control | Bounded payloads/chunks/batches; PostgreSQL pool limits; request timeouts; retry ceilings; health checks; read-only readiness load gate; external provider isolation; independent persistent hardened backup, capacity, deployment, operational, and egress timers; release-time scheduler contract validation | Customer-specific capacity, RTO/RPO, external alert delivery, and denial-of-service protection require measured pilot targets |
@@ -140,25 +141,35 @@ data only:
    conformance sequence.
 2. Create and verify a matched custom-format PostgreSQL plus `VASI.settings`
    backup. Deliberately alter each backup member and prove verification fails.
-3. Restore the matched pair to the disposable recovery endpoint. When its
+3. Generate two independently held custody recipients, configure only their
+   public records, stream the matched pair into one `.vbc` package, and prove
+   that either private key recovers it offline. Prove a wrong key, altered
+   header/wrap/ciphertext/tag, truncation, unsafe permissions, and failed inner
+   verification produce no promoted or partial recovery directory.
+4. Copy the package through the approved off-host path, recompute its managed
+   filename digest and structure independently, and record custody/freshness
+   monitoring evidence. On the custody host, authenticate every encrypted
+   chunk without creating plaintext. Do not count a package left on the source
+   host as off-host custody.
+5. Restore the matched pair to the disposable recovery endpoint. When its
    endpoint differs, use the confirmed `settings rebind-database -` flow and
    `settings validate`; then run migrations and repeat record/bundle
    verification byte-for-byte.
-4. Prove that a different SQLite settings key cannot authenticate restored
+6. Prove that a different SQLite settings key cannot authenticate restored
    runtime settings. Never work around that failure by discarding the matched
    bootstrap.
-5. Export a synthetic tenant with a passphrase file, import it into an
+7. Export a synthetic tenant with a passphrase file, import it into an
    independently initialized database, and prove integration credentials were
    re-encrypted while their non-secret fingerprint remained stable.
-6. With a disposable TLS scanner, prove exact-host denial, clean publication,
+8. With a disposable TLS scanner, prove exact-host denial, clean publication,
    malicious/suspicious rejection, outage and digest-mismatch quarantine,
    successful retry, replay/conflict handling, immutable privacy-bounded
    attempts, and inclusion in matched backup/restore and tenant transfer.
-7. Generate a second evidence key, retain both public key records, and prove old
+9. Generate a second evidence key, retain both public key records, and prove old
    and new records verify offline. Prove mismatched private/public keys,
    conflicting reused key IDs, partial certificate configuration, and altered
    seals fail closed.
-8. Record measured recovery time, recovered row/fingerprint counts, image/source
+10. Record measured recovery time, recovered row/fingerprint counts, image/source
    commit, and operator identity without retaining secrets or synthetic answers.
 
 Production restores require an approved outage and rollback window. A matched
@@ -356,6 +367,17 @@ aggregate-only probe fails on exact migration drift, integrity failure, slow
 reads, or stale incomplete commands without exporting identities or request
 context. External log anchoring, alert delivery, and database-owner distrust
 remain deployment/customer trust-profile decisions.
+
+VASI 0.35.0 closes the product-side encrypted custody packaging gap. The
+maintenance image can generate an offline X25519 recipient, configure only its
+public record, stream a verified matched backup to a multi-recipient envelope
+of fixed-size authenticated AES-256-GCM chunks, independently check copy integrity/structure/source age,
+retain only verified managed candidates, and authenticate/extract offline with
+no partial output. The package header excludes installation and customer
+identity but reveals timestamps, opaque key IDs, recipient count, public
+material, and approximate backup size. Actual remote custody, private-key
+ownership, external scheduling/alert delivery, geographic separation, restore
+approval, and RPO/RTO remain customer operations/security gates.
 
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and

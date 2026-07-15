@@ -4,10 +4,15 @@
 
 VASI supplies a product-owned continuity command and portable scheduler
 defaults for the matched PostgreSQL and `VASI.settings` backup pair. It does not
-choose a proprietary backup service, customer path, encryption provider,
-remote destination, or alert transport. Those are installation controls, while
+choose a proprietary backup service, customer path, remote destination, or
+alert transport. Those are installation controls, while
 safe creation, independent verification, freshness assessment, local retention,
 and a fail-closed recurring baseline are part of the VASI product.
+
+VASI 0.35.0 also supplies a provider-neutral recipient-encrypted single-file
+custody envelope. This closes the software packaging and offline extraction
+gap without pretending that a local path is an off-host destination. See the
+[recipient-encrypted custody decision](encrypted-backup-custody.md).
 
 The gateway and private engine remain separate installations and require
 separate matched backup roots. A backup from one boundary never substitutes for
@@ -93,10 +98,10 @@ docker compose -f compose.engine.yaml --profile tools run --rm \
 ## Limits and recovery ownership
 
 A same-host recurring copy improves operator recovery options but does not
-survive total host loss. The installation must copy the matched directory into
-an approved encrypted off-host system and periodically restore it in a
-disposable environment. Backup retention, geographic custody, deletion,
-encryption keys, legal holds, PostgreSQL point-in-time recovery, replication,
-RPO, RTO, and incident escalation require named customer or operator owners.
-VASI does not infer those promises from the 14-copy or 26-hour software
-defaults.
+survive total host loss. The installation must create and transfer the VASI
+recipient-encrypted package, or use another approved encrypted off-host system,
+and periodically restore it in a disposable environment. Backup retention,
+geographic custody, deletion, private keys, legal holds, PostgreSQL
+point-in-time recovery, replication, RPO, RTO, and incident escalation require
+named customer or operator owners. VASI does not infer those promises from the
+14-copy, 30-package, or 26-hour software defaults.

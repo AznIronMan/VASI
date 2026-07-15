@@ -97,10 +97,12 @@ describe("runtime setting scopes", () => {
   it("keeps gateway and private-engine settings in explicit scopes", () => {
     expect(runtimeSettingScopes()).toEqual(["gateway", "engine"]);
     expect(runtimeSettingNames("gateway")).toContain("BETTER_AUTH_SECRET");
+    expect(runtimeSettingNames("gateway")).toContain("BACKUP_CUSTODY_RECIPIENTS");
     expect(runtimeSettingNames("gateway")).not.toContain("ENGINE_INTERNAL_HMAC_SECRET");
     expect(runtimeSettingNames("engine")).toContain("ENGINE_INTERNAL_HMAC_SECRET");
     expect(runtimeSettingNames("engine")).toContain("EVIDENCE_SEAL_PRIVATE_JWK");
     expect(runtimeSettingNames("engine")).toContain("ENGINE_OUTBOX_ENCRYPTION_SECRET");
+    expect(runtimeSettingNames("engine")).toContain("BACKUP_CUSTODY_RECIPIENTS");
   });
 });
 

@@ -27,7 +27,7 @@ import {
   expireOneParticipantDataRequest,
 } from "./retention-worker.mjs";
 
-const ENGINE_VERSION = "0.34.0";
+const ENGINE_VERSION = "0.35.0";
 const GENESIS_HASH = "0".repeat(64);
 let stopping = false;
 

@@ -188,6 +188,18 @@ verifies the newest managed copy, and exits nonzero when it is absent, corrupt,
 future-dated, or older than the default 26-hour threshold. Its JSON contains
 only status, age, creation time, thresholds, counts, and bounded reason codes.
 
+VASI 0.35.0 adds `scripts/backup-custody.mjs`. It verifies the newest matched
+copy, streams it without a plaintext aggregate archive into fixed 8 MiB
+independently authenticated AES-256-GCM chunks in one `.vbc` package, and wraps
+the random content key to one through
+eight X25519 public recipients stored in the applicable PostgreSQL settings
+scope. The application host never requires a recipient private key. Independent
+copy-digest/structure and source-freshness checks, fail-closed 30-package
+retention, protected offline recipient generation, and authenticated recovery
+are product-owned. The destination, transfer, private-key custodians, geographic
+separation, and restore approval remain installation-owned. See the
+[encrypted custody decision](encrypted-backup-custody.md).
+
 VASI 0.16.0 packages `scripts/probe-deployment-readiness.mjs` in the same
 hardened maintenance images. It reads only the selected gateway or engine
 settings scope, checks public health/version and trusted TLS, parses public
@@ -221,7 +233,7 @@ encrypted backup or transfer location for each run and make it writable by the
 non-root maintenance user (UID `1000` by default).
 Both gateway and private-engine production contracts provide this same
 maintenance boundary. Neither attaches backup storage by default or selects a
-scheduler, encryption provider, remote destination, retention law, RPO, or RTO.
+scheduler, remote destination, retention law, private-key custodian, RPO, or RTO.
 See the backup-continuity decision for scheduler-safe commands and failure
 handling.
 

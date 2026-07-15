@@ -463,6 +463,37 @@ export async function readRuntimeSettings({
   return values;
 }
 
+export async function readRuntimeSetting({
+  bootstrap = loadBootstrapSettings(),
+  name,
+  scope = DEFAULT_SETTINGS_SCOPE,
+} = {}) {
+  const definition = settingDefinition(name, scope);
+  if (!definition) throw new Error(`Unknown VASI runtime setting ${name || "(missing)"}.`);
+  const pool = createSettingsPool(bootstrap);
+  try {
+    const result = await pool.query(
+      `select "name", "scope", "ciphertext", "iv", "authTag"
+       from "vasi_runtime_setting"
+       where "installationId" = $1 and "scope" = $2 and "name" = $3`,
+      [bootstrap.installationId, scope, name],
+    );
+    const row = result.rows[0];
+    if (!row) return definition.default;
+    return decryptRuntimeSetting({
+      authTag: row.authTag,
+      ciphertext: row.ciphertext,
+      installationId: bootstrap.installationId,
+      iv: row.iv,
+      name,
+      scope,
+      settingsKey: bootstrap.settingsKey,
+    });
+  } finally {
+    await pool.end();
+  }
+}
+
 export function parseEnvironmentFile(filePath) {
   return parseEnvironmentText(readFileSync(filePath, "utf8"));
 }

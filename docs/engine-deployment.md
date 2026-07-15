@@ -527,7 +527,26 @@ backup failure. The check mount may be read-only. If a process is confirmed
 dead after leaving `.vasi-backup.lock`, remove only that lock before retrying;
 never bypass verification or delete a failed backup manually until its recovery
 value has been assessed. Local same-host copies do not satisfy
-encrypted off-host custody or establish an RPO/RTO.
+encrypted off-host custody or establish an RPO/RTO. Configure only X25519
+public recipients in the engine settings scope, then stream the newest matched
+copy to an installation-approved mounted destination:
+
+```bash
+docker compose -f compose.engine.yaml --profile tools run --rm -T \
+  -v /secure/vasi-backups:/matched:ro \
+  -v /approved/off-host-mount/vasi-engine:/custody maintenance \
+  scripts/backup-custody.mjs create /matched /custody --scope engine
+
+docker compose -f compose.engine.yaml --profile tools run --rm -T \
+  -v /approved/off-host-mount/vasi-engine:/custody:ro maintenance \
+  scripts/backup-custody.mjs check /custody
+```
+
+Keep recipient private keys off this host. VASI does not ship an active custody
+timer because a sanitized default cannot prove a destination is off-host. Add
+an installation-reviewed scheduler only after the remote mount, independent
+check, alert route, key owners, and offline recovery drill are approved. See
+the [recipient-encrypted custody runbook](architecture/encrypted-backup-custody.md).
 
 Changing service trust or runtime settings requires restarting the affected
 processes. Migration remains an explicit, repeatable release step.

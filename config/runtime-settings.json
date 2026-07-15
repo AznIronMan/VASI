@@ -43,6 +43,7 @@
   { "scope": "gateway", "name": "BRAND_PRODUCT_NAME", "required": false, "secret": false, "default": "V·Sign" },
   { "scope": "gateway", "name": "BRAND_PRODUCT_MARK", "required": false, "secret": false, "default": "V·SIGN" },
   { "scope": "gateway", "name": "BRAND_SUPPORT_EMAIL", "required": false, "secret": false, "default": "support@example.invalid" },
+  { "scope": "gateway", "name": "BACKUP_CUSTODY_RECIPIENTS", "required": false, "secret": false },
 
   { "scope": "engine", "name": "ENGINE_INTERNAL_HMAC_SECRET", "required": true, "secret": true },
   { "scope": "engine", "name": "ENGINE_OUTBOX_ENCRYPTION_SECRET", "required": true, "secret": true },
@@ -87,5 +88,6 @@
   { "scope": "engine", "name": "ENGINE_ACTIVITY_MAX_EVENTS_PER_ACTIVITY", "required": false, "secret": false, "default": "20000" },
   { "scope": "engine", "name": "ENGINE_PARTICIPANT_CONTEXT_MAX_SNAPSHOTS_PER_ACTIVITY", "required": false, "secret": false, "default": "16" },
   { "scope": "engine", "name": "ENGINE_INGRESS_SERVICE_ID", "required": false, "secret": false, "default": "vasi-private-ingress" },
-  { "scope": "engine", "name": "ENGINE_WORKER_POLL_MS", "required": false, "secret": false, "default": "5000" }
+  { "scope": "engine", "name": "ENGINE_WORKER_POLL_MS", "required": false, "secret": false, "default": "5000" },
+  { "scope": "engine", "name": "BACKUP_CUSTODY_RECIPIENTS", "required": false, "secret": false }
 ]

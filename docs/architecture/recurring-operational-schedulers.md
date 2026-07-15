@@ -1,6 +1,6 @@
 # Recurring operational scheduler contract
 
-Status: implemented in VASI 0.24.0 and extended through VASI 0.34.0.
+Status: implemented in VASI 0.24.0 and extended through VASI 0.35.0.
 
 VASI ships the recurring host controls needed to keep a healthy release from
 silently degrading after deployment. The portable contract uses hardened
@@ -125,7 +125,12 @@ participants, tenants, requests, content, credentials, endpoints, or private
 topology. Forward service failure and bounded output to an installation-chosen
 monitor without adding sensitive labels.
 
-Same-host backups do not satisfy encrypted off-host custody. First-party
-scheduling does not select an incident owner, support window, RPO/RTO,
-customer-specific threshold, or independent assessor. Those remain explicit
-pilot-admission decisions.
+Same-host backups do not satisfy encrypted off-host custody. VASI 0.35.0
+provides recipient-encrypted packaging, structural/freshness checking, and
+custodian-side authentication, but deliberately does not add that command to
+the sanitized timer set: no portable unit can prove its destination mount is
+actually off-host. An installation-reviewed custody scheduler, destination,
+private-key owner, and alert route remain required. First-party scheduling does
+not select an incident owner, support window, RPO/RTO, customer-specific
+threshold, or independent assessor. Those remain explicit pilot-admission
+decisions.

@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.34.0`
+Version: `0.35.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -421,6 +421,18 @@ allowlisted administrators. A separate privacy-safe gateway probe and persistent
 timer detect exact migration drift, chain/head mismatch, slow reads, and stale
 incomplete commands without emitting identity or request details.
 
+Version 0.35.0 adds provider-neutral recipient-encrypted backup custody. A
+verified matched PostgreSQL/bootstrap directory streams directly into one
+authenticated `.vbc` package without a plaintext aggregate archive. Fixed
+8 MiB independently authenticated AES-256-GCM chunks protect the content;
+ephemeral X25519, HKDF-SHA-256, and per-recipient
+AES-256-GCM wraps let up to eight independently controlled custodians recover
+without placing a private key on the VASI host. Copy-digest/structure and
+freshness checks, fail-closed retention, protected recipient generation, and
+offline authenticated extraction are included. VASI still does not select or
+claim an off-host destination, private-key custodian, transfer completion,
+geographic separation, RPO, RTO, or recovery approval.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -488,6 +500,10 @@ assessment remain installation or pilot gates.
 - Sanitized self-hosted/SaaS profiles, matched PostgreSQL/bootstrap backup and
   restore verification, plus passphrase-authenticated streaming tenant archives
   that re-encrypt credentials and establish a destination owner grant.
+- A provider-neutral single-file matched-backup custody envelope with
+  multi-recipient X25519 key wrapping, streaming fixed-size authenticated
+  AES-256-GCM content chunks, copy-digest/freshness checks, fail-closed retention, and offline
+  authenticated extraction without application-host private keys.
 - PostgreSQL-only authoritative non-media artifacts with bounded chunk upload
   and delivery, immutable source/derived/replacement revisions, SHA-256
   verification, quarantine/inspection, exact workflow binding, and access
@@ -613,6 +629,10 @@ npm run deployment:profile -- self-hosted
 npm run backup -- create /secure/backups/vasi-YYYYMMDD
 npm run backup:continuity -- create /secure/backups
 npm run backup:continuity -- check /secure/backups
+npm run backup:custody -- recipient OPAQUE_KEY_ID /secure/offline/private.jwk
+npm run backup:custody -- create /secure/backups /approved/off-host-mount --scope gateway
+npm run backup:custody -- check /approved/off-host-mount
+npm run backup:custody -- authenticate /approved/off-host-mount/PACKAGE.vbc --key-id OPAQUE_KEY_ID --private-key-file /secure/offline/private.jwk
 npm run assurance:deployment -- --scope gateway --storage /secure
 npm run tenant:transfer -- export TENANT_ID /secure/transfers/tenant
 ```
@@ -625,6 +645,14 @@ by the maintenance container user (UID `1000` by default).
 The continuity command defaults to 14 verified copies and a 26-hour freshness
 threshold. Schedule `create` daily and monitor the exit status; run `check`
 independently so a scheduler failure cannot look like backup success.
+After configuring only the generated public record in
+`BACKUP_CUSTODY_RECIPIENTS`, the custody command streams the newest matched
+copy into a recipient-encrypted `.vbc` package and defaults to 30 managed
+packages plus the same 26-hour source-age threshold. Keep private JWKs off the
+VASI host, monitor custody creation and checking independently, and prove the
+mounted destination is genuinely off-host. See the
+[encrypted custody decision](docs/architecture/encrypted-backup-custody.md) for
+rotation, offline extraction, metadata disclosure, and recovery requirements.
 Tenant-transfer automation can use a read-only mode-`0600`
 `--passphrase-file`; the passphrase itself is never accepted in an argument or
 environment value.
@@ -798,6 +826,10 @@ aggregate gateway monitor.
 The [backup continuity decision](docs/architecture/backup-continuity.md)
 defines atomic matched creation, verification, concurrency, retention,
 freshness monitoring, scheduler handoff, and off-host custody limits.
+The [recipient-encrypted backup custody decision](docs/architecture/encrypted-backup-custody.md)
+defines public-recipient configuration, streaming envelope cryptography,
+copy/freshness verification, fail-closed retention, offline extraction,
+rotation, metadata disclosure, and remaining off-host ownership.
 The [deployment-perimeter readiness decision](docs/architecture/deployment-perimeter-readiness.md)
 defines the public health/version, public and internal certificate, filesystem,
 privacy, threshold, and scheduler handoff contract.
