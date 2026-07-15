@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -12,8 +11,6 @@ import { getRuntimeSettings } from "@/lib/runtime-settings";
 import { resolveServerSettings } from "@/lib/server-settings";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Company workflows" };
-
 export default async function OwnerPage() {
   const requestHeaders = await headers();
   const authorization = await authorizeOwnerHeaders(requestHeaders);

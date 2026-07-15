@@ -30,6 +30,7 @@ import {
   PUBLIC_INGRESS_EXAMPLE_SETTINGS,
   renderPublicIngressConfiguration,
 } from "./public-ingress-config.mjs";
+import { discoverSensitiveRoutes } from "./probe-public-route-isolation.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const forbiddenPathPatterns = [
@@ -736,6 +737,11 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
   let packageJSON = {};
   let pageBoundary = "";
   let probe = "";
+  let routeProbe = "";
+  let accessDenial = "";
+  const accessSources = [];
+  const protectedPageSources = [];
+  let sensitiveRoutes = [];
   try {
     example = await readFile(
       path.join(repositoryRoot, "deployment", "nginx", "vasi-public.conf.example"),
@@ -767,6 +773,43 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
   } catch {
     failures.push("the public ingress black-box probe is missing");
   }
+  try {
+    routeProbe = await readFile(
+      path.join(repositoryRoot, "scripts", "probe-public-route-isolation.mjs"),
+      "utf8",
+    );
+  } catch {
+    failures.push("the public sensitive-route isolation probe is missing");
+  }
+  try {
+    accessDenial = await readFile(path.join(repositoryRoot, "src", "lib", "access-denial.ts"), "utf8");
+  } catch {
+    failures.push("the bounded gateway access-denial helper is missing");
+  }
+  for (const filename of ["admin-access.ts", "owner-access.ts", "participant-access.ts"]) {
+    try {
+      accessSources.push([filename, await readFile(path.join(repositoryRoot, "src", "lib", filename), "utf8")]);
+    } catch {
+      failures.push(`the gateway ${filename} source is missing`);
+    }
+  }
+  for (const filename of [
+    "src/app/admin/page.tsx",
+    "src/app/admin/evidence/page.tsx",
+    "src/app/owner/page.tsx",
+    "src/app/workspace/page.tsx",
+  ]) {
+    try {
+      protectedPageSources.push([filename, await readFile(path.join(repositoryRoot, filename), "utf8")]);
+    } catch {
+      failures.push(`the protected gateway page ${filename} is missing`);
+    }
+  }
+  try {
+    sensitiveRoutes = await discoverSensitiveRoutes(repositoryRoot);
+  } catch {
+    failures.push("the sensitive gateway route inventory cannot be derived safely");
+  }
   if (example) {
     if (example !== renderPublicIngressConfiguration(PUBLIC_INGRESS_EXAMPLE_SETTINGS)) {
       failures.push("the sanitized public ingress example differs from canonical rendering");
@@ -794,6 +837,9 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
   if (packageJSON?.scripts?.["assurance:ingress"] !== "node scripts/probe-public-ingress.mjs") {
     failures.push("package.json is missing the public ingress black-box assurance command");
   }
+  if (packageJSON?.scripts?.["assurance:routes"] !== "node scripts/probe-public-route-isolation.mjs") {
+    failures.push("package.json is missing the public sensitive-route assurance command");
+  }
   for (const marker of [
     'const PAGE_METHODS = new Set(["GET", "HEAD"]);',
     'if (pathname === "/api" || pathname.startsWith("/api/")) return "allow";',
@@ -818,7 +864,52 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
   ]) {
     if (!probe.includes(marker)) failures.push(`the public ingress black-box probe is missing ${marker}`);
   }
-  return { failures, filesChecked: 6 };
+  for (const marker of [
+    'const SENSITIVE_API_NAMESPACES = Object.freeze(["admin", "evidence", "owner", "workspace"]);',
+    'const AUTHENTICATION_DENIAL = \'{"error":"Authentication required."}\';',
+    'const PRIVATE_PAGE_MARKERS = Object.freeze([',
+    'const malformedJSONBody = ["GET", "HEAD"].includes(entry.method)',
+    'schema: "vasi-public-route-isolation-probe/v1"',
+    '"access-control-allow-origin"',
+    '"set-cookie"',
+  ]) {
+    if (!routeProbe.includes(marker)) failures.push(`the public sensitive-route probe is missing ${marker}`);
+  }
+  for (const marker of [
+    '"Cache-Control": "no-store"',
+    'Vary: "Host"',
+    "status: 404",
+    "Response.json({ error }",
+  ]) {
+    if (!accessDenial.includes(marker)) failures.push(`the bounded gateway access-denial helper is missing ${marker}`);
+  }
+  for (const [filename, source] of accessSources) {
+    if (!source.includes('from "@/lib/access-denial"')) {
+      failures.push(`${filename} does not use the bounded gateway access-denial helper`);
+    }
+    if (/new Response\(null,\s*\{\s*status:\s*404|Response\.json\(\{\s*error:/.test(source)) {
+      failures.push(`${filename} contains an ungoverned access-denial response`);
+    }
+  }
+  for (const [filename, source] of protectedPageSources) {
+    if (/export\s+const\s+metadata\s*[:=]/.test(source)) {
+      failures.push(`${filename} contains unauthenticated static protected-page metadata`);
+    }
+  }
+  const namespaceMethods = Object.fromEntries(
+    ["admin", "evidence", "owner", "request", "workspace"].map((namespace) => [
+      namespace,
+      sensitiveRoutes.filter((entry) => entry.namespace === namespace).length,
+    ]),
+  );
+  return {
+    failures,
+    filesChecked: 15,
+    routeIsolation: {
+      methodCount: sensitiveRoutes.length,
+      namespaceMethods,
+    },
+  };
 }
 
 export async function validateEdgeMonitorContract(repositoryRoot = root) {

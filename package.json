@@ -1,6 +1,6 @@
 {
   "name": "vasi",
-  "version": "0.43.0",
+  "version": "0.44.0",
   "private": true,
   "description": "Verified Authorized Signing Infrastructure",
   "engines": {
@@ -36,6 +36,7 @@
     "assurance:images": "node scripts/release-assurance.mjs images",
     "assurance:load": "node scripts/probe-readiness-load.mjs",
     "assurance:ingress": "node scripts/probe-public-ingress.mjs",
+    "assurance:routes": "node scripts/probe-public-route-isolation.mjs",
     "assurance:edge-image": "/bin/sh scripts/edge-image-assurance.sh",
     "assurance:edge-runtime": "/bin/sh scripts/probe-edge-runtime.sh",
     "assurance:gateway-operations": "node scripts/probe-gateway-operational-readiness.mjs",

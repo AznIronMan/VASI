@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -8,10 +7,6 @@ import { authorizeAdminHeaders } from "@/lib/admin-access";
 import { loadAdminDashboard } from "@/lib/admin-users";
 
 export const dynamic = "force-dynamic";
-
-export const metadata: Metadata = {
-  title: "Identity administration",
-};
 
 export default async function AdminPage() {
   const authorization = await authorizeAdminHeaders(await headers());

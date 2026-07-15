@@ -1,4 +1,5 @@
 import { getAuth } from "@/lib/auth";
+import { accessDenialResponse, hiddenResourceResponse } from "@/lib/access-denial";
 import {
   hasExpectedMutationOrigin,
   isRequestForOrigin,
@@ -30,7 +31,7 @@ export async function authorizeAdminHeaders(headers: Headers): Promise<
     return {
       ok: false,
       reason: "host",
-      response: new Response(null, { status: 404 }),
+      response: hiddenResourceResponse(),
     };
   }
 
@@ -39,7 +40,7 @@ export async function authorizeAdminHeaders(headers: Headers): Promise<
     return {
       ok: false,
       reason: "session",
-      response: Response.json({ error: "Authentication required." }, { status: 401 }),
+      response: accessDenialResponse("Authentication required.", 401),
     };
   }
 
@@ -56,7 +57,7 @@ export async function authorizeAdminHeaders(headers: Headers): Promise<
     return {
       ok: false,
       reason: "role",
-      response: Response.json({ error: "Administrator access required." }, { status: 403 }),
+      response: accessDenialResponse("Administrator access required.", 403),
     };
   }
 
@@ -72,7 +73,7 @@ export async function authorizeAdminMutation(request: Request) {
     return {
       ok: false as const,
       reason: "origin" as const,
-      response: Response.json({ error: "Invalid request origin." }, { status: 403 }),
+      response: accessDenialResponse("Invalid request origin.", 403),
     };
   }
 

@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -9,10 +8,6 @@ import type { ParticipantDataRequest, ParticipantHistoryRecord } from "@/lib/evi
 import { authorizeParticipantHeaders } from "@/lib/participant-access";
 
 export const dynamic = "force-dynamic";
-
-export const metadata: Metadata = {
-  title: "Workspace",
-};
 
 export default async function WorkspacePage({
   searchParams,

@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.43.0`
+Version: `0.44.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -561,6 +561,18 @@ requires TLS 1.2 and 1.3, the exact HTTP-to-HTTPS redirect, complete browser
 security headers, hostile cross-origin preflight denial, and all common page
 mutation methods to fail closed.
 
+Version 0.44.0 adds a source-derived public sensitive-route isolation gate.
+The release probe discovers every exported method under the admin, owner,
+workspace, evidence, and protected request-route trees instead of trusting a
+hand-maintained endpoint list. It sends deliberately malformed same-origin
+JSON without a session and requires all internal APIs to remain empty,
+host-varying no-store 404s while participant APIs return one exact no-store
+authentication denial before parsing the body. It also proves that internal
+pages disclose no protected title or content on the public host and that
+workspace/request pages redirect only to the canonical login origin without a
+cookie. Release assurance fails if route discovery, the bounded denial helper,
+protected-page metadata policy, or any of these black-box checks is weakened.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -778,6 +790,7 @@ npm run backup:custody -- authenticate /approved/off-host-mount/PACKAGE.vbc --ke
 npm run assurance:deployment -- --scope gateway --storage /secure
 npm run assurance:ingress -- https://vsign.example.com \
   --retired-origin https://retired-vasi.example.com
+npm run assurance:routes -- https://vsign.example.com
 npm run tenant:transfer -- export TENANT_ID /secure/transfers/tenant
 ```
 
@@ -1024,8 +1037,9 @@ surrounding release gates.
 The [public ingress decision](docs/architecture/public-ingress-boundary.md)
 defines the single public application origin, forwarding replacement, edge
 resource bounds, retired-host denial, canonical configured-host redirection,
-page-method and hostile-preflight denial, browser headers, TLS proof, effective
-configuration audit, live proof, and remaining installation responsibilities.
+page-method and hostile-preflight denial, source-derived sensitive-route
+isolation, browser headers, TLS proof, effective configuration audit, live
+proof, and remaining installation responsibilities.
 The [recurring public-edge assurance decision](docs/architecture/recurring-public-edge-assurance.md)
 defines the strict protected topology contract, exact live-image scan,
 digest-bound retention, runtime drift proof, hardened schedules, installation,

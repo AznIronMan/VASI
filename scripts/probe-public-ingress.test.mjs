@@ -17,7 +17,7 @@ describe("public ingress black-box probe", () => {
       bodyLimitBytes: 65_536,
       canonicalRedirect: true,
       crossOriginPreflight: "denied",
-      observedVersion: "0.43.0",
+      observedVersion: "0.44.0",
       pageMethods: { allowed: ["GET", "HEAD"], denied: 5 },
       rateLimit: { accepted: 30, limited: 10, requests: 40 },
       retiredStatus: 404,
@@ -104,7 +104,7 @@ function ingressFetch({
       return response(retiredBody, retiredStatus, { server: "nginx" });
     }
     if (url.pathname === "/api/health") {
-      return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.43.0" }), 200, {
+      return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.44.0" }), 200, {
         ...secureHeaders(),
         server,
       });

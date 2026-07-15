@@ -1,7 +1,8 @@
 # Public ingress boundary
 
 Status: implemented in VASI 0.39.0, continuously assured since VASI 0.40.0,
-and application-protocol hardened in VASI 0.43.0.
+application-protocol hardened in VASI 0.43.0, and protected-route complete in
+VASI 0.44.0.
 
 ## Decision
 
@@ -52,6 +53,14 @@ cookie or redirect. Explicit `/api` route handlers remain responsible for
 their individually reviewed methods, body parsers, origin/session checks, and
 authorization. This avoids method confusion without weakening or silently
 intercepting state-changing API behavior.
+
+Every exported method below the admin, owner, workspace, evidence, and
+protected request-route trees is also discovered directly from the exact
+release source. The discovery parser is bounded, ignores comments and string
+decoys, follows ordinary method re-exports, expands reviewed dynamic segments,
+and fails on an empty namespace, ambiguous route, unsupported export, symlink,
+or inventory bound. This prevents a new sensitive route from silently falling
+outside the release-time live matrix.
 
 The general rate is intentionally compatible with the release health/brand
 load gate. Authentication receives its own lower per-client rate. These are
@@ -114,6 +123,18 @@ both accepted and generic 429 responses and verifies `Retry-After` plus
 The rate exercise can briefly throttle sign-in from the probe's source address.
 Run it only in an approved release window. Ordinary recurring checks should
 omit that flag.
+
+`scripts/probe-public-route-isolation.mjs` sends a deliberately malformed JSON
+body to every discovered non-read method without a session. Internal admin and
+owner APIs must respond before parsing with an empty, no-store 404 that varies
+on Host. Participant workspace, evidence, report, artifact, and media APIs must
+respond with the same exact bounded no-store authentication JSON. None may set
+a cookie, redirect, authorize CORS, or disclose a runtime. The probe separately
+checks that public requests for internal pages expose no protected metadata and
+that unauthenticated workspace and valid-format request pages redirect only to
+the canonical login origin. Protected pages intentionally retain the generic
+application title until authorization so their function is not embedded in a
+public 404 or redirect payload.
 
 VASI's [recurring public-edge assurance](recurring-public-edge-assurance.md)
 adds independent daily exact-image vulnerability/SBOM evidence and a

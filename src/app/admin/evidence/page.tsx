@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
@@ -11,8 +10,6 @@ import { getRuntimeSettings } from "@/lib/runtime-settings";
 import { resolveServerSettings } from "@/lib/server-settings";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Sealed evidence requests" };
-
 export default async function EvidenceAdminPage() {
   const requestHeaders = await headers();
   const authorization = await authorizeAdminHeaders(requestHeaders);

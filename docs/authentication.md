@@ -415,3 +415,7 @@ PostgreSQL.
     origins; require canonical redirect, TLS, CORS, page-method, header, body,
     and retired-route checks to pass. Exercise the rate limit only in an
     approved release window.
+15. Run `npm run assurance:routes` against the exact public origin. Require the
+    source-derived admin, owner, workspace, evidence, request-report, artifact,
+    and media inventory to return only the reviewed no-store hidden or
+    authentication denials, with canonical protected-page login redirects.
