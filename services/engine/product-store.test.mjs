@@ -1,3 +1,5 @@
+import { generateKeyPairSync } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { hashCanonicalJSON } from "../../packages/engine-crypto/index.mjs";
@@ -11,6 +13,7 @@ import {
   validateInstallationProfile,
 } from "../../packages/engine-domain/productization.mjs";
 import { createProductStore } from "./product-store.mjs";
+import { createSigningProvider } from "./signing-provider.mjs";
 
 const actor = {
   email: "administrator@example.test",
@@ -191,11 +194,12 @@ function replayProvisionDatabase() {
 describe("tenant readiness dossier export", () => {
   it("exports one repeatable, privacy-bounded snapshot and audits access", async () => {
     const fixture = readinessExportDatabase();
+    const signingProvider = readinessSigningProvider();
     const store = createProductStore(
       fixture.database,
       settings(),
       "installation-test",
-      { engineVersion: "0.47.0" },
+      { engineVersion: "0.48.0", signingProvider },
     );
 
     const exported = await store.exportTenantReadiness(actor, {
@@ -210,7 +214,7 @@ describe("tenant readiness dossier export", () => {
           adapterPolicy: {
             destinationAllowlistCounts: { smtpHosts: 1 },
           },
-          engineVersion: "0.47.0",
+          engineVersion: "0.48.0",
         },
         integrations: [{
           adapterId: "smtp",
@@ -232,10 +236,23 @@ describe("tenant readiness dossier export", () => {
         },
       },
       format: "json",
-      schema: "vasi-tenant-readiness-export/v1",
+      schema: "vasi-tenant-readiness-export/v2",
     });
     expect(exported.dossierHash).toBe(hashCanonicalJSON(exported.dossier));
     expect(validateReadinessExport(exported)).toBe(exported);
+    expect(exported.attestation).toMatchObject({
+      auditEventHash: exported.auditEventHash,
+      dossierHash: exported.dossierHash,
+      exportSchema: exported.schema,
+      signingKeys: [expect.objectContaining({ role: "vasi_integrity" })],
+    });
+    expect(exported.seals).toEqual([
+      expect.objectContaining({
+        keyId: signingProvider.keyRecords[0].keyId,
+        profile: "vasi-readiness-dossier-seal/v1",
+        role: "vasi_integrity",
+      }),
+    ]);
     const serialized = JSON.stringify(exported);
     expect(serialized).not.toContain("smtp.internal.example.test");
     expect(serialized).not.toContain("operator@example.test");
@@ -250,6 +267,8 @@ describe("tenant readiness dossier export", () => {
     expect(auditInsert?.[1]?.[7]).toEqual(expect.objectContaining({
       dossierHash: exported.dossierHash,
       format: "json",
+      readinessExportSchema: "vasi-tenant-readiness-export/v2",
+      signingKeys: exported.attestation.signingKeys,
       tenantProfileRevision: 3,
     }));
     expect(JSON.stringify(auditInsert?.[1]?.[7])).not.toContain("smtp.internal.example.test");
@@ -279,6 +298,30 @@ describe("tenant readiness dossier export", () => {
       { format: "html", tenantId: "11111111-1111-4111-8111-111111111111" },
     )).rejects.toMatchObject({ code: "forbidden", status: 403 });
     expect(database.connect).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before reading tenant state when signing custody is unavailable", async () => {
+    const database = { connect: vi.fn() };
+    const store = createProductStore(database, settings(), "installation-test");
+    await expect(store.exportTenantReadiness(
+      actor,
+      { format: "json", tenantId: "11111111-1111-4111-8111-111111111111" },
+    )).rejects.toMatchObject({ code: "integrity_key_unavailable", status: 503 });
+    expect(database.connect).not.toHaveBeenCalled();
+  });
+
+  it("rolls back the disclosure event when the signing provider returns an invalid seal", async () => {
+    const fixture = readinessExportDatabase();
+    const provider = readinessSigningProvider();
+    const store = createProductStore(fixture.database, settings(), "installation-test", {
+      engineVersion: "0.48.0",
+      signingProvider: { ...provider, signDetached: () => [] },
+    });
+    await expect(store.exportTenantReadiness(actor, {
+      format: "json",
+      tenantId: "11111111-1111-4111-8111-111111111111",
+    })).rejects.toThrow("VASI readiness dossier verification failed.");
+    expect(fixture.client.query.mock.calls.at(-1)?.[0]).toBe("rollback");
   });
 });
 
@@ -585,6 +628,15 @@ function stopCommand() {
 
 function settings() {
   return { ENGINE_INTEGRATION_CONFIG_ENCRYPTION_SECRET: Buffer.alloc(32, 7).toString("base64url") };
+}
+
+function readinessSigningProvider() {
+  const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+  return createSigningProvider({
+    EVIDENCE_SEAL_KEY_ID: "readiness-test-key",
+    EVIDENCE_SEAL_PRIVATE_JWK: JSON.stringify(privateKey.export({ format: "jwk" })),
+    EVIDENCE_SEAL_PUBLIC_JWK: JSON.stringify(publicKey.export({ format: "jwk" })),
+  });
 }
 
 function result(rows = []) {

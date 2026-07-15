@@ -39,6 +39,9 @@ export async function POST(request: Request) {
   }
 
   const extension = exported.format;
+  const integrityKeyFingerprint = exported.attestation.signingKeys.find(
+    (key) => key.role === "vasi_integrity",
+  )!.fingerprint;
   return new Response(content, {
     headers: {
       "cache-control": "no-store",
@@ -50,6 +53,7 @@ export async function POST(request: Request) {
       "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",
       "x-vasi-dossier-sha256": exported.dossierHash,
+      "x-vasi-integrity-key-sha256": integrityKeyFingerprint,
     },
   });
 }

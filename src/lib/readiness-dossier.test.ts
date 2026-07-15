@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { hashReadinessDossier } from "../../packages/readiness-dossier/index.mjs";
 import { createReadinessExportFixture } from "../../packages/readiness-dossier/test-fixture.mjs";
 import {
   readinessExportJSON,
@@ -11,9 +10,9 @@ import type { AdminTenantReadinessExport } from "@/lib/owner-types";
 
 describe("readiness dossier rendering", () => {
   it("renders inert, printable HTML while preserving the exact embedded dossier", () => {
-    const exported = fixture();
-    exported.dossier.tenant.name = 'Example <script>alert("x")</script> & Company';
-    exported.dossierHash = hashReadinessDossier(exported.dossier);
+    const exported = createReadinessExportFixture("html", {
+      tenantName: 'Example <script>alert("x")</script> & Company',
+    }) as AdminTenantReadinessExport;
 
     const html = renderReadinessDossierHTML(exported);
 
@@ -26,6 +25,15 @@ describe("readiness dossier rendering", () => {
     expect(html).toContain("default-src 'none'");
   });
 
+  it("renders the signed export trust anchor without exposing private signing material", () => {
+    const exported = fixture();
+    const html = renderReadinessDossierHTML(exported);
+    expect(html).toContain("Export integrity seals");
+    expect(html).toContain(exported.attestation.signingKeys[0].fingerprint);
+    expect(html).toContain("Compare the integrity-key SHA-256 with an independently trusted value");
+    expect(html).not.toContain("privateJWK");
+  });
+
   it("produces a newline-terminated machine export and validates its boundary", () => {
     const exported = fixture("json");
     expect(readinessExportJSON(exported)).toBe(`${JSON.stringify(exported, null, 2)}\n`);
@@ -36,6 +44,12 @@ describe("readiness dossier rendering", () => {
       ...exported,
       dossier: { ...exported.dossier, tenant: { ...exported.dossier.tenant, id: "../secret" } },
     })).toThrow("VASI readiness dossier verification failed.");
+  });
+
+  it("rejects unsigned legacy exports at the live gateway boundary", () => {
+    expect(() => validateReadinessExport(
+      createReadinessExportFixture("json", { legacy: true }),
+    )).toThrow("The live VASI readiness export must be signed.");
   });
 });
 

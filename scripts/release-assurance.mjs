@@ -68,6 +68,7 @@ export const DIRECT_EXECUTION_ENTRYPOINTS = Object.freeze([
   "scripts/probe-public-route-isolation.mjs",
   "scripts/probe-readiness-load.mjs",
   "scripts/public-ingress-config.mjs",
+  "scripts/readiness-trust-anchor.mjs",
   "scripts/release-assurance.mjs",
   "scripts/render-database-egress-policy.mjs",
   "scripts/render-private-ingress-egress-policy.mjs",
@@ -1269,8 +1270,16 @@ export async function validateReadinessDossierVerifierContract(repositoryRoot = 
     bridge: "src/lib/readiness-dossier.ts",
     cli: "scripts/verify-readiness-dossier.mjs",
     cliTest: "scripts/verify-readiness-dossier.test.mjs",
+    crypto: "packages/engine-crypto/index.mjs",
     documentation: "docs/architecture/pilot-readiness-dossier.md",
     package: "package.json",
+    productStore: "services/engine/product-store.mjs",
+    productStoreTest: "services/engine/product-store.test.mjs",
+    route: "src/app/api/admin/product/tenant-readiness-exports/route.ts",
+    routeTest: "src/app/api/admin/product/tenant-readiness-exports/route.test.ts",
+    signingProvider: "services/engine/signing-provider.mjs",
+    trustAnchor: "scripts/readiness-trust-anchor.mjs",
+    trustAnchorTest: "scripts/readiness-trust-anchor.test.mjs",
     verifier: "packages/readiness-dossier/index.mjs",
     verifierTest: "packages/readiness-dossier/index.test.mjs",
   };
@@ -1290,8 +1299,13 @@ export async function validateReadinessDossierVerifierContract(repositoryRoot = 
     "renderReadinessDossierHTML(exported) !== text",
     'id="vasi-readiness-export"',
     'fail("expected_digest_mismatch")',
+    'fail("expected_key_mismatch")',
     'status: "pass"',
     "READINESS_DOSSIER_LIMITATIONS",
+    'SIGNED_READINESS_EXPORT_SCHEMA = "vasi-tenant-readiness-export/v2"',
+    "verifyDetachedIntegritySeal(attestation",
+    "verifyCertificateSeal(attestation",
+    'integritySeal: "not_present"',
   ]) {
     if (!sources.verifier.includes(marker)) failures.push(`the readiness dossier verifier is missing ${marker}`);
   }
@@ -1301,33 +1315,101 @@ export async function validateReadinessDossierVerifierContract(repositoryRoot = 
   for (const marker of [
     'from "../packages/readiness-dossier/index.mjs"',
     "VASI readiness dossier verification failed.",
+    "--expected-key-fingerprint",
     ["if (isDirectExecution(import.meta.url, ", "process.argv[1])) {"].join(""),
   ]) {
     if (!sources.cli.includes(marker)) failures.push(`the readiness dossier verifier CLI is missing ${marker}`);
   }
-  if (!sources.bridge.includes('from "../../packages/readiness-dossier/index.mjs"')) {
+  if (!sources.bridge.includes('from "../../packages/readiness-dossier/index.mjs"') ||
+      !sources.bridge.includes("exported.schema !== SIGNED_READINESS_EXPORT_SCHEMA")) {
     failures.push("the gateway readiness dossier renderer does not use the shared verifier package");
   }
   for (const marker of [
+    "createReadinessAttestation",
+    "signingProvider.signDetached(attestation, READINESS_DOSSIER_SEAL_PROFILE)",
+    "readinessExportSchema: TENANT_READINESS_EXPORT_SCHEMA",
+    "validateReadinessExport(exported);",
+  ]) {
+    if (!sources.productStore.includes(marker)) failures.push(`the readiness dossier engine export is missing ${marker}`);
+  }
+  for (const marker of [
+    "rolls back the disclosure event when the signing provider returns an invalid seal",
+    'schema: "vasi-tenant-readiness-export/v2"',
+    "signingKeys: exported.attestation.signingKeys",
+  ]) {
+    if (!sources.productStoreTest.includes(marker)) failures.push(`the readiness dossier engine test is missing ${marker}`);
+  }
+  if (!sources.signingProvider.includes("signDetached(payload, profile)")) {
+    failures.push("the readiness dossier engine does not use the shared signing-provider boundary");
+  }
+  for (const marker of [
+    "hashCanonicalJSON(seal.certificate)",
+    "hashCanonicalJSON(seal.publicJWK)",
+    'seal.validationScope !== "leaf_signature_and_key_match"',
+  ]) {
+    if (!sources.crypto.includes(marker)) failures.push(`the certificate seal verifier is missing ${marker}`);
+  }
+  if (!sources.route.includes('"x-vasi-integrity-key-sha256"')) {
+    failures.push("the readiness export response does not expose the public trust-anchor fingerprint");
+  }
+  for (const marker of [
+    "fails closed when the engine returns an invalid readiness signature",
+    "fails closed when the live engine returns an unsigned legacy export",
+    'response.headers.get("x-vasi-integrity-key-sha256")',
+  ]) {
+    if (!sources.routeTest.includes(marker)) failures.push(`the readiness dossier gateway test is missing ${marker}`);
+  }
+  for (const marker of [
+    "preserves exact 0.47.0 exports as explicitly unsigned legacy evidence",
+    "rejects attestation, signature, signing-key, event, and seal-role tampering",
+    "verifies an optional certificate leaf seal and binds its exact public metadata",
     "rejects presentation edits, executable additions, duplicate embeddings, and noncanonical JSON",
     "bounds bytes and requires one physical regular UTF-8 file",
   ]) {
     if (!sources.verifierTest.includes(marker)) failures.push(`the readiness dossier verifier test is missing ${marker}`);
   }
+  if (!sources.bridge.includes("The live VASI readiness export must be signed.")) {
+    failures.push("the live readiness export boundary permits unsigned legacy evidence");
+  }
   for (const marker of [
     "privacy-bounded output",
     "fails with one generic error and no exported facts",
+    "fails generically for an untrusted expected signing key",
     "remains import-safe",
   ]) {
     if (!sources.cliTest.includes(marker)) failures.push(`the readiness dossier verifier CLI test is missing ${marker}`);
   }
-  if (!sources.documentation.includes("npm run readiness:verify -- DOSSIER_FILE")) {
+  for (const marker of [
+    'READINESS_TRUST_ANCHOR_SCHEMA = "vasi-readiness-trust-anchor/v1"',
+    "readRuntimeSettings,",
+    'readSettings({ bootstrap, scope: "engine" })',
+    "createSigningProvider",
+    "signingKeyFingerprint(value)",
+    "VASI readiness trust anchor unavailable.",
+    ["if (isDirectExecution(import.meta.url, ", "process.argv[1])) {"].join(""),
+  ]) {
+    if (!sources.trustAnchor.includes(marker)) failures.push(`the readiness trust-anchor CLI is missing ${marker}`);
+  }
+  for (const marker of [
+    "returns only the configured public integrity identity",
+    'not.toContain("publicJWK")',
+    "fails closed for invalid provider records and unexpected arguments",
+    "remains import-safe",
+  ]) {
+    if (!sources.trustAnchorTest.includes(marker)) failures.push(`the readiness trust-anchor test is missing ${marker}`);
+  }
+  if (!sources.documentation.includes("npm run readiness:verify -- DOSSIER_FILE") ||
+      !sources.documentation.includes("--expected-key-fingerprint LOWERCASE_SHA256") ||
+      !sources.documentation.includes("npm run readiness:trust-anchor")) {
     failures.push("the offline readiness dossier verification command is undocumented");
   }
   try {
     const packageJSON = JSON.parse(sources.package);
     if (packageJSON.scripts?.["readiness:verify"] !== "node scripts/verify-readiness-dossier.mjs") {
       failures.push("package.json is missing the exact readiness dossier verification command");
+    }
+    if (packageJSON.scripts?.["readiness:trust-anchor"] !== "node scripts/readiness-trust-anchor.mjs") {
+      failures.push("package.json is missing the exact readiness trust-anchor command");
     }
   } catch {
     failures.push("the readiness dossier verifier package command is invalid");

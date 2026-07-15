@@ -85,7 +85,7 @@ legal enforceability by itself.
 | CFG-1 | Secret leakage through source, environment, logs, exports, or settings tools | No environment files; mode-0600 SQLite bootstrap; AES-256-GCM PostgreSQL runtime settings; value-redacting CLI; no application secrets in container environments; tracked-source secret gate; export redaction | Host memory, database administrator, and backup custody remain trusted boundaries |
 | CUST-1 | Matched backup disclosure, copy corruption, unsafe pruning, lost recipient key, or false off-host confidence | Verified matched source; no plaintext aggregate archive; streaming fixed-size independently authenticated AES-256-GCM chunks; ephemeral X25519/HKDF and per-recipient authenticated key wraps; application stores public recipients only; whole-package copy digest; strict structure/freshness checks; verified-candidate retention; authenticated offline extraction with no partial output | Installation must prove remote transfer, geographic/organizational separation, private-key custody and recovery, deletion/legal-hold policy, restore drills, and RPO/RTO; a compromised authorized source host can create a false backup |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
-| REVIEW-1 | A readiness dossier is altered, rendered differently from its embedded facts, oversized or executable, or presented as independently authenticated when only self-consistent | One shared strict wrapper/dossier validator and renderer; canonical SHA-256 recomputation; exact eight-gate/readiness/quota/usage/adapter binding; 2 MiB strict-UTF-8 physical-file boundary; no final symlink; exact JSON serialization; byte-for-byte HTML reproduction; inert duplicate-bound embeddings; optional separately supplied digest; fixed aggregate output; adversarial and release-assurance tests | A matching internal digest is not a signature or source authentication; gate sufficiency, external evidence, audit-chain comparison, and independent approval remain reviewer responsibilities |
+| REVIEW-1 | A readiness dossier is altered, rendered differently from its embedded facts, oversized or executable, signed by an unexpected key, or presented as externally trusted when only self-consistent | One shared strict wrapper/dossier/attestation validator and renderer; canonical SHA-256 recomputation; exact eight-gate/readiness/quota/usage/adapter binding; 2 MiB strict-UTF-8 physical-file boundary; no final symlink; exact JSON serialization and byte-for-byte HTML reproduction; mandatory VASI integrity signature for new exports; optional certificate leaf signature; exact role/key/fingerprint binding; independently pinnable dossier and integrity-key fingerprints; explicit unsigned legacy result; fixed aggregate output; adversarial and release-assurance tests | Embedded keys alone do not establish controller identity; certificate chain trust, revocation, trusted time, gate sufficiency, external evidence, audit-chain comparison, and independent approval remain reviewer responsibilities |
 | SUP-1 | Vulnerable, unaccounted, or non-executable image content | Exact-lock production installs omit development/optional packages and lifecycle scripts; source assurance pins that build contract; physical image inspection rejects npm/npx plus every declared-development or lock-marked development/optional path outside the role-specific reviewed `sharp` exception; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial; daily exact-live-edge-image rescan with atomic digest-bound retained evidence and independent finding recount | Vulnerability intelligence and scanner behavior remain external inputs; installations still require response ownership and independent assessment; the runtime-package exception is architecture-specific and must be reviewed when the supported image platform changes |
 | AVAIL-1 | Resource exhaustion, dependency outage, or silently stopped recurring control | Pre-parser 64 KiB gateway/authentication body bounds with independent private-engine limits; bounded payloads/chunks/batches; PostgreSQL pool limits; durable public-verification and provider-detection throttling; bounded/cancellable DNS work; retry ceilings; canonical edge body/header/connection/request/upstream-time limits and no automatic retry; health checks; read-only readiness load gate; external provider isolation; independent persistent hardened backup, capacity, deployment, operational, egress, exact-edge-image, and edge-runtime timers; recurring effective-config/public/retired/scan-drift proof; root-owned bounded alert spools with non-recursive one-minute readiness and explicit acknowledgement; release-time exact scheduler contract validation | Customer-specific capacity, RTO/RPO, off-host alert delivery and host-loss detection, volumetric protection, and upstream infrastructure policy require measured pilot targets |
 | PRIV-1 | Excess collection, fingerprinting, or misleading evidence interpretation | Purpose-limited fixed fields; unavailable values remain absent; generalized telemetry excludes interaction detail; participant context rejects plugin/font enumeration, invasive fingerprints, precise location, hardware IDs, hidden media, keys/content/coordinates, and secrets; every browser value is labeled supporting; participant history and reviewed data request; redacted public verification and participant reports | Legal/privacy owners must approve notices, lawful basis, retention, and subject-right handling |
@@ -496,6 +496,17 @@ reviewer documentation. This proves file consistency or digest equality—not
 review sufficiency, installation audit-chain inclusion, source identity,
 signature trust, or legal approval.
 
+VASI 0.48.0 signs every new readiness export with the configured VASI
+integrity key and any configured certificate key. A strict canonical
+attestation binds the immutable export-event hash, capture time, dossier hash
+and schema, export format and schema, and ordered public signing-key records.
+The offline verifier checks every signature, recomputes the exact key
+fingerprints, and accepts an independently obtained expected integrity-key
+fingerprint. It preserves byte-exact 0.47.0 verification as explicitly
+unsigned. Certificate verification proves only the leaf signature and key
+match; chain trust, revocation, policy, trusted time, and legal identity remain
+external review decisions.
+
 ## Pilot admission gates
 
 A customer pilot is admitted only when every applicable row has an identified
@@ -528,8 +539,15 @@ same dossier hash. The HTML carries inert exact wrapper and dossier copies and
 can be checked byte-for-byte with the framework-independent offline verifier.
 
 ```bash
+# Obtain the configured fingerprint separately on the trusted engine host.
+npm run readiness:trust-anchor
+
+# Verify the exported file on the independent review system.
 npm run readiness:verify -- DOSSIER_FILE
 npm run readiness:verify -- DOSSIER_FILE --expected-sha256 LOWERCASE_SHA256
+npm run readiness:verify -- DOSSIER_FILE \
+  --expected-sha256 LOWERCASE_SHA256 \
+  --expected-key-fingerprint LOWERCASE_SHA256
 ```
 
 This export makes handoff to named owners traceable; it does not satisfy,

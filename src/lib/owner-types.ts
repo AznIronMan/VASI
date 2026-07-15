@@ -227,12 +227,45 @@ export type TenantReadinessDossier = {
 };
 
 export type AdminTenantReadinessExport = {
+  attestation: {
+    auditEventHash: string;
+    capturedAt: string;
+    dossierHash: string;
+    dossierSchema: "vasi-tenant-readiness-dossier/v1";
+    exportSchema: "vasi-tenant-readiness-export/v2";
+    format: "html" | "json";
+    schema: "vasi-tenant-readiness-attestation/v1";
+    signingKeys: Array<{
+      fingerprint: string;
+      keyId: string;
+      role: "certificate" | "vasi_integrity";
+    }>;
+  };
   auditEventHash: string;
   capturedAt: string;
   dossier: TenantReadinessDossier;
   dossierHash: string;
   format: "html" | "json";
-  schema: "vasi-tenant-readiness-export/v1";
+  schema: "vasi-tenant-readiness-export/v2";
+  seals: Array<{
+    algorithm: string;
+    certificate?: {
+      fingerprint256: string;
+      issuer: string;
+      serialNumber: string;
+      subject: string;
+      validFrom: string;
+      validTo: string;
+    };
+    certificateChain?: string[];
+    keyId: string;
+    manifestHash: string;
+    profile: "vasi-certificate-seal/v1" | "vasi-readiness-dossier-seal/v1";
+    publicJWK: Record<string, unknown>;
+    role: "certificate" | "vasi_integrity";
+    signature: string;
+    validationScope?: "leaf_signature_and_key_match";
+  }>;
 };
 
 export type ProvisionedCompany = OwnerTenant & {

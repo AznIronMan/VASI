@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.47.0`
+Version: `0.48.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -619,6 +619,20 @@ data changes, unknown fields, or a separately supplied digest mismatch fail
 without printing exported facts. Source assurance owns the shared renderer,
 CLI, documentation, adversarial tests, and execution guard.
 
+Version 0.48.0 binds every new readiness export to the configured VASI signing
+identity. A canonical attestation covers the immutable export-event hash,
+capture time, dossier hash/schema, format, export schema, and exact public
+signing-key records. The engine applies the mandatory Ed25519 VASI integrity
+seal and any configured certificate seal inside the export transaction. The
+offline verifier checks every role, key, fingerprint, signature, and
+certificate leaf/public-key binding and can require an independently obtained
+integrity-key fingerprint. Exact 0.47.0 JSON and HTML remain verifiable with an
+explicit unsigned result; embedded keys or certificate chains are never
+presented as external trust by themselves. A privacy-safe engine-host command
+reports the configured public fingerprint without disclosing public JWKs,
+certificate subjects or chains, private material, settings, or tenant facts,
+so a reviewer can obtain the trust anchor through an independent channel.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -647,8 +661,9 @@ assessment remain installation or pilot gates.
   digest-bound assurance gates, fail-closed issuance/outbound enforcement, and
   an atomic audited stop for all non-terminal tenant work, plus privacy-bounded
   JSON and human-readable readiness dossiers for external review, with a
-  bounded offline verifier for canonical digest and exact HTML-presentation
-  checks.
+  bounded offline verifier for canonical digest, exact HTML-presentation,
+  VASI integrity signatures, optional certificate leaf signatures, and
+  independently pinned signing-key fingerprints.
 - Microsoft Graph transactional delivery restricted to its configured mailbox,
   with SMTP as an optional fallback.
 - A local SQLite bootstrap at `data/VASI.settings` containing only the

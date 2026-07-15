@@ -95,9 +95,10 @@ describe("release assurance policy", () => {
     const tracked = await inspectTrackedSource(root);
     const result = await validateDirectExecutionContract(root, tracked.files.map((entry) => entry.path));
     expect(result.failures).toEqual([]);
-    expect(result.filesChecked).toBe(23);
-    expect(result.cliFiles).toHaveLength(20);
+    expect(result.filesChecked).toBe(24);
+    expect(result.cliFiles).toHaveLength(21);
     expect(result.cliFiles).toContain("scripts/activate-production-release.mjs");
+    expect(result.cliFiles).toContain("scripts/readiness-trust-anchor.mjs");
     expect(result.cliFiles).toContain("scripts/verify-readiness-dossier.mjs");
     expect(result.cliFiles).toContain("services/database-gateway/server.mjs");
     await expect(validateDirectExecutionContract(root, [null])).resolves.toMatchObject({
@@ -108,7 +109,7 @@ describe("release assurance policy", () => {
 
   it("keeps offline readiness dossier verification bounded, shared, and privacy-safe", async () => {
     const result = await validateReadinessDossierVerifierContract(root);
-    expect(result).toEqual({ failures: [], filesChecked: 7 });
+    expect(result).toEqual({ failures: [], filesChecked: 15 });
   });
 
   it("rejects a weakened offline readiness dossier verifier contract", async () => {
@@ -117,10 +118,18 @@ describe("release assurance policy", () => {
       const files = [
         "docs/architecture/pilot-readiness-dossier.md",
         "package.json",
+        "packages/engine-crypto/index.mjs",
         "packages/readiness-dossier/index.mjs",
         "packages/readiness-dossier/index.test.mjs",
+        "scripts/readiness-trust-anchor.mjs",
+        "scripts/readiness-trust-anchor.test.mjs",
         "scripts/verify-readiness-dossier.mjs",
         "scripts/verify-readiness-dossier.test.mjs",
+        "services/engine/product-store.mjs",
+        "services/engine/product-store.test.mjs",
+        "services/engine/signing-provider.mjs",
+        "src/app/api/admin/product/tenant-readiness-exports/route.test.ts",
+        "src/app/api/admin/product/tenant-readiness-exports/route.ts",
         "src/lib/readiness-dossier.ts",
       ];
       for (const filename of files) {
@@ -130,7 +139,9 @@ describe("release assurance policy", () => {
       const verifier = path.join(fixture, "packages/readiness-dossier/index.mjs");
       await writeFile(
         verifier,
-        (await readFile(verifier, "utf8")).replace("constants.O_NOFOLLOW", "0"),
+        (await readFile(verifier, "utf8"))
+          .replace("constants.O_NOFOLLOW", "0")
+          .replaceAll("verifyDetachedIntegritySeal", "acceptDetachedIntegritySeal"),
       );
       const documentation = path.join(fixture, "docs/architecture/pilot-readiness-dossier.md");
       await writeFile(
@@ -139,6 +150,9 @@ describe("release assurance policy", () => {
       );
       const result = await validateReadinessDossierVerifierContract(fixture);
       expect(result.failures).toContain("the readiness dossier verifier is missing constants.O_NOFOLLOW");
+      expect(result.failures).toContain(
+        "the readiness dossier verifier is missing verifyDetachedIntegritySeal(attestation",
+      );
       expect(result.failures).toContain("the offline readiness dossier verification command is undocumented");
     } finally {
       await rm(fixture, { force: true, recursive: true });
@@ -151,7 +165,7 @@ describe("release assurance policy", () => {
     const modules = await Promise.all(result.cliFiles.map((filename) =>
       import(pathToFileURL(path.join(root, filename)).href)
     ));
-    expect(modules).toHaveLength(20);
+    expect(modules).toHaveLength(21);
   });
 
   it("rejects a silent-no-op operational CLI comparison", async () => {
@@ -564,7 +578,7 @@ curl https://monitor.example.test\n`,
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.47.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.48.0")).toMatchObject({
       allowedOptionalPackagePaths: [
         "node_modules/@img/colour",
         "node_modules/@img/sharp-libvips-linuxmusl-x64",
@@ -577,7 +591,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.47.0")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.48.0")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -598,7 +612,7 @@ curl https://monitor.example.test\n`,
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.47.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.48.0")).toMatchObject({
       entrypoints: [
         "scripts/backup-custody.mjs",
         "scripts/backup-continuity.mjs",
@@ -612,7 +626,7 @@ curl https://monitor.example.test\n`,
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.47.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.48.0")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",
@@ -629,7 +643,7 @@ curl https://monitor.example.test\n`,
   it("derives a bounded physical prohibition inventory from the exact lock graph", async () => {
     const packageJSON = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
     const packageLock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
-    const allowed = runtimeContractForImage("vasi:0.47.0").allowedOptionalPackagePaths;
+    const allowed = runtimeContractForImage("vasi:0.48.0").allowedOptionalPackagePaths;
     const result = runtimeDependencyAuditPaths(packageJSON, packageLock, allowed);
     expect(result.lockPackageCount).toBeGreaterThan(400);
     expect(result.prohibitedPackagePaths).toContain("node_modules/vitest");

@@ -1,8 +1,22 @@
-import { hashCanonicalJSON } from "../engine-crypto/index.mjs";
-import { TENANT_ADMISSION_GATES } from "../engine-domain/productization.mjs";
-import { READINESS_DOSSIER_LIMITATIONS } from "./index.mjs";
+import { createPublicKey, generateKeyPairSync } from "node:crypto";
 
-export function createReadinessExportFixture(format = "html") {
+import {
+  createCertificateSeal,
+  createDetachedIntegritySeal,
+  hashCanonicalJSON,
+} from "../engine-crypto/index.mjs";
+import { TENANT_ADMISSION_GATES } from "../engine-domain/productization.mjs";
+import {
+  createReadinessAttestation,
+  READINESS_DOSSIER_LIMITATIONS,
+  READINESS_DOSSIER_SEAL_PROFILE,
+  SIGNED_READINESS_EXPORT_SCHEMA,
+} from "./index.mjs";
+
+export function createReadinessExportFixture(
+  format = "html",
+  { certificateChainPEM, certificatePrivateKeyPEM, legacy = false, tenantName = "Example Company" } = {},
+) {
   const gates = TENANT_ADMISSION_GATES.map((id) => ({ id, state: "pending" }));
   const admission = {
     gates,
@@ -37,7 +51,7 @@ export function createReadinessExportFixture(format = "html") {
         mode: "self_hosted",
         publicIngress: "gateway_only",
       },
-      engineVersion: "0.47.0",
+      engineVersion: legacy ? "0.47.0" : "0.48.0",
       organizationName: "Example Organization",
       productName: "V·Sign",
       profileHash: "d".repeat(64),
@@ -66,7 +80,7 @@ export function createReadinessExportFixture(format = "html") {
     schema: "vasi-tenant-readiness-dossier/v1",
     tenant: {
       id: tenantId,
-      name: "Example Company",
+      name: tenantName,
       profile: {
         defaultRetentionProfile: "tenant_default",
         profileHash: tenantProfileHash,
@@ -96,12 +110,60 @@ export function createReadinessExportFixture(format = "html") {
       },
     },
   };
-  return {
+  const base = {
     auditEventHash: "b".repeat(64),
     capturedAt: "2026-07-15T20:00:00.000Z",
     dossier,
     dossierHash: hashCanonicalJSON(dossier),
     format,
-    schema: "vasi-tenant-readiness-export/v1",
   };
+  if (legacy) return { ...base, schema: "vasi-tenant-readiness-export/v1" };
+  const { privateKey } = generateKeyPairSync("ed25519");
+  const privateJWK = privateKey.export({ format: "jwk" });
+  const publicJWK = createPublicKey(privateKey).export({ format: "jwk" });
+  const signingKeys = [{
+    fingerprint: hashCanonicalJSON({ publicJWK }),
+    keyId: "fixture-readiness-key",
+    role: "vasi_integrity",
+  }];
+  let certificate;
+  if (certificateChainPEM || certificatePrivateKeyPEM) {
+    if (!certificateChainPEM || !certificatePrivateKeyPEM) throw new Error("Incomplete fixture certificate.");
+    certificate = createCertificateSeal({
+      certificateChainPEM,
+      keyId: "fixture-certificate-key",
+      payload: { schema: "vasi-readiness-fixture-certificate/v1" },
+      privateKeyPEM: certificatePrivateKeyPEM,
+    });
+    signingKeys.push({
+      fingerprint: hashCanonicalJSON({
+        certificateChain: certificate.certificateChain,
+        publicJWK: certificate.publicJWK,
+      }),
+      keyId: certificate.keyId,
+      role: "certificate",
+    });
+  }
+  const attestation = createReadinessAttestation({ ...base, signingKeys });
+  const seals = [{
+    ...createDetachedIntegritySeal({
+      keyId: signingKeys[0].keyId,
+      payload: attestation,
+      privateJWK,
+      profile: READINESS_DOSSIER_SEAL_PROFILE,
+    }),
+    role: "vasi_integrity",
+  }];
+  if (certificate) {
+    seals.push({
+      ...createCertificateSeal({
+        certificateChainPEM,
+        keyId: certificate.keyId,
+        payload: attestation,
+        privateKeyPEM: certificatePrivateKeyPEM,
+      }),
+      role: "certificate",
+    });
+  }
+  return { ...base, attestation, schema: SIGNED_READINESS_EXPORT_SCHEMA, seals };
 }

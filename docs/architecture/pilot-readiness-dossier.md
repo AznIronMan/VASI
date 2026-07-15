@@ -11,6 +11,10 @@ production-stop record into two representations:
 Both representations carry the SHA-256 of the same canonical dossier object.
 The HTML representation embeds the exact export wrapper and a separate exact
 dossier copy as inert `application/json`; neither block is executable.
+VASI 0.48.0 adds a signed export attestation over the dossier digest,
+immutable export-event hash, capture time, format, schema, and exact signing
+key identities. Every new export carries the configured Ed25519 VASI integrity
+seal and also carries the configured optional certificate seal.
 The export is a handoff artifact, not a new approval system. It does not certify
 VASI, provide legal advice, establish evidence sufficiency, or replace an
 independent reviewer.
@@ -54,17 +58,23 @@ classification is always `recorded_evidence_not_certification`.
 The engine hashes canonical VASI JSON for the dossier, then appends a
 `tenant.readiness.exported` event to the tenant's immutable configuration chain.
 The event binds the dossier hash, requested format, admission hash/revision,
-and installation and tenant profile hashes/revisions. Its actor and event hash
+installation and tenant profile hashes/revisions, signed export schema, and
+public signing-key IDs, roles, and fingerprints. Its actor and event hash
 make the disclosure attributable without putting the operator identifier in
 the portable file. The export wrapper returns that audit-event hash alongside
-the dossier hash and capture time.
+the dossier hash and capture time. After the event exists, the engine creates a
+strict `vasi-tenant-readiness-attestation/v1` record and signs it through the
+same replaceable signing provider used for VASI evidence. A signing failure
+rolls the export transaction back rather than returning an unsigned new-format
+file.
 
-The dossier hash does not cover the wrapper's capture time, requested format,
-or audit-event hash. Consequently, JSON and HTML created from unchanged
+The dossier hash by itself does not cover the wrapper's capture time, requested
+format, or audit-event hash. Consequently, JSON and HTML created from unchanged
 readiness facts retain the same dossier hash while each disclosure still has a
-new immutable audit event. The hash detects changes to exported facts; it is
-not a digital signature, trusted timestamp, certificate seal, or proof that a
-referenced review was correct.
+new immutable audit event. The signed attestation covers those wrapper facts
+and the signing-key fingerprints. It is still not a trusted timestamp, proof
+of certificate-chain trust or revocation, or proof that a referenced review
+was correct.
 
 ## Deliberate privacy boundary
 
@@ -94,9 +104,25 @@ embeds the exact export wrapper plus the same dossier object as inert
 framework-independent offline verifier:
 
 ```bash
+# On the trusted engine host, from its selected VASI release:
+npm run readiness:trust-anchor
+
+# On the independent review system:
 npm run readiness:verify -- DOSSIER_FILE
 npm run readiness:verify -- DOSSIER_FILE --expected-sha256 LOWERCASE_SHA256
+npm run readiness:verify -- DOSSIER_FILE \
+  --expected-sha256 LOWERCASE_SHA256 \
+  --expected-key-fingerprint LOWERCASE_SHA256
 ```
+
+The engine-host command reads the protected installation settings and emits a
+fixed privacy-safe aggregate containing the configured integrity key ID,
+algorithm, fingerprint, and seal profile plus the equivalent bounded
+certificate record when configured. It does not emit a public JWK, certificate
+chain or subject, private material, settings, tenant facts, or database
+location. Give the integrity fingerprint to the reviewer through a separately
+authenticated operations channel; do not treat a fingerprint copied from the
+dossier or delivered beside it as an independent trust anchor.
 
 The verifier opens one physical regular file without following a final
 symlink, accepts no more than 2 MiB of strict UTF-8, and recognizes only the
@@ -108,19 +134,39 @@ For HTML it reconstructs the report with the same shared renderer and requires
 byte-for-byte equality, so a visible wording/style edit, added executable
 element, changed or duplicate embedding, or covered-data edit fails.
 
-Successful output uses only the fixed
-`vasi-readiness-dossier-verification/v1` aggregate schema, input format,
-presentation status, dossier digest, and whether an independently supplied
-digest matched. It never prints tenant, reviewer, evidence, integration, or
-approval content. A failure emits one generic message and no parsed facts.
+For signed `vasi-tenant-readiness-export/v2` files, the verifier additionally
+requires one exact VASI integrity signing-key record and seal, permits at most
+one matching certificate key and seal, recomputes every public-key fingerprint,
+and verifies every signature over the exact attestation. A key ID, role,
+fingerprint, public JWK, certificate metadata, certificate chain, event hash,
+capture time, format, schema, signature, or attestation change fails. The
+certificate check proves the leaf certificate signature and public-key match;
+it deliberately does not claim chain trust, policy acceptance, revocation
+status, trusted time, or legal identity.
 
-Without `--expected-sha256`, success proves that the portable file is
-self-consistent; it does not establish who supplied it. With the option,
-success also proves equality to the separately obtained digest. Neither mode
-is a signature, trusted timestamp, legal conclusion, or approval. To prove
-that VASI itself recorded the disclosure, an authorized investigator must
-additionally compare the returned audit-event hash with the tenant
-configuration chain inside the installation.
+Successful output uses only the fixed
+`vasi-readiness-dossier-verification/v2` aggregate schema, input format,
+presentation status, dossier digest, integrity-key fingerprint, seal presence
+and verification states, and whether independently supplied dossier and key
+fingerprints matched. It never prints tenant, reviewer, evidence, integration,
+certificate-subject, or approval content. A failure emits one generic message
+and no parsed facts.
+
+Signature verification with only the embedded public key proves integrity but
+does not establish who controls that key. Obtain the installation's integrity
+key fingerprint through an independently controlled channel and supply
+`--expected-key-fingerprint`; a match then binds the export to that expected
+VASI signing identity. `--expected-sha256` independently pins the dossier
+facts. Neither option establishes trusted time, certificate policy, legal
+sufficiency, or gate approval. To prove configuration-chain inclusion, an
+authorized investigator must additionally compare the signed audit-event hash
+with the tenant configuration chain inside the installation.
+
+The verifier retains compatibility with exact 0.47.0
+`vasi-tenant-readiness-export/v1` JSON and HTML. Those files return
+`integritySeal: not_present` and a null integrity-key fingerprint; supplying an
+expected key fingerprint for a legacy file fails. Legacy compatibility never
+upgrades an unsigned disclosure into signed evidence.
 
 Use the dossier as the cover sheet for the gate owners listed in
 [Assurance and pilot readiness](../assurance-and-pilot-readiness.md). The

@@ -107,8 +107,9 @@ without invalidating historical records, whose public verification material is
 embedded in their seals. Key status changes are modeled as append-only events.
 
 An installation may additionally configure an X.509 private key and certificate
-chain. VASI then adds a separate `vasi-certificate-seal/v1` signature to records
-and bundles; it never represents that signature as the participant's signature.
+chain. VASI then adds a separate `vasi-certificate-seal/v1` signature to records,
+bundles, and signed pilot-readiness attestations; it never represents that
+signature as the participant's signature or as approval of a readiness gate.
 Offline verification checks the leaf certificate, public/private key match,
 payload digest, and signature. It intentionally does not claim chain trust,
 revocation status, qualified-signature status, or trusted time. External KMS,

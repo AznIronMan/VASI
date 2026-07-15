@@ -55,29 +55,29 @@ describe("fail-closed production release activation", () => {
   });
 
   it("allows exactly one listener replacement and preserves runtime hardening", () => {
-    const base = composeModel("engine", "0.47.0");
+    const base = composeModel("engine", "0.48.0");
     const merged = structuredClone(base);
     merged.services["private-ingress"].ports = [port("10.0.0.11", 11121, 8443)];
     expect(validateMergedCompose(base, merged, {
       listener: parseProtectedOverlay(overlay("engine"), "engine"),
       role: "engine",
-      version: "0.47.0",
+      version: "0.48.0",
     })).toEqual({ images: 4, services: 5 });
 
     const environmentDrift = structuredClone(merged);
     environmentDrift.services.engine.environment = ["SECRET=value"];
     expect(() => validateMergedCompose(base, environmentDrift, {
-      listener: parseProtectedOverlay(overlay("engine"), "engine"), role: "engine", version: "0.47.0",
+      listener: parseProtectedOverlay(overlay("engine"), "engine"), role: "engine", version: "0.48.0",
     })).toThrow("more than");
     const weakened = structuredClone(merged);
     weakened.services.worker.read_only = false;
     expect(() => validateMergedCompose(base, weakened, {
-      listener: parseProtectedOverlay(overlay("engine"), "engine"), role: "engine", version: "0.47.0",
+      listener: parseProtectedOverlay(overlay("engine"), "engine"), role: "engine", version: "0.48.0",
     })).toThrow();
     const wrongProject = structuredClone(merged);
     wrongProject.name = "other-project";
     expect(() => validateMergedCompose(base, wrongProject, {
-      listener: parseProtectedOverlay(overlay("engine"), "engine"), role: "engine", version: "0.47.0",
+      listener: parseProtectedOverlay(overlay("engine"), "engine"), role: "engine", version: "0.48.0",
     })).toThrow("project identity");
   });
 
@@ -96,7 +96,7 @@ describe("fail-closed production release activation", () => {
       schema: "vasi-production-release-activation/v1",
       services: 1,
       status: "ready",
-      version: "0.47.0",
+      version: "0.48.0",
     });
     expect(await realpath(fixture.currentLink)).toBe(fixture.previous);
     await expect(lstat(path.join(fixture.candidate, "compose.live.yaml"))).rejects.toMatchObject({ code: "ENOENT" });
@@ -222,10 +222,10 @@ async function activationFixture(role) {
   await mkdir(dataRoot, { mode: 0o700 });
   await mkdir(protectedRoot, { mode: 0o700 });
   const previous = path.join(releaseRoot, "0.40.2-old");
-  const releaseId = "0.47.0-candidate";
+  const releaseId = "0.48.0-candidate";
   const candidate = path.join(releaseRoot, releaseId);
   const composeFile = role === "gateway" ? "compose.production.yaml" : "compose.engine.yaml";
-  for (const [directory, version] of [[previous, "0.40.2"], [candidate, "0.47.0"]]) {
+  for (const [directory, version] of [[previous, "0.40.2"], [candidate, "0.48.0"]]) {
     await mkdir(directory, { mode: 0o755 });
     await writeFile(path.join(directory, "package.json"), `${JSON.stringify({ version })}\n`, { mode: 0o644 });
     await writeFile(path.join(directory, composeFile), `name: vasi-${role}\nservices:\n`, { mode: 0o644 });
@@ -259,7 +259,7 @@ function commandRunner(role, { duplicateRuntimeRow = false, failCandidateUp } = 
       return Array.from({ length: count }, (_, index) => `sha256:${String(index + 1).repeat(64)}`).join("\n");
     }
     if (argumentsList.includes("config")) {
-      const version = options.cwd.endsWith("0.40.2-old") ? "0.40.2" : "0.47.0";
+      const version = options.cwd.endsWith("0.40.2-old") ? "0.40.2" : "0.48.0";
       const model = composeModel(role, version);
       if (argumentsList.filter((argument) => argument === "-f").length === 2) {
         const service = role === "gateway" ? "app" : "private-ingress";
@@ -275,7 +275,7 @@ function commandRunner(role, { duplicateRuntimeRow = false, failCandidateUp } = 
       return "";
     }
     if (argumentsList.includes("ps")) {
-      const rows = runtimeRows(role, "0.47.0");
+      const rows = runtimeRows(role, "0.48.0");
       if (duplicateRuntimeRow) rows.push({ ...rows[0] });
       return rows.map((row) => JSON.stringify(row)).join("\n");
     }

@@ -32,13 +32,17 @@ describe("readiness dossier verifier CLI", () => {
     for (const entrypoint of [verifier, path.join(selector, "scripts", "verify-readiness-dossier.mjs")]) {
       const result = spawnSync(process.execPath, [
         entrypoint, file, "--expected-sha256", exported.dossierHash,
+        "--expected-key-fingerprint", exported.attestation.signingKeys[0].fingerprint,
       ], { encoding: "utf8", timeout: 5_000 });
       expect(result.error).toBeUndefined();
       expect(result.status).toBe(0);
       expect(JSON.parse(result.stdout)).toEqual(expect.objectContaining({
         dossierSha256: exported.dossierHash,
         expectedDigest: "matched",
-        schema: "vasi-readiness-dossier-verification/v1",
+        expectedKeyFingerprint: "matched",
+        integrityKeyFingerprint: exported.attestation.signingKeys[0].fingerprint,
+        integritySeal: "verified",
+        schema: "vasi-readiness-dossier-verification/v2",
         status: "pass",
       }));
       expect(result.stdout).not.toContain(exported.dossier.tenant.name);
@@ -60,6 +64,21 @@ describe("readiness dossier verifier CLI", () => {
     expect(result.stderr.trim()).toBe("VASI readiness dossier verification failed.");
     expect(result.stderr).not.toContain("Private Changed Company");
     expect(result.stderr).not.toContain(exported.dossier.tenant.id);
+  });
+
+  it("fails generically for an untrusted expected signing key", async () => {
+    const temporary = await mkdtemp(path.join(tmpdir(), "vasi-readiness-cli-key-"));
+    temporaryDirectories.push(temporary);
+    const file = path.join(temporary, "dossier.json");
+    const exported = createReadinessExportFixture("json");
+    await writeFile(file, readinessExportJSON(exported), { mode: 0o600 });
+    const result = spawnSync(process.execPath, [
+      verifier, file, "--expected-key-fingerprint", "0".repeat(64),
+    ], { encoding: "utf8", timeout: 5_000 });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr.trim()).toBe("VASI readiness dossier verification failed.");
+    expect(result.stderr).not.toContain(exported.attestation.signingKeys[0].fingerprint);
   });
 
   it("remains import-safe", () => {

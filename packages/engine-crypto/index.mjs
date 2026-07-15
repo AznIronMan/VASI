@@ -139,11 +139,24 @@ export function verifyCertificateSeal(payload, seal) {
       seal?.profile !== "vasi-certificate-seal/v1" ||
       !Array.isArray(seal.certificateChain) ||
       !seal.certificateChain.length ||
-      typeof seal.signature !== "string"
+      typeof seal.signature !== "string" ||
+      seal.validationScope !== "leaf_signature_and_key_match"
     ) return false;
     const certificate = new X509Certificate(seal.certificateChain[0]);
     const expectedFingerprint = certificate.fingerprint256.replaceAll(":", "").toLowerCase();
-    if (seal.certificate?.fingerprint256 !== expectedFingerprint) return false;
+    const expectedMetadata = {
+      fingerprint256: expectedFingerprint,
+      issuer: certificate.issuer,
+      serialNumber: certificate.serialNumber,
+      subject: certificate.subject,
+      validFrom: new Date(certificate.validFrom).toISOString(),
+      validTo: new Date(certificate.validTo).toISOString(),
+    };
+    if (
+      hashCanonicalJSON(seal.certificate) !== hashCanonicalJSON(expectedMetadata) ||
+      hashCanonicalJSON(seal.publicJWK) !==
+        hashCanonicalJSON(certificate.publicKey.export({ format: "jwk" }))
+    ) return false;
     const manifestBytes = Buffer.from(canonicalJSON(payload), "utf8");
     if (sha256Hex(manifestBytes) !== seal.manifestHash) return false;
     const algorithm = certificateAlgorithm(certificate.publicKey.asymmetricKeyType);

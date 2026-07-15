@@ -37,6 +37,8 @@ describe("administrator tenant readiness exports", () => {
     expect(response.headers.get("content-type")).toContain("application/json");
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("x-vasi-dossier-sha256")).toBe(exported.dossierHash);
+    expect(response.headers.get("x-vasi-integrity-key-sha256"))
+      .toBe(exported.attestation.signingKeys[0].fingerprint);
     expect(await response.json()).toMatchObject({ dossierHash: exported.dossierHash, format: "json" });
     expect(mocks.engine).toHaveBeenCalledWith(
       { principalId: "admin" },
@@ -55,6 +57,30 @@ describe("administrator tenant readiness exports", () => {
     expect(response.headers.get("content-disposition")).toBeNull();
   });
 
+  it("fails closed when the live engine returns an unsigned legacy export", async () => {
+    mocks.engine.mockResolvedValue({
+      status: 200,
+      body: createReadinessExportFixture("json", { legacy: true }) as AdminTenantReadinessExport,
+    });
+    const response = await POST(request("json"));
+    expect(response.status).toBe(502);
+    expect(response.headers.get("x-vasi-integrity-key-sha256")).toBeNull();
+  });
+
+  it("fails closed when the engine returns an invalid readiness signature", async () => {
+    const exported = structuredClone(exportFixture("json"));
+    exported.seals[0].signature = `${exported.seals[0].signature.startsWith("A") ? "B" : "A"}${
+      exported.seals[0].signature.slice(1)
+    }`;
+    mocks.engine.mockResolvedValue({ status: 200, body: exported });
+    const response = await POST(request("json"));
+    expect(response.status).toBe(502);
+    expect(response.headers.get("content-disposition")).toBeNull();
+    expect(await response.json()).toEqual({
+      error: "The private VASI engine returned an invalid readiness export.",
+    });
+  });
+
   it("returns HTML that the framework-independent verifier reproduces exactly", async () => {
     const exported = exportFixture("html");
     mocks.engine.mockResolvedValue({ status: 200, body: exported });
@@ -64,8 +90,17 @@ describe("administrator tenant readiness exports", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     expect(response.headers.get("content-security-policy")).toContain("sandbox");
-    expect(verifyReadinessDossierBytes(bytes, { expectedDigest: exported.dossierHash }))
-      .toMatchObject({ expectedDigest: "matched", format: "html", presentation: "exact", status: "pass" });
+    expect(verifyReadinessDossierBytes(bytes, {
+      expectedDigest: exported.dossierHash,
+      expectedKeyFingerprint: exported.attestation.signingKeys[0].fingerprint,
+    })).toMatchObject({
+      expectedDigest: "matched",
+      expectedKeyFingerprint: "matched",
+      format: "html",
+      integritySeal: "verified",
+      presentation: "exact",
+      status: "pass",
+    });
   });
 
   it("does not read or export state before administrator mutation authorization", async () => {

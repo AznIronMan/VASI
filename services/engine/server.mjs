@@ -27,7 +27,7 @@ import { createReportStore } from "./report-store.mjs";
 import { initializeSigningKeys } from "./signing-provider.mjs";
 import { createWorkflowStore } from "./workflow-store.mjs";
 
-const ENGINE_VERSION = "0.47.0";
+const ENGINE_VERSION = "0.48.0";
 const SERVICE_REQUEST_WINDOW_SECONDS = 30;
 const bootstrap = loadBootstrapSettings();
 const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
@@ -36,6 +36,7 @@ const assertionPublicKey = await importJWK(
   "EdDSA",
 );
 const database = createSettingsPool(bootstrap);
+const signingProvider = await initializeSigningKeys(database, settings);
 const evidence = createEvidenceStore(database, settings);
 const artifacts = createArtifactStore(database, settings);
 const contexts = createContextStore(database, settings);
@@ -46,9 +47,9 @@ const reports = createReportStore(database, settings);
 const workflows = createWorkflowStore(database, settings);
 const product = createProductStore(database, settings, bootstrap.installationId, {
   engineVersion: ENGINE_VERSION,
+  signingProvider,
 });
 const operations = createOperationsStore(database, { engineVersion: ENGINE_VERSION });
-await initializeSigningKeys(database, settings);
 await product.initialize();
 const seenServiceRequests = new Map();
 

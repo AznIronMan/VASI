@@ -5,7 +5,12 @@ import {
   encryptJSONEnvelope,
   hashCanonicalJSON,
 } from "../../packages/engine-crypto/index.mjs";
-import { READINESS_DOSSIER_LIMITATIONS } from "../../packages/readiness-dossier/index.mjs";
+import {
+  createReadinessAttestation,
+  READINESS_DOSSIER_LIMITATIONS,
+  READINESS_DOSSIER_SEAL_PROFILE,
+  validateReadinessExport,
+} from "../../packages/readiness-dossier/index.mjs";
 import {
   applyTenantAdmissionDecision,
   BUILT_IN_ADAPTERS,
@@ -39,7 +44,12 @@ import {
 
 const GENESIS_HASH = "0".repeat(64);
 
-export function createProductStore(database, settings, installationId, { engineVersion = "unknown" } = {}) {
+export function createProductStore(
+  database,
+  settings,
+  installationId,
+  { engineVersion = "unknown", signingProvider } = {},
+) {
   const credentialSecret = requiredSetting(settings, "ENGINE_INTEGRATION_CONFIG_ENCRYPTION_SECRET");
 
   return Object.freeze({
@@ -368,6 +378,7 @@ export function createProductStore(database, settings, installationId, { engineV
     async exportTenantReadiness(actor, payload) {
       requireAdministrator(actor);
       const input = validateTenantReadinessExportCommand(payload);
+      const signingKeys = readinessSigningKeys(signingProvider);
       return transaction(database, async (client) => {
         await client.query("set transaction isolation level repeatable read");
         const captured = await client.query(`select CURRENT_TIMESTAMP as "capturedAt"`);
@@ -440,20 +451,34 @@ export function createProductStore(database, settings, installationId, { engineV
             installationProfileRevision: installation.revision,
             tenantProfileHash: profile.profileHash,
             tenantProfileRevision: profile.revision,
+            readinessExportSchema: TENANT_READINESS_EXPORT_SCHEMA,
+            signingKeys,
           },
           eventType: "tenant.readiness.exported",
           scopeId: input.tenantId,
           scopeType: "tenant",
           tenantId: input.tenantId,
         });
-        return Object.freeze({
+        const attestation = createReadinessAttestation({
+          auditEventHash: exportEvent.eventHash,
+          capturedAt,
+          dossierHash,
+          format: input.format,
+          signingKeys,
+        });
+        const seals = signingProvider.signDetached(attestation, READINESS_DOSSIER_SEAL_PROFILE);
+        const exported = Object.freeze({
+          attestation,
           auditEventHash: exportEvent.eventHash,
           capturedAt,
           dossier,
           dossierHash,
           format: input.format,
           schema: TENANT_READINESS_EXPORT_SCHEMA,
+          seals,
         });
+        validateReadinessExport(exported);
+        return exported;
       });
     },
 
@@ -1360,6 +1385,32 @@ function productionStopProjection(row) {
     stoppedByPrincipalId: row.lastStoppedByPrincipalId,
     suppressedNotificationCount: Number(data.suppressedNotificationCount),
   });
+}
+
+function readinessSigningKeys(provider) {
+  if (!provider || typeof provider.signDetached !== "function" ||
+      !Array.isArray(provider.keyRecords) ||
+      provider.keyRecords.length < 1 || provider.keyRecords.length > 2) {
+    throw new EngineStoreError("integrity_key_unavailable", 503);
+  }
+  const keys = provider.keyRecords.map((record, index) => {
+    if (
+      !record || !["vasi_integrity", "certificate"].includes(record.sealRole) ||
+      (index === 0 && record.sealRole !== "vasi_integrity") ||
+      typeof record.keyId !== "string" || !/^[A-Za-z0-9._:-]{1,128}$/.test(record.keyId) ||
+      typeof record.fingerprint !== "string" || !/^[a-f0-9]{64}$/.test(record.fingerprint)
+    ) throw new EngineStoreError("integrity_key_unavailable", 503);
+    return Object.freeze({
+      fingerprint: record.fingerprint,
+      keyId: record.keyId,
+      role: record.sealRole,
+    });
+  });
+  if (new Set(keys.map((key) => key.role)).size !== keys.length ||
+      new Set(keys.map((key) => key.keyId)).size !== keys.length) {
+    throw new EngineStoreError("integrity_key_unavailable", 503);
+  }
+  return Object.freeze(keys);
 }
 
 function credentialDigest(credentials, secret) {

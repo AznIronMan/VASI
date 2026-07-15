@@ -4,7 +4,7 @@ export const TENANT_PROFILE_SCHEMA = "vasi-tenant-profile/v1";
 export const INSTALLATION_PROFILE_SCHEMA = "vasi-installation-profile/v1";
 export const TENANT_ADMISSION_SCHEMA = "vasi-tenant-admission/v1";
 export const TENANT_READINESS_DOSSIER_SCHEMA = "vasi-tenant-readiness-dossier/v1";
-export const TENANT_READINESS_EXPORT_SCHEMA = "vasi-tenant-readiness-export/v1";
+export const TENANT_READINESS_EXPORT_SCHEMA = "vasi-tenant-readiness-export/v2";
 export const TENANT_READINESS_EXPORT_FORMATS = Object.freeze(["html", "json"]);
 export const TENANT_ADMISSION_GATES = Object.freeze([
   "exact_release",

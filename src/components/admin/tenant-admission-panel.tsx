@@ -258,7 +258,7 @@ export function TenantAdmissionPanel() {
       <section className="readiness-export" aria-labelledby="readiness-export-title">
         <div>
           <h3 id="readiness-export-title">Pilot readiness dossier</h3>
-          <p>Package current hashes, gate references, safe integration facts, capacity, and stop history for accountable review. Credentials, destinations, and personal contact data are omitted.</p>
+          <p>Package current hashes, gate references, safe integration facts, capacity, and stop history with the VASI integrity seal and any configured certificate seal. Credentials, destinations, personal contact data, and private signing material are omitted.</p>
         </div>
         <div className="readiness-export__actions">
           <button className="secondary-button" disabled={pending || exporting} type="button" onClick={() => void downloadReadiness("html")}>Download human report</button>
