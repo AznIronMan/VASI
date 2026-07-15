@@ -7,6 +7,8 @@ umask 077
 [ "$#" -eq 1 ] || edge_fail
 edge_require_runtime
 edge_require_command curl
+edge_require_command grep
+edge_require_command mktemp
 edge_load_policy
 edge_require_local_image "$EDGE_AUDITOR_IMAGE"
 edge_load_configuration "$1"
@@ -19,7 +21,11 @@ edge_runtime_image_id=$EDGE_LIVE_IMAGE_ID
 
 docker exec "$EDGE_LIVE_CONTAINER" nginx -t >/dev/null 2>&1 || edge_fail
 
-edge_temporary_directory=$(mktemp -d /tmp/vasi-edge-runtime.XXXXXX) || edge_fail
+install -d -o root -g root -m 0700 /run/vasi-edge
+[ ! -L /run/vasi-edge ] || edge_fail
+[ "$(readlink -f -- /run/vasi-edge)" = /run/vasi-edge ] || edge_fail
+edge_temporary_directory=$(mktemp -d /run/vasi-edge/runtime.XXXXXX) || edge_fail
+chmod 0700 "$edge_temporary_directory"
 edge_cleanup() {
   rm -rf -- "$edge_temporary_directory"
 }

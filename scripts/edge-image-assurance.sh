@@ -54,7 +54,7 @@ printf '%s\n' "$edge_scanned_image_id" > "$edge_temporary_directory/image-id.txt
 docker run --rm --network none --read-only --cap-drop ALL \
   --security-opt no-new-privileges:true --pids-limit 64 \
   --memory 128m --cpus 1 --user 65532:65532 \
-  --entrypoint /sbin/apk "$edge_scanned_image_id" info -vv \
+  --entrypoint /sbin/apk "$edge_scanned_image_id" info -vv 2>/dev/null \
   | LC_ALL=C sort > "$edge_temporary_directory/packages.txt" || edge_fail
 docker run --rm --network none --read-only --cap-drop ALL \
   --security-opt no-new-privileges:true --pids-limit 64 \

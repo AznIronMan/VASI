@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.40.0`
+Version: `0.40.1`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -509,6 +509,11 @@ stale, mismatched, divergent, or blocking scan evidence. Digest-pinned auditor
 and scanner containers never receive the Docker socket; the edge host needs no
 Node installation. Hardened persistent systemd units and source assurance make
 the complete 28-unit scheduler set an exact release contract.
+
+Version 0.40.1 preserves systemd `PrivateTmp` while moving the bounded
+effective-Nginx handoff into a dedicated root-only runtime directory visible
+to the Docker daemon. It also suppresses non-result Alpine inventory warnings,
+so recurring edge services retain aggregate-only scheduled output.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

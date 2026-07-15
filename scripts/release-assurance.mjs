@@ -361,7 +361,7 @@ export async function validateOperationalSchedulerContract(repositoryRoot = root
     "After=docker.service network-online.target",
     "ExecStart=/bin/sh scripts/probe-edge-runtime.sh /var/lib/vasi-edge/monitor.json",
     "WorkingDirectory=/opt/vasi-edge/current",
-    "ReadWritePaths=/var/lib/vasi-edge /run/lock",
+    "ReadWritePaths=/var/lib/vasi-edge /run/lock /run/vasi-edge",
     "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6",
   ]);
   addTimer("vasi-edge-runtime-readiness.timer", "vasi-edge-runtime-readiness.service", {
@@ -758,6 +758,7 @@ export async function validateEdgeMonitorContract(repositoryRoot = root) {
     ],
     "probe-edge-runtime.sh": [
       "docker exec \"$EDGE_LIVE_CONTAINER\" nginx -t >/dev/null 2>&1 || edge_fail",
+      "edge_temporary_directory=$(mktemp -d /run/vasi-edge/runtime.XXXXXX) || edge_fail",
       "node scripts/public-ingress-config.mjs audit",
       "--write-out '%{http_code}' \"https://$EDGE_PUBLIC_HOST/api/health\") || edge_fail",
       "--write-out '%{http_code}' \"https://$EDGE_RETIRED_HOST/\") || edge_fail",

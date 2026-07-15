@@ -1,6 +1,6 @@
 # Public ingress boundary
 
-Status: implemented in VASI 0.39.0 and continuously assured in VASI 0.40.0.
+Status: implemented in VASI 0.39.0 and continuously assured since VASI 0.40.0.
 
 ## Decision
 

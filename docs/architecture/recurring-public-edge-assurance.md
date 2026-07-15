@@ -1,6 +1,6 @@
 # Recurring public-edge assurance
 
-Status: implemented in VASI 0.40.0.
+Status: implemented in VASI 0.40.0 and corrected in VASI 0.40.1.
 
 ## Decision
 
@@ -89,6 +89,11 @@ eligible for bounded pruning.
   or application-runtime header; and
 - a fresh passing manifest for the exact live image, byte-identical atomic
   latest state, and independently recomputed artifact digests and findings.
+
+Effective configuration crosses the service's private temporary namespace
+through a dedicated root-only `/run/vasi-edge` handoff. The Docker daemon can
+read that bounded file while the service retains `PrivateTmp`; cleanup removes
+the complete handoff directory after every result.
 
 The result is aggregate JSON containing only status, listener count, artifact
 count, and scan age. It contains no hostname, container, image, address, path,

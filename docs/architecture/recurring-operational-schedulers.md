@@ -1,6 +1,6 @@
 # Recurring operational scheduler contract
 
-Status: implemented in VASI 0.24.0 and extended through VASI 0.40.0.
+Status: implemented in VASI 0.24.0 and extended through VASI 0.40.1.
 
 VASI ships the recurring host controls needed to keep a healthy release from
 silently degrading after deployment. The portable contract uses hardened
