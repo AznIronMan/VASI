@@ -23,6 +23,10 @@ const migrations = [
     name: "0004_auth_session_provenance",
     path: path.join(repositoryRoot, "database", "auth-session-provenance.sql"),
   },
+  {
+    name: "0005_invitation_provision_command",
+    path: path.join(repositoryRoot, "database", "invitation-provision-command.sql"),
+  },
 ];
 
 export async function runMigrations(bootstrap = loadBootstrapSettings()) {

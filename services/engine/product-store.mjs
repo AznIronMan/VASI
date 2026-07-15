@@ -18,6 +18,7 @@ import {
   validateTenantAdmission,
   validateTenantAdmissionDecisionCommand,
   validateTenantProductionStopCommand,
+  validateTenantProfile,
   validateTenantProfileCommand,
   validateTenantProvisionInput,
   validateTenantReference,
@@ -87,6 +88,25 @@ export function createProductStore(database, settings, installationId) {
       requireAdministrator(actor);
       const input = validateTenantProvisionInput(payload);
       return transaction(database, async (client) => {
+        const inputHash = tenantProvisionInputHash(input, actor);
+        if (input.commandId) {
+          await client.query(
+            `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+            [`vasi:tenant-provision:${input.commandId}`],
+          );
+          const replay = await client.query(
+            `select "actorPrincipalId", "inputHash", "result", "resultHash"
+             from "vasi_engine"."tenant_provision_command" where "commandId" = $1`,
+            [input.commandId],
+          );
+          if (replay.rowCount) {
+            const row = replay.rows[0];
+            if (row.actorPrincipalId !== actor.principalId || row.inputHash !== inputHash) {
+              throw new EngineStoreError("tenant_provision_command_conflict", 409);
+            }
+            return validateTenantProvisionResult(row.result, row.resultHash, input, actor);
+          }
+        }
         const installation = await activeInstallationProfile(client, installationId, true);
         const tenantCount = await client.query(
           `select count(*)::integer as "count" from "vasi_engine"."tenant" where "status" = 'active'`,
@@ -137,7 +157,7 @@ export function createProductStore(database, settings, installationId) {
           tenantId,
         });
         const admission = await ensureTenantAdmission(client, tenantId, actor.principalId);
-        return {
+        const result = {
           admission,
           id: tenantId,
           name: input.name,
@@ -150,6 +170,16 @@ export function createProductStore(database, settings, installationId) {
           roles: ["owner"],
           slug: input.slug,
         };
+        if (input.commandId) {
+          const resultHash = hashCanonicalJSON(result);
+          await client.query(
+            `insert into "vasi_engine"."tenant_provision_command"
+              ("commandId", "actorPrincipalId", "inputHash", "result", "resultHash")
+             values ($1, $2, $3, $4, $5)`,
+            [input.commandId, actor.principalId, inputHash, result, resultHash],
+          );
+        }
+        return result;
       });
     },
 
@@ -1012,6 +1042,91 @@ function requireAdministrator(actor) {
   if (!actor?.principalId || !actor.roles?.includes("admin")) {
     throw new EngineStoreError("forbidden", 403);
   }
+}
+
+function tenantProvisionInputHash(input, actor) {
+  return hashCanonicalJSON({
+    actorEmail: actor.email?.toLowerCase() || null,
+    name: input.name,
+    ownerEmail: input.ownerEmail,
+    profile: input.profile,
+    slug: input.slug,
+  });
+}
+
+function validateTenantProvisionResult(value, resultHash, input, actor) {
+  if (!plainObject(value) || hashCanonicalJSON(value) !== resultHash) {
+    throw new EngineStoreError("tenant_provision_command_integrity_failure", 500);
+  }
+  const expectedOwnerEmail = input.ownerEmail || actor.email?.toLowerCase() || null;
+  const expectedGrantCreated = Boolean(
+    input.ownerEmail && input.ownerEmail !== actor.email?.toLowerCase(),
+  );
+  const expectedPermissions = permissionsForRoles(["owner"]);
+  try {
+    exactKeys(value, ["admission", "id", "name", "owner", "permissions", "profile", "roles", "slug"]);
+    if (!uuidValue(value.id) || value.name !== input.name || value.slug !== input.slug) throw new Error("tenant identity");
+    if (!plainObject(value.owner)) throw new Error("owner shape");
+    exactKeys(value.owner, ["email", "grantCreated"]);
+    if (value.owner.email !== expectedOwnerEmail || value.owner.grantCreated !== expectedGrantCreated) throw new Error("owner binding");
+    if (!sameArray(value.roles, ["owner"]) || !sameArray(value.permissions, expectedPermissions)) throw new Error("owner authorization");
+
+    if (!plainObject(value.profile)) throw new Error("profile shape");
+    exactKeys(value.profile, ["id", "profile", "profileHash", "revision"]);
+    const profile = validateTenantProfile(value.profile.profile);
+    if (
+      !uuidValue(value.profile.id) || value.profile.revision !== 1 ||
+      value.profile.profileHash !== hashCanonicalJSON(profile) ||
+      value.profile.profileHash !== hashCanonicalJSON(input.profile)
+    ) throw new Error("profile integrity");
+
+    if (!plainObject(value.admission)) throw new Error("admission shape");
+    exactKeys(value.admission, [
+      "admission", "admissionHash", "createdAt", "createdByPrincipalId",
+      "id", "revision", "status",
+    ]);
+    const admission = validateTenantAdmission(value.admission.admission);
+    if (
+      !uuidValue(value.admission.id) || value.admission.revision !== 1 ||
+      value.admission.status !== "pending" || admission.status !== "pending" ||
+      value.admission.createdByPrincipalId !== actor.principalId ||
+      value.admission.admissionHash !== hashCanonicalJSON(admission) ||
+      !isoTimestamp(value.admission.createdAt)
+    ) throw new Error("admission integrity");
+  } catch (error) {
+    throw new EngineStoreError(
+      "tenant_provision_command_integrity_failure",
+      500,
+      `tenant_provision_command_integrity_failure:${error instanceof Error ? error.message : "validation"}`,
+    );
+  }
+  return Object.freeze(value);
+}
+
+function plainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function exactKeys(value, keys) {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  if (!sameArray(actual, expected)) throw new Error("Unexpected tenant provisioning result fields.");
+}
+
+function sameArray(actual, expected) {
+  return Array.isArray(actual) && actual.length === expected.length &&
+    actual.every((entry, index) => entry === expected[index]);
+}
+
+function uuidValue(value) {
+  return typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function isoTimestamp(value) {
+  if (typeof value !== "string") return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value;
 }
 
 function integrationProjection(row) {

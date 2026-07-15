@@ -222,6 +222,11 @@ tokens, provider tokens, credentials, or message bodies.
 The main `/admin` console is the supported company-provisioning surface. It
 requires an initial owner email and reports the durable private-engine owner
 grant independently from the optional V·Sign login invitation. The
+browser preserves one UUID command for an unchanged retry. The private engine
+returns the exact committed company for that command, and the identity service
+binds any requested invitation to it. Confirmed provider acceptance replays
+without another email; a provider/receipt crash window is reported as
+`delivery_unknown` and never redelivered automatically. The
 `/admin/evidence` first-slice console remains a compatibility adapter for
 issuing the narrow terms/response transaction and delegates company creation to
 the same supported provisioning route. The engine creates a separate tenant

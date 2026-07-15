@@ -158,7 +158,7 @@ export type ProvisionedCompany = OwnerTenant & {
 
 export type OwnerInvitationOutcome = {
   expiresAt?: string;
-  status: "sent" | "existing_account" | "not_required" | "skipped" | "delivery_failed";
+  status: "sent" | "existing_account" | "not_required" | "skipped" | "delivery_failed" | "delivery_unknown";
 };
 
 export type AdminCompanyProvisioningResult = {

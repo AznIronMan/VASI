@@ -77,12 +77,17 @@ Approved routes are:
 
 Everything else returns 404 after service authentication.
 
-VASI 0.27.0 adds no engine migration. The supported gateway administrator
-workflow posts a strict company and initial-owner command to the existing
-`/v1/owner/tenants` route. The engine transaction returns its durable owner
-grant outcome; the gateway then handles the optional identity invitation as a
-separate, explicitly reported step. Deploying the release does not create a
-tenant or approve production admission.
+VASI 0.28.0 adds engine migration
+`0017_engine_tenant_provision_replay` and gateway migration
+`0005_invitation_provision_command`. The first creates the immutable,
+installation-scoped provisioning command/result index. The second adds the
+immutable invitation-command binding and monotonic delivery state. Both
+migrations are backward-compatible with the 0.27.0 runtimes: old engine code
+does not use the new table, and old gateway inserts inherit the safe historical
+`provider_accepted` default with no source command. Apply both migrations
+before rollout, then replace the engine before the gateway so a command-bearing
+gateway never reaches an engine that rejects the new strict field. Deploying
+the release does not create a tenant or approve production admission.
 
 ## Initialize
 

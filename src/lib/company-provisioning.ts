@@ -1,13 +1,14 @@
 import { emailDomain } from "@/lib/provider-recommendation";
 
 export type CompanyProvisioningInput = {
+  commandId: string;
   inviteOwner: boolean;
   name: string;
   ownerEmail: string;
   slug: string;
 };
 
-const allowedFields = new Set(["inviteOwner", "name", "ownerEmail", "slug"]);
+const allowedFields = new Set(["commandId", "inviteOwner", "name", "ownerEmail", "slug"]);
 
 export function validateCompanyProvisioningInput(value: unknown): CompanyProvisioningInput {
   if (!value || Array.isArray(value) || typeof value !== "object") {
@@ -20,6 +21,10 @@ export function validateCompanyProvisioningInput(value: unknown): CompanyProvisi
   }
 
   const input = value as Record<string, unknown>;
+  const commandId = typeof input.commandId === "string" ? input.commandId.trim().toLowerCase() : "";
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(commandId)) {
+    throw new CompanyProvisioningError("The company provisioning command identifier is invalid.");
+  }
   const name = safeText(input.name, "Company name", 2, 160);
   const slug = safeText(input.slug, "Company identifier", 2, 64).toLowerCase();
   if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug)) {
@@ -41,7 +46,7 @@ export function validateCompanyProvisioningInput(value: unknown): CompanyProvisi
     throw new CompanyProvisioningError("Choose whether to send the initial owner invitation.");
   }
 
-  return Object.freeze({ inviteOwner: input.inviteOwner, name, ownerEmail, slug });
+  return Object.freeze({ commandId, inviteOwner: input.inviteOwner, name, ownerEmail, slug });
 }
 
 function safeText(value: unknown, label: string, minimum: number, maximum: number) {

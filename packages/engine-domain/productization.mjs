@@ -361,11 +361,14 @@ export function validateTenantProfile(value) {
 }
 
 export function validateTenantProvisionInput(value) {
-  const input = strictObject(value, "tenant provisioning command", ["name", "ownerEmail", "profile", "slug"]);
+  const input = strictObject(value, "tenant provisioning command", [
+    "commandId", "name", "ownerEmail", "profile", "slug",
+  ]);
   const name = boundedString(input.name, "name", 2, 160);
   const slug = boundedString(input.slug, "slug", 2, 64).toLowerCase();
   if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug)) invalid("The tenant slug is invalid.");
   return Object.freeze({
+    commandId: input.commandId === undefined ? null : uuid(input.commandId, "commandId"),
     name,
     ownerEmail: optionalEmail(input.ownerEmail, "ownerEmail"),
     profile: input.profile === undefined ? defaultTenantProfile(name) : validateTenantProfile(input.profile),

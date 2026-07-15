@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { createActorAssertion, requestEngine } from "../packages/engine-client/index.mjs";
+import { hashCanonicalJSON } from "../packages/engine-crypto/index.mjs";
 import { readRuntimeSettings } from "./settings-core.mjs";
 import { admitConformanceTenant } from "./probe-tenant-admission.mjs";
 
@@ -37,13 +38,34 @@ if (installationUpdate.body.revision !== installation.body.revision + 1) {
   throw new Error("The installation profile revision did not advance.");
 }
 
-const tenant = await expectCall(owner, "POST", "/v1/owner/tenants", {
+const tenantProvisionCommandId = randomUUID();
+const tenantProvisionCommand = {
+  commandId: tenantProvisionCommandId,
   name: "Productized Tenant Proof",
   ownerEmail: member.email,
   slug: `product-${randomUUID()}`,
-}, 200, "tenant provisioning");
+};
+const tenant = await expectCall(owner, "POST", "/v1/owner/tenants", tenantProvisionCommand, 200, "tenant provisioning");
 if (tenant.body.owner?.email !== member.email || tenant.body.owner?.grantCreated !== true) {
   throw new Error("Tenant provisioning did not report the requested durable owner grant.");
+}
+const replayedTenant = await expectCall(
+  owner,
+  "POST",
+  "/v1/owner/tenants",
+  tenantProvisionCommand,
+  200,
+  "tenant provisioning safe replay",
+);
+if (hashCanonicalJSON(replayedTenant.body) !== hashCanonicalJSON(tenant.body)) {
+  throw new Error("Tenant provisioning replay did not return the exact committed result.");
+}
+const changedProvision = await expectCall(owner, "POST", "/v1/owner/tenants", {
+  ...tenantProvisionCommand,
+  name: "Changed Productized Tenant Proof",
+}, 409, "tenant provisioning changed-command denial");
+if (changedProvision.body.error !== "tenant_provision_command_conflict") {
+  throw new Error("Changed tenant provisioning command reuse was not identified.");
 }
 const ownerHandoff = await expectCall(member, "GET", "/v1/owner/tenants", undefined, 200, "initial owner grant claim");
 const handedOffTenant = ownerHandoff.body.find((entry) => entry.id === tenant.body.id);

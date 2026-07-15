@@ -53,6 +53,7 @@ describe("administrator company provisioning route", () => {
       expect.anything(),
       {
         body: {
+          commandId: "33333333-3333-4333-8333-333333333333",
           name: "Example Company",
           ownerEmail: "owner@example.com",
           slug: "example-company",
@@ -61,7 +62,11 @@ describe("administrator company provisioning route", () => {
         path: "/v1/owner/tenants",
       },
     );
-    expect(createInvitation).toHaveBeenCalledWith("owner@example.com", "admin-1");
+    expect(createInvitation).toHaveBeenCalledWith(
+      "owner@example.com",
+      "admin-1",
+      { sourceCommandId: "33333333-3333-4333-8333-333333333333" },
+    );
     expect(body).toMatchObject({
       company: { id: "tenant-1" },
       invitation: { status: "sent", expiresAt: "2026-07-21T00:00:00.000Z" },
@@ -72,7 +77,7 @@ describe("administrator company provisioning route", () => {
 
   it("reports an existing account as a completed owner handoff", async () => {
     vi.mocked(createInvitation).mockRejectedValue(
-      new InvitationError("That email already has an account.", 409),
+      new InvitationError("That email already has an account.", 409, "existing_account"),
     );
 
     const response = await POST(provisionRequest());
@@ -91,6 +96,28 @@ describe("administrator company provisioning route", () => {
       company: { id: "tenant-1" },
       invitation: { status: "delivery_failed" },
     });
+  });
+
+  it("does not misclassify another invitation conflict as an existing account", async () => {
+    vi.mocked(createInvitation).mockRejectedValue(
+      new InvitationError("Source conflict.", 409, "source_conflict"),
+    );
+
+    const response = await POST(provisionRequest());
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ invitation: { status: "delivery_failed" } });
+  });
+
+  it("reports an uncertain provider outcome without sending the command-bound invitation again", async () => {
+    vi.mocked(createInvitation).mockRejectedValue(
+      new InvitationError("Delivery outcome unknown.", 409, "delivery_unknown"),
+    );
+
+    const response = await POST(provisionRequest());
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ invitation: { status: "delivery_unknown" } });
   });
 
   it("does not invite when the administrator is the requested owner", async () => {
@@ -134,11 +161,20 @@ describe("administrator company provisioning route", () => {
     expect(requestEngineAction).not.toHaveBeenCalled();
     expect(createInvitation).not.toHaveBeenCalled();
   });
+
+  it("requires a replay command before invoking the private engine", async () => {
+    const response = await POST(provisionRequest({ commandId: undefined }));
+
+    expect(response.status).toBe(400);
+    expect(requestEngineAction).not.toHaveBeenCalled();
+    expect(createInvitation).not.toHaveBeenCalled();
+  });
 });
 
 function provisionRequest(overrides: Record<string, unknown> = {}) {
   return new Request("https://admin.example.test/api/admin/product/tenants", {
     body: JSON.stringify({
+      commandId: "33333333-3333-4333-8333-333333333333",
       inviteOwner: true,
       name: "Example Company",
       ownerEmail: "owner@example.com",

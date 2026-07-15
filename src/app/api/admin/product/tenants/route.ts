@@ -43,7 +43,12 @@ export async function POST(request: Request) {
   const result = await requestEngineAction<ProvisionedCompany>(
     await buildEngineActor(authorization.session, request.headers),
     {
-      body: { name: input.name, ownerEmail: input.ownerEmail, slug: input.slug },
+      body: {
+        commandId: input.commandId,
+        name: input.name,
+        ownerEmail: input.ownerEmail,
+        slug: input.slug,
+      },
       method: "POST",
       path: "/v1/owner/tenants",
     },
@@ -57,6 +62,7 @@ export async function POST(request: Request) {
     actorUserId: authorization.session.user.id,
     inviteOwner: input.inviteOwner,
     ownerEmail: input.ownerEmail,
+    sourceCommandId: input.commandId,
   });
   const response: AdminCompanyProvisioningResult = {
     company: result.body,
@@ -70,20 +76,25 @@ async function inviteInitialOwner({
   actorUserId,
   inviteOwner,
   ownerEmail,
+  sourceCommandId,
 }: {
   actorEmail: string;
   actorUserId: string;
   inviteOwner: boolean;
   ownerEmail: string;
+  sourceCommandId: string;
 }): Promise<OwnerInvitationOutcome> {
   if (!inviteOwner) return { status: "skipped" };
   if (ownerEmail === actorEmail.toLowerCase()) return { status: "not_required" };
   try {
-    const invitation = await createInvitation(ownerEmail, actorUserId);
+    const invitation = await createInvitation(ownerEmail, actorUserId, { sourceCommandId });
     return { expiresAt: invitation.expiresAt, status: "sent" };
   } catch (error) {
-    if (error instanceof InvitationError && error.status === 409) {
+    if (error instanceof InvitationError && error.code === "existing_account") {
       return { status: "existing_account" };
+    }
+    if (error instanceof InvitationError && error.code === "delivery_unknown") {
+      return { status: "delivery_unknown" };
     }
     return { status: "delivery_failed" };
   }

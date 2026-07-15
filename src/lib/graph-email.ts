@@ -42,36 +42,58 @@ export async function sendGraphEmail(
 
   const accessToken = await getGraphAccessToken(environment, request);
   const sender = environment.GRAPH_SENDER_EMAIL!;
-  const response = await request(
-    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message: {
-          subject: message.subject,
-          body: {
-            contentType: "HTML",
-            content: message.html,
-          },
-          toRecipients: [
-            {
-              emailAddress: {
-                address: message.to,
-              },
-            },
-          ],
+  let response: Response;
+  try {
+    response = await request(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
         },
-      }),
-      signal: AbortSignal.timeout(10_000),
-    },
-  );
+        body: JSON.stringify({
+          message: {
+            subject: message.subject,
+            body: {
+              contentType: "HTML",
+              content: message.html,
+            },
+            toRecipients: [
+              {
+                emailAddress: {
+                  address: message.to,
+                },
+              },
+            ],
+          },
+        }),
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+  } catch (error) {
+    throw new GraphEmailDeliveryError(
+      "Microsoft Graph transactional email outcome is unknown.",
+      "unknown",
+      { cause: error },
+    );
+  }
 
   if (response.status !== 202) {
-    throw new Error("Microsoft Graph rejected the transactional email request.");
+    throw new GraphEmailDeliveryError(
+      "Microsoft Graph rejected the transactional email request.",
+      "failed",
+    );
+  }
+}
+
+export class GraphEmailDeliveryError extends Error {
+  constructor(
+    message: string,
+    public readonly outcome: "failed" | "unknown",
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
   }
 }
 

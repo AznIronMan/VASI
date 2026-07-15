@@ -1,6 +1,10 @@
 import nodemailer from "nodemailer";
 
-import { hasGraphEmailConfiguration, sendGraphEmail } from "@/lib/graph-email";
+import {
+  GraphEmailDeliveryError,
+  hasGraphEmailConfiguration,
+  sendGraphEmail,
+} from "@/lib/graph-email";
 import { resolveProductBrand } from "@/lib/branding";
 import { getRuntimeSettings } from "@/lib/runtime-settings";
 
@@ -60,7 +64,7 @@ export async function sendAuthEmail(email: AuthEmail) {
       return;
     }
 
-    throw new Error("Transactional email is not configured.");
+    throw new AuthEmailDeliveryError("Transactional email is not configured.", "failed");
   }
 
   const heading = escapeHtml(email.heading);
@@ -81,11 +85,21 @@ export async function sendAuthEmail(email: AuthEmail) {
       </div>`;
 
   if (provider === "graph") {
-    await sendGraphEmail({
-      to: email.to,
-      subject: email.subject,
-      html,
-    }, settings);
+    try {
+      await sendGraphEmail({
+        to: email.to,
+        subject: email.subject,
+        html,
+      }, settings);
+    } catch (error) {
+      throw new AuthEmailDeliveryError(
+        error instanceof GraphEmailDeliveryError
+          ? error.message
+          : "Microsoft Graph transactional email failed before delivery.",
+        error instanceof GraphEmailDeliveryError ? error.outcome : "failed",
+        { cause: error },
+      );
+    }
     return;
   }
 
@@ -94,7 +108,10 @@ export async function sendAuthEmail(email: AuthEmail) {
   const hasUser = Boolean(settings.SMTP_USER);
   const hasPassword = Boolean(settings.SMTP_PASSWORD);
   if (hasUser !== hasPassword) {
-    throw new Error("SMTP_USER and SMTP_PASSWORD must be configured together.");
+    throw new AuthEmailDeliveryError(
+      "SMTP_USER and SMTP_PASSWORD must be configured together.",
+      "failed",
+    );
   }
 
   const hasCredentials = hasUser && hasPassword;
@@ -111,11 +128,29 @@ export async function sendAuthEmail(email: AuthEmail) {
       : undefined,
   });
 
-  await transport.sendMail({
-    from: settings.AUTH_EMAIL_FROM,
-    to: email.to,
-    subject: email.subject,
-    text: `${email.heading}\n\n${email.message}\n\n${email.actionLabel}: ${email.actionUrl}`,
-    html,
-  });
+  try {
+    await transport.sendMail({
+      from: settings.AUTH_EMAIL_FROM,
+      to: email.to,
+      subject: email.subject,
+      text: `${email.heading}\n\n${email.message}\n\n${email.actionLabel}: ${email.actionUrl}`,
+      html,
+    });
+  } catch (error) {
+    throw new AuthEmailDeliveryError(
+      "SMTP transactional email outcome is unknown.",
+      "unknown",
+      { cause: error },
+    );
+  }
+}
+
+export class AuthEmailDeliveryError extends Error {
+  constructor(
+    message: string,
+    public readonly outcome: "failed" | "unknown",
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
 }

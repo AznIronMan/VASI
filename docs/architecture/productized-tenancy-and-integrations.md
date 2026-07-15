@@ -1,6 +1,14 @@
 # Productized tenancy, integrations, and deployment
 
-Status: implemented in VASI 0.11.0 and extended through VASI 0.27.0.
+Status: implemented in VASI 0.11.0 and extended through VASI 0.28.0.
+
+VASI 0.28.0 binds supported company provisioning and its optional identity
+invitation to one stable UUID command. The engine's immutable
+installation-scoped replay index returns the exact committed result for a safe
+retry and rejects changed or cross-principal reuse. The identity database
+enforces one immutable invitation binding and a monotonic provider-delivery
+state, preventing an uncertain gateway response from creating a second tenant
+or silently sending the invitation twice.
 
 VASI 0.27.0 promotes company creation from the first-slice compatibility tool
 to the supported internal administrator console. The gateway requires a

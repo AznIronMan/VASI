@@ -23,7 +23,7 @@ describe("productized deployment and transfer conformance", () => {
       "engine-document-activities.sql", "engine-media-evidence.sql", "engine-evidence-reports.sql",
       "engine-lifecycle-governance.sql", "engine-productization.sql",
       "engine-activity-interaction.sql", "engine-participant-context.sql",
-      "engine-document-malware-scanning.sql",
+      "engine-document-malware-scanning.sql", "engine-tenant-provision-replay.sql",
     ];
     const created = new Set();
     for (const filename of databaseFiles) {
@@ -39,6 +39,7 @@ describe("productized deployment and transfer conformance", () => {
       "installation_profile_pointer",
       "installation_profile_revision",
       "integration_adapter_registry",
+      "tenant_provision_command",
       "participant_data_export",
       "participant_data_export_access_event",
       "participant_data_export_chunk",

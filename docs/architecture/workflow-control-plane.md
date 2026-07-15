@@ -1,6 +1,6 @@
 # Workflow and company-owner control plane
 
-Status: implemented in VASI 0.6.0 and extended through VASI 0.27.0.
+Status: implemented in VASI 0.6.0 and extended through VASI 0.28.0.
 
 ## Ownership boundary
 
@@ -21,6 +21,9 @@ engine. A separately attempted V·Sign invitation only helps the owner establish
 or reuse an identity account; invitation delivery is not membership evidence
 and does not change tenant admission. See
 [Company provisioning and owner handoff](company-provisioning-and-owner-handoff.md).
+VASI 0.28.0 makes the same bootstrap safely replayable across ambiguous network
+outcomes without weakening the engine-owned membership or pending-admission
+boundaries.
 
 ## Draft, publication, and execution
 

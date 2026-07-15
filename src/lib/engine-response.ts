@@ -14,6 +14,8 @@ export function gatewayEngineResponse<T>(result: { body?: T | EngineErrorRespons
 export function friendlyEngineError(code?: string) {
   switch (code) {
     case "tenant_slug_exists": return "That company identifier is already in use.";
+    case "tenant_provision_command_conflict": return "This company provisioning attempt was reused with different details. Review the form and submit it again.";
+    case "tenant_provision_command_integrity_failure": return "The committed company provisioning receipt did not pass integrity verification.";
     case "assignment_expired": return "This request has expired.";
     case "assignment_revoked": return "This request is no longer available.";
     case "assignment_not_yet_available": return "This request is scheduled but is not available yet.";

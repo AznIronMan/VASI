@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.27.0`
+Version: `0.28.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -320,6 +320,21 @@ existing-account, not-required, skipped, and delivery-failed outcomes, so an
 email outage cannot cause an operator to create a duplicate company or mistake
 mail delivery for owner authorization. Provisioning never admits production;
 all eight assurance gates still require independent attributable approval.
+
+Version 0.28.0 makes that provisioning workflow safe to retry after an
+ambiguous gateway, engine, or browser network outcome. Each browser submission
+uses a UUID command that remains stable while the normalized form is unchanged.
+The private engine serializes concurrent reuse, binds the command to the exact
+input digest and administrator principal, and stores an immutable,
+integrity-checked bounded result in the engine database transaction. An exact
+retry returns that result without creating a second company; changed-input or
+cross-administrator reuse fails closed. The optional identity invitation is
+bound to the same command and records `pending`, `provider_accepted`, or
+`failed` delivery state. A confirmed retry never sends twice, while the
+unavoidable provider-acceptance/receipt gap is reported as `delivery_unknown`
+instead of being misrepresented or automatically redelivered. Replay records
+contain no plaintext input command, remain installation-scoped, and are
+excluded from tenant transfer archives.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

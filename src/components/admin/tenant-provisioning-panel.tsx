@@ -1,9 +1,13 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
 
 import type { AdminCompanyProvisioningResult } from "@/lib/owner-types";
+import {
+  nextCompanyProvisioningCommand,
+  type CompanyProvisioningRetry,
+} from "@/lib/company-provisioning-retry";
 
 export const COMPANY_PROVISIONED_EVENT = "vasi:company-provisioned";
 
@@ -15,6 +19,7 @@ export function TenantProvisioningPanel() {
   const [result, setResult] = useState<AdminCompanyProvisioningResult>();
   const [message, setMessage] = useState<string>();
   const [messageType, setMessageType] = useState<"error" | "success" | "warning">("success");
+  const retryCommand = useRef<CompanyProvisioningRetry | undefined>(undefined);
 
   async function provision(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -23,19 +28,33 @@ export function TenantProvisioningPanel() {
     setPending(true);
     setMessage(undefined);
     setResult(undefined);
+    const draft = {
+      inviteOwner: data.get("inviteOwner") === "on",
+      name: String(data.get("name") || ""),
+      ownerEmail: String(data.get("ownerEmail") || ""),
+      slug: String(data.get("slug") || ""),
+    };
+    const command = nextCompanyProvisioningCommand(
+      retryCommand.current,
+      draft,
+      () => crypto.randomUUID(),
+    );
+    retryCommand.current = command;
     try {
       const response = await fetch("/api/admin/product/tenants", {
         body: JSON.stringify({
-          inviteOwner: data.get("inviteOwner") === "on",
-          name: data.get("name"),
-          ownerEmail: data.get("ownerEmail"),
-          slug: data.get("slug"),
+          commandId: command.commandId,
+          ...draft,
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
       const body = await response.json() as AdminCompanyProvisioningResult & { error?: string };
-      if (!response.ok) throw new Error(body.error || "The company could not be provisioned.");
+      if (!response.ok) {
+        if (response.status >= 400 && response.status < 500) retryCommand.current = undefined;
+        throw new Error(body.error || "The company could not be provisioned.");
+      }
+      retryCommand.current = undefined;
       setResult(body);
       const outcome = provisioningMessage(body);
       setMessage(outcome.message);
@@ -148,5 +167,7 @@ function provisioningMessage(result: AdminCompanyProvisioningResult): {
       return { message: `${result.company.name} and its owner grant were provisioned. No login invitation was requested.`, type: "success" };
     case "delivery_failed":
       return { message: `${result.company.name} and its owner grant were provisioned, but the login invitation was not delivered. Do not create the company again; retry from Invite a user below.`, type: "warning" };
+    case "delivery_unknown":
+      return { message: `${result.company.name} and its owner grant were provisioned. The invitation provider outcome could not be confirmed, so V·Sign will not send it twice automatically. Confirm with ${owner}, then use Invite a user below if needed.`, type: "warning" };
   }
 }

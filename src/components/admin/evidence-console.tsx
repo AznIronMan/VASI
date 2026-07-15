@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import Link from "next/link";
 
 import type {
@@ -8,6 +8,10 @@ import type {
   IssuedEvidenceRequest,
 } from "@/lib/evidence-types";
 import type { AdminCompanyProvisioningResult } from "@/lib/owner-types";
+import {
+  nextCompanyProvisioningCommand,
+  type CompanyProvisioningRetry,
+} from "@/lib/company-provisioning-retry";
 
 export function EvidenceConsole({
   baseURL,
@@ -21,6 +25,7 @@ export function EvidenceConsole({
   const [record, setRecord] = useState<unknown>();
   const [pending, setPending] = useState<string>();
   const [message, setMessage] = useState<string>();
+  const tenantRetryCommand = useRef<CompanyProvisioningRetry | undefined>(undefined);
 
   async function createTenant(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -28,21 +33,36 @@ export function EvidenceConsole({
     const data = new FormData(form);
     setPending("tenant");
     setMessage(undefined);
+    const draft = {
+      inviteOwner: data.get("inviteOwner") === "on",
+      name: String(data.get("name") || ""),
+      ownerEmail: String(data.get("ownerEmail") || ""),
+      slug: String(data.get("slug") || ""),
+    };
+    const command = nextCompanyProvisioningCommand(
+      tenantRetryCommand.current,
+      draft,
+      () => crypto.randomUUID(),
+    );
+    tenantRetryCommand.current = command;
     try {
       const result = await api<AdminCompanyProvisioningResult>("/api/admin/product/tenants", {
         body: JSON.stringify({
-          inviteOwner: data.get("inviteOwner") === "on",
-          name: data.get("name"),
-          ownerEmail: data.get("ownerEmail"),
-          slug: data.get("slug"),
+          commandId: command.commandId,
+          ...draft,
         }),
         method: "POST",
       });
+      tenantRetryCommand.current = undefined;
       setTenants((current) => [...current, result.company]);
       form.reset();
-      setMessage(result.invitation.status === "delivery_failed"
-        ? "Company evidence space and owner grant created, but the login invitation was not delivered."
-        : "Company evidence space and owner handoff created.");
+      setMessage(
+        result.invitation.status === "delivery_failed"
+          ? "Company evidence space and owner grant created, but the login invitation was not delivered."
+          : result.invitation.status === "delivery_unknown"
+            ? "Company evidence space and owner grant created; invitation delivery could not be confirmed and was not repeated."
+            : "Company evidence space and owner handoff created.",
+      );
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {

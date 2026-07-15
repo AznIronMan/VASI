@@ -26,6 +26,12 @@ const productionStopMigrationPath = path.join(
   "database",
   "engine-tenant-production-stop.sql",
 );
+const provisionReplayMigrationPath = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "database",
+  "engine-tenant-provision-replay.sql",
+);
 
 describe("engine migration ledger", () => {
   it("remains anchored to public after the engine user schema exists", async () => {
@@ -42,6 +48,18 @@ describe("engine migration ledger", () => {
     expect(source).toContain("0014_engine_requester_provenance");
     expect(source).toContain("0015_engine_tenant_admission");
     expect(source).toContain("0016_engine_tenant_production_stop");
+    expect(source).toContain("0017_engine_tenant_provision_replay");
+  });
+
+  it("stores integrity-checked tenant-provision results in an immutable installation command index", async () => {
+    const source = await readFile(provisionReplayMigrationPath, "utf8");
+
+    expect(source).toContain('"tenant_provision_command"');
+    expect(source).toContain('"commandId" uuid primary key');
+    expect(source).toContain('"inputHash"');
+    expect(source).toContain('"resultHash"');
+    expect(source).toContain("tenant_provision_command_immutable");
+    expect(source).not.toContain('"tenantId"');
   });
 
   it("makes tenant production-stop command IDs replay-resistant in the immutable configuration chain", async () => {

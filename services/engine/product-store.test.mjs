@@ -71,7 +71,120 @@ describe("tenant provisioning", () => {
     expect(ownerGrant?.[1]?.[2]).toBe("owner@example.com");
     expect(client.query.mock.calls.at(-1)?.[0]).toBe("commit");
   });
+
+  it("serializes a stable command and returns its exact committed result without a second tenant", async () => {
+    const fixture = replayProvisionDatabase();
+    const store = createProductStore(fixture.database, settings(), "installation-test");
+    const command = {
+      commandId: "33333333-3333-4333-8333-333333333333",
+      name: "Replay-safe Company",
+      ownerEmail: "owner@example.com",
+      slug: "replay-safe-company",
+    };
+
+    const created = await store.provisionTenant(actor, command);
+    const replayed = await store.provisionTenant(actor, command);
+
+    expect(replayed).toEqual(created);
+    expect(fixture.state.tenantInsertCount).toBe(1);
+    expect(fixture.state.commandInsertCount).toBe(1);
+    const statements = fixture.client.query.mock.calls.map(([sql]) => String(sql));
+    expect(statements.filter((sql) => sql.includes("pg_advisory_xact_lock"))).toHaveLength(2);
+    expect(statements.indexOf(statements.find((sql) => sql.includes("pg_advisory_xact_lock"))))
+      .toBeLessThan(statements.indexOf(statements.find((sql) => sql.includes('from "vasi_engine"."tenant_provision_command"'))));
+    expect(statements.filter((sql) => sql === "commit")).toHaveLength(2);
+  });
+
+  it("rejects changed-input and cross-actor command reuse before creating another tenant", async () => {
+    const fixture = replayProvisionDatabase();
+    const store = createProductStore(fixture.database, settings(), "installation-test");
+    const command = {
+      commandId: "44444444-4444-4444-8444-444444444444",
+      name: "Bound Company",
+      ownerEmail: "owner@example.com",
+      slug: "bound-company",
+    };
+    await store.provisionTenant(actor, command);
+
+    await expect(store.provisionTenant(actor, { ...command, name: "Changed Company" }))
+      .rejects.toMatchObject({ code: "tenant_provision_command_conflict", status: 409 });
+    await expect(store.provisionTenant({ ...actor, principalId: "other-admin" }, command))
+      .rejects.toMatchObject({ code: "tenant_provision_command_conflict", status: 409 });
+
+    expect(fixture.state.tenantInsertCount).toBe(1);
+    expect(fixture.client.query.mock.calls.filter(([sql]) => sql === "rollback")).toHaveLength(2);
+  });
+
+  it("fails closed when a stored provisioning result or its digest is altered", async () => {
+    const fixture = replayProvisionDatabase();
+    const store = createProductStore(fixture.database, settings(), "installation-test");
+    const command = {
+      commandId: "55555555-5555-4555-8555-555555555555",
+      name: "Integrity Company",
+      ownerEmail: "owner@example.com",
+      slug: "integrity-company",
+    };
+    await store.provisionTenant(actor, command);
+    fixture.state.replayRow.resultHash = "0".repeat(64);
+
+    await expect(store.provisionTenant(actor, command))
+      .rejects.toMatchObject({ code: "tenant_provision_command_integrity_failure", status: 500 });
+    expect(fixture.state.tenantInsertCount).toBe(1);
+    expect(fixture.client.query.mock.calls.at(-1)?.[0]).toBe("rollback");
+  });
 });
+
+function replayProvisionDatabase() {
+  const profile = validateInstallationProfile(defaultInstallationProfile());
+  const state = {
+    commandInsertCount: 0,
+    replayRow: undefined,
+    tenantInsertCount: 0,
+  };
+  const client = {
+    query: vi.fn(async (sql, values = []) => {
+      const statement = String(sql);
+      if (["begin", "commit", "rollback"].includes(statement)) return result();
+      if (statement.includes("pg_advisory_xact_lock")) return result([{}]);
+      if (statement.includes('from "vasi_engine"."tenant_provision_command"')) {
+        return result(state.replayRow ? [state.replayRow] : []);
+      }
+      if (statement.includes('insert into "vasi_engine"."tenant_provision_command"')) {
+        state.commandInsertCount += 1;
+        state.replayRow = {
+          actorPrincipalId: values[1],
+          inputHash: values[2],
+          result: structuredClone(values[3]),
+          resultHash: values[4],
+        };
+        return result();
+      }
+      if (statement.includes('from "vasi_engine"."installation_profile_pointer"')) {
+        return result([{
+          id: "installation-profile-1",
+          profile,
+          profileHash: hashCanonicalJSON(profile),
+          revision: 1,
+        }]);
+      }
+      if (statement.includes('count(*)::integer as "count"')) return result([{ count: 0 }]);
+      if (statement.includes('insert into "vasi_engine"."tenant"')) state.tenantInsertCount += 1;
+      if (statement.includes('select "lastSequence", "lastHash"')) {
+        return result([{ lastHash: "0".repeat(64), lastSequence: 0 }]);
+      }
+      if (statement.includes('select 1 from "vasi_engine"."integration_binding_pointer"')) return result();
+      if (statement.includes('select 1 from "vasi_engine"."tenant_admission_pointer"')) return result();
+      if (/^(insert|update)/.test(statement.trim())) return result();
+      throw new Error(`Unexpected replay provisioning query: ${statement} (${values.length} values)`);
+    }),
+    release: vi.fn(),
+  };
+  return {
+    client,
+    database: { connect: vi.fn(async () => client) },
+    state,
+  };
+}
 
 describe("tenant production stop", () => {
   it("atomically revokes active requests, suppresses notifications, and records both audit layers", async () => {

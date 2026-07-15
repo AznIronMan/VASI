@@ -279,6 +279,16 @@ mail failure as partial success and directs the operator to retry only the
 invitation, preventing duplicate tenant creation. New tenants remain pending;
 this workflow does not satisfy, approve, or bypass any pilot admission row.
 
+VASI 0.28.0 removes the remaining ambiguous-response duplicate-company risk.
+The browser, gateway, and engine carry a stable UUID command; the engine
+serializes it and commits an immutable input/result digest with the exact
+tenant result. Safe replay returns that result, while changed-input,
+cross-principal, or damaged replay state fails closed. The separately committed
+identity invitation uses the same command as an at-most-once delivery key and
+persists a monotonic provider outcome. Because no email protocol can atomically
+couple provider acceptance to the identity database, the residual crash window
+is explicitly reported as `delivery_unknown` and never retried automatically.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

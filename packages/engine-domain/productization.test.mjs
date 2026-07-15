@@ -78,15 +78,23 @@ describe("productized installation and tenant profiles", () => {
 
   it("requires administrator-ready tenant slugs and bounded profiles", () => {
     expect(validateTenantProvisionInput({
+      commandId: "33333333-3333-4333-8333-333333333333",
       name: "Example Company",
       ownerEmail: " OWNER@EXAMPLE.COM ",
       slug: "example-company",
     })).toMatchObject({
+      commandId: "33333333-3333-4333-8333-333333333333",
       name: "Example Company",
       ownerEmail: "owner@example.com",
       slug: "example-company",
     });
     expect(() => validateTenantProvisionInput({ name: "Example", slug: "UPPER CASE" })).toThrow(/slug/i);
+    expect(validateTenantProvisionInput({ name: "Legacy Company", slug: "legacy-company" }).commandId).toBeNull();
+    expect(() => validateTenantProvisionInput({
+      commandId: "not-a-uuid",
+      name: "Example",
+      slug: "example",
+    })).toThrow(/UUID/i);
   });
 });
 

@@ -87,4 +87,35 @@ describe("Microsoft Graph email", () => {
       ),
     ).rejects.toThrow("Microsoft Graph token acquisition failed.");
   });
+
+  it("distinguishes provider rejection from an indeterminate send transport", async () => {
+    const rejected = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: "access-token", expires_in: 3600 }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response("private rejection", { status: 403 }));
+    await expect(sendGraphEmail({
+      to: "recipient@example.com",
+      subject: "Verify",
+      html: "<p>Verify</p>",
+    }, environment, rejected)).rejects.toMatchObject({
+      outcome: "failed",
+    });
+
+    resetGraphTokenCacheForTests();
+    const indeterminate = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: "access-token", expires_in: 3600 }), { status: 200 }),
+      )
+      .mockRejectedValueOnce(new Error("network reset"));
+    await expect(sendGraphEmail({
+      to: "recipient@example.com",
+      subject: "Verify",
+      html: "<p>Verify</p>",
+    }, environment, indeterminate)).rejects.toMatchObject({
+      outcome: "unknown",
+    });
+  });
 });
