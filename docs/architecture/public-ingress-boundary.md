@@ -1,6 +1,6 @@
 # Public ingress boundary
 
-Status: implemented in VASI 0.39.0.
+Status: implemented in VASI 0.39.0 and continuously assured in VASI 0.40.0.
 
 ## Decision
 
@@ -101,6 +101,11 @@ the application's custom-domain ledger. It requires both accepted and generic
 The rate exercise can briefly throttle sign-in from the probe's source address.
 Run it only in an approved release window. Ordinary recurring checks should
 omit that flag.
+
+VASI's [recurring public-edge assurance](recurring-public-edge-assurance.md)
+adds independent daily exact-image vulnerability/SBOM evidence and a
+15-minute runtime check of container, rollback, listeners, effective Nginx,
+public/retired behavior, and fresh image-matched evidence.
 
 ## Residual responsibility
 

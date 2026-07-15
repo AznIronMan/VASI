@@ -1,0 +1,14 @@
+[Unit]
+Description=Continuously verify VASI public-edge runtime and evidence readiness
+
+[Timer]
+OnBootSec=2min
+OnActiveSec=2min
+OnUnitInactiveSec=15min
+AccuracySec=30s
+RandomizedDelaySec=30s
+Persistent=yes
+Unit=vasi-edge-runtime-readiness.service
+
+[Install]
+WantedBy=timers.target

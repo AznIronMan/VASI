@@ -49,3 +49,13 @@ VASI change: that can alter unrelated binaries, certificates, and virtual
 hosts. Validate the candidate with `nginx -t`, audit its `nginx -T`, scan an
 exported image tar without a Docker socket, and retain the exact prior image ID
 and launch contract for rollback.
+
+For supported recurring proof, install the tracked edge systemd units and a
+root-owned mode-0600 copy of `vasi-edge-monitor.example.json`. The daily image
+cycle scans the exact live image and retains bounded digest-bound evidence; the
+15-minute runtime cycle proves container/restart/listener state, effective
+Nginx policy, public and retired HTTPS behavior, and a fresh passing scan.
+Neither scanner nor auditor container receives the Docker socket, and the host
+does not need Node. See
+`docs/architecture/recurring-public-edge-assurance.md` for the complete
+configuration, installation, and alerting contract.

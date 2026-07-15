@@ -1,6 +1,6 @@
 # Recurring operational scheduler contract
 
-Status: implemented in VASI 0.24.0 and extended through VASI 0.36.3.
+Status: implemented in VASI 0.24.0 and extended through VASI 0.40.0.
 
 VASI ships the recurring host controls needed to keep a healthy release from
 silently degrading after deployment. The portable contract uses hardened
@@ -20,6 +20,8 @@ customer-specific path.
 | Engine | Operational readiness | 5 minutes | Migration, signing, queue, delivery, scanning, lifecycle, or database thresholds failed |
 | Engine | Exact egress policy refresh | 2 minutes | The fixed database/private-ingress host policy could not be applied |
 | Engine | Egress boundary verification | 5 minutes | Private denial, integration egress, listener replies, health, or database transport failed |
+| Public edge | Exact live-image assurance | 24 hours | The live image drifted or its fresh SBOM/vulnerability evidence is missing, mismatched, corrupt, or blocking |
+| Public edge | Runtime and evidence readiness | 15 minutes | Container/rollback/listener/Nginx/public/retired-route state drifted or exact scan evidence is stale |
 
 Every timer has boot-relative and activation-relative first runs plus an
 `OnUnitInactiveSec` recurrence. `Persistent=yes` makes missed wall-clock work
@@ -38,7 +40,11 @@ filesystem roots:
   `/opt/vasi-engine/releases`;
 - gateway backups: `/var/lib/vasi/backups/maintenance/scheduled`;
 - engine backups: `/var/lib/vasi-engine/backups/maintenance/scheduled`; and
-- an empty capacity sentinel at `/var/lib/vasi-capacity`.
+- an empty capacity sentinel at `/var/lib/vasi-capacity`;
+- edge release: `/opt/vasi-edge/current` with exact releases under
+  `/opt/vasi-edge/releases`; and
+- root-owned edge monitor state under `/var/lib/vasi-edge` and scanner cache
+  under `/var/cache/vasi-edge`.
 
 Deployment readiness accepts an explicit credential-free HTTPS origin for
 interactive use. When the origin is omitted, it reads `BETTER_AUTH_URL` for the
@@ -119,10 +125,18 @@ readiness and both egress controls. Confirm every timer is both `enabled` and
 `active`, has a future trigger, and still points at the current release after a
 cutover or rollback.
 
+The public edge adds two more services and timers. Its strict protected
+configuration and complete installation/proof sequence are defined in the
+[recurring public-edge assurance decision](recurring-public-edge-assurance.md).
+Run exact image assurance before runtime readiness, and enable either timer
+only after both manual runs pass.
+
 ## Hardening and assurance
 
 Docker-driven one-shots are restricted to the local Unix socket address family;
-the Docker socket is never mounted into a container. The trusted-host engine
+the Docker socket is never mounted into a container. The edge runtime probe
+also receives Internet address families for its certificate-verified public
+and retired HTTPS checks. The trusted-host engine
 deployment probe alone receives Internet address families because it must
 inspect public TLS while keeping private containers deny-by-default. Services
 use a read-only host view, private temporary and device namespaces, bounded

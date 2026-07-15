@@ -1,0 +1,17 @@
+{
+  "schema": "vasi-edge-monitor/v1",
+  "liveContainer": "vasi_edge",
+  "rollbackContainer": "vasi_edge_rollback",
+  "imageReference": "approved-edge:vasi-release",
+  "publicHost": "vsign.example.com",
+  "retiredHost": "vasi.example.com",
+  "gatewayUpstreamName": "vasi_public_gateway",
+  "listenerPorts": [
+    80,
+    443
+  ],
+  "scanRoot": "/var/lib/vasi-edge/scans",
+  "scannerCache": "/var/cache/vasi-edge/trivy",
+  "maximumScanAgeHours": 26,
+  "retainedScans": 14
+}

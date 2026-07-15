@@ -1,0 +1,10 @@
+{
+  "schema": "vasi-edge-monitor-policy/v1",
+  "auditorImage": "node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd",
+  "scannerImage": "aquasec/trivy@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f",
+  "maximumConfigurationBytes": 65536,
+  "maximumArtifactBytes": 16777216,
+  "maximumVulnerabilityDatabaseAgeHours": 26,
+  "maximumScanAgeHours": 168,
+  "maximumRetainedScans": 60
+}

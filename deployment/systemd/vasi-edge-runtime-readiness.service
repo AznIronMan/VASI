@@ -1,0 +1,32 @@
+[Unit]
+Description=Verify VASI public-edge runtime and evidence readiness
+Documentation=file:/opt/vasi-edge/current/docs/architecture/recurring-public-edge-assurance.md
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/opt/vasi-edge/current
+ExecStart=/bin/sh scripts/probe-edge-runtime.sh /var/lib/vasi-edge/monitor.json
+TimeoutStartSec=5min
+Nice=10
+IOSchedulingClass=idle
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_FOWNER
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/vasi-edge /run/lock
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native

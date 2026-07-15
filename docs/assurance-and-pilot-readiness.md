@@ -83,8 +83,8 @@ legal enforceability by itself.
 | CFG-1 | Secret leakage through source, environment, logs, exports, or settings tools | No environment files; mode-0600 SQLite bootstrap; AES-256-GCM PostgreSQL runtime settings; value-redacting CLI; no application secrets in container environments; tracked-source secret gate; export redaction | Host memory, database administrator, and backup custody remain trusted boundaries |
 | CUST-1 | Matched backup disclosure, copy corruption, unsafe pruning, lost recipient key, or false off-host confidence | Verified matched source; no plaintext aggregate archive; streaming fixed-size independently authenticated AES-256-GCM chunks; ephemeral X25519/HKDF and per-recipient authenticated key wraps; application stores public recipients only; whole-package copy digest; strict structure/freshness checks; verified-candidate retention; authenticated offline extraction with no partial output | Installation must prove remote transfer, geographic/organizational separation, private-key custody and recovery, deletion/legal-hold policy, restore drills, and RPO/RTO; a compromised authorized source host can create a false backup |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
-| SUP-1 | Vulnerable, unaccounted, or non-executable image content | Exact-lock production installs omit development/optional packages and lifecycle scripts; source assurance pins that build contract; physical image inspection rejects npm/npx plus every declared-development or lock-marked development/optional path outside the role-specific reviewed `sharp` exception; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial | Vulnerability data changes over time, so every release and periodic rescan are required; the exception is architecture-specific and must be reviewed when the supported image platform changes |
-| AVAIL-1 | Resource exhaustion, dependency outage, or silently stopped recurring control | Pre-parser 64 KiB gateway/authentication body bounds with independent private-engine limits; bounded payloads/chunks/batches; PostgreSQL pool limits; durable public-verification and provider-detection throttling; bounded/cancellable DNS work; retry ceilings; canonical edge body/header/connection/request/upstream-time limits and no automatic retry; health checks; read-only readiness load gate; external provider isolation; independent persistent hardened backup, capacity, deployment, operational, and egress timers; release-time scheduler/edge contract validation | Customer-specific capacity, RTO/RPO, external alert delivery, volumetric protection, and upstream infrastructure policy require measured pilot targets |
+| SUP-1 | Vulnerable, unaccounted, or non-executable image content | Exact-lock production installs omit development/optional packages and lifecycle scripts; source assurance pins that build contract; physical image inspection rejects npm/npx plus every declared-development or lock-marked development/optional path outside the role-specific reviewed `sharp` exception; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial; daily exact-live-edge-image rescan with atomic digest-bound retained evidence and independent finding recount | Vulnerability intelligence and scanner behavior remain external inputs; installations still require response ownership and independent assessment; the runtime-package exception is architecture-specific and must be reviewed when the supported image platform changes |
+| AVAIL-1 | Resource exhaustion, dependency outage, or silently stopped recurring control | Pre-parser 64 KiB gateway/authentication body bounds with independent private-engine limits; bounded payloads/chunks/batches; PostgreSQL pool limits; durable public-verification and provider-detection throttling; bounded/cancellable DNS work; retry ceilings; canonical edge body/header/connection/request/upstream-time limits and no automatic retry; health checks; read-only readiness load gate; external provider isolation; independent persistent hardened backup, capacity, deployment, operational, egress, exact-edge-image, and edge-runtime timers; recurring effective-config/public/retired/scan-drift proof; release-time exact scheduler contract validation | Customer-specific capacity, RTO/RPO, external alert delivery, volumetric protection, and upstream infrastructure policy require measured pilot targets |
 | PRIV-1 | Excess collection, fingerprinting, or misleading evidence interpretation | Purpose-limited fixed fields; unavailable values remain absent; generalized telemetry excludes interaction detail; participant context rejects plugin/font enumeration, invasive fingerprints, precise location, hardware IDs, hidden media, keys/content/coordinates, and secrets; every browser value is labeled supporting; participant history and reviewed data request; redacted public verification and participant reports | Legal/privacy owners must approve notices, lawful basis, retention, and subject-right handling |
 
 ## Repeatable release evidence
@@ -119,6 +119,11 @@ npm run assurance:accessibility -- https://vsign.example.com --channel chrome
 npm run assurance:ingress -- https://vsign.example.com \
   --retired-origin https://retired-vasi.example.com
 
+# On the edge host, after installing the protected strict monitor JSON, prove
+# the exact live image before proving runtime/evidence readiness.
+sudo npm run assurance:edge-image -- /var/lib/vasi-edge/monitor.json
+sudo npm run assurance:edge-runtime -- /var/lib/vasi-edge/monitor.json
+
 # Root host proof of exact database policy, four private-service denials,
 # integration egress, runtime health, and PostgreSQL transport.
 sudo node scripts/probe-engine-egress-boundary.mjs
@@ -140,9 +145,11 @@ contract's intended UID. The manifest records the Git commit, image IDs,
 physical dependency result, runtime-contract result, scanner identity, policy,
 result summaries, and SHA-256 of every generated artifact.
 
-These controls are first-party release evidence. They do not replace source
-review, an independent penetration test, manual assistive-technology testing,
-or periodic rescans as vulnerability databases change.
+The packaged edge timers repeat the exact-live-image scan daily and verify
+runtime/evidence drift every 15 minutes. These controls are first-party
+evidence. They do not replace source review, an independent penetration test,
+manual assistive-technology testing, external alert delivery, or an accountable
+vulnerability-response process.
 
 ## Recovery and key-lifecycle drills
 
@@ -274,6 +281,18 @@ customer origins or home paths, ignored live overrides, Docker-socket mounts,
 privileged mode, and host networking. Target-host `systemd-analyze verify` and
 manual first runs remain mandatory. Alert delivery and named response ownership
 remain installation gates.
+
+VASI 0.40.0 expands that exact contract from 24 to 28 units with independent
+public-edge image and runtime schedules. The daily control exports and scans
+the exact live image without giving the pinned scanner a Docker socket, retains
+bounded atomic digest-bound evidence, and fails on independently counted HIGH
+or CRITICAL findings. The 15-minute control verifies the live and stopped
+rollback containers, restart policy, configured listeners, Nginx syntax and
+effective policy, certificate-verified public/retired behavior, and a fresh
+byte-identical scan manifest for the exact live image. Its digest-pinned Node
+auditor runs no-network in a hardened container, so the edge host gains no
+general Node runtime. Alert transport and independent host compromise
+detection remain installation responsibilities.
 
 VASI 0.25.0 turns the pilot table below into an enforced tenant control plane.
 Every provisioned tenant starts pending. Administrators record one immutable,

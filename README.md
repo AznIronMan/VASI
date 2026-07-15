@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.39.0`
+Version: `0.40.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -499,6 +499,17 @@ and content-free retirement of a former public engine hostname. Fresh
 deployments publish only V·Sign; a retained legacy hostname has no `proxy_pass`
 and returns 404 over HTTP and HTTPS.
 
+Version 0.40.0 turns that release-time edge proof into recurring drift and
+vulnerability assurance. A daily cycle exports and scans the exact image ID
+used by the live edge, independently rejects HIGH/CRITICAL findings, and
+retains bounded digest-bound vulnerability, package, scanner, and CycloneDX
+evidence. A separate 15-minute cycle fails on live/rollback/restart/listener
+drift, weakened effective Nginx policy, public or retired-route failure, or
+stale, mismatched, divergent, or blocking scan evidence. Digest-pinned auditor
+and scanner containers never receive the Docker socket; the edge host needs no
+Node installation. Hardened persistent systemd units and source assurance make
+the complete 28-unit scheduler set an exact release contract.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -539,6 +550,9 @@ assessment remain installation or pilot gates.
 - A canonical sanitized Nginx public-edge profile, effective-configuration
   audit, and black-box ingress proof; V·Sign is the only public application
   origin and any retained engine hostname is a content-free denial route.
+- Recurring public-edge exact-image vulnerability/SBOM assurance and runtime
+  drift proof, with atomic protected evidence, a retained stopped rollback,
+  digest-pinned socket-free tool containers, and no host Node dependency.
 - Framework-independent engine contracts, service authorization, request
   signing, actor-assertion validation, and gateway-client packages.
 - Private engine, worker, and integration-gateway containers with no published
@@ -635,7 +649,7 @@ assessment remain installation or pilot gates.
 - A tracked hardened scheduler suite with independent persistent timers for
   gateway/engine backup creation and checks, capacity, deployment perimeter,
   gateway identity operations, private-engine operational readiness, and
-  private outbound enforcement.
+  private outbound enforcement, plus exact edge-image and runtime readiness.
 
 ## Configuration model
 
@@ -922,6 +936,10 @@ The [public ingress decision](docs/architecture/public-ingress-boundary.md)
 defines the single public application origin, forwarding replacement, edge
 resource bounds, retired-host denial, canonical rendering, effective
 configuration audit, live proof, and remaining installation responsibilities.
+The [recurring public-edge assurance decision](docs/architecture/recurring-public-edge-assurance.md)
+defines the strict protected topology contract, exact live-image scan,
+digest-bound retention, runtime drift proof, hardened schedules, installation,
+and alerting limits.
 The [assurance and pilot-readiness contract](docs/assurance-and-pilot-readiness.md)
 defines the threat register, repeatable release evidence, recovery/key drills,
 observability limits, and the first-party, independent, legal, and customer

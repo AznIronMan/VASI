@@ -1,0 +1,14 @@
+[Unit]
+Description=Schedule exact assurance of the live VASI edge image
+
+[Timer]
+OnBootSec=30min
+OnActiveSec=30min
+OnUnitInactiveSec=24h
+AccuracySec=15min
+RandomizedDelaySec=30min
+Persistent=yes
+Unit=vasi-edge-image-assurance.service
+
+[Install]
+WantedBy=timers.target

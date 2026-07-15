@@ -11,6 +11,7 @@ import {
   runtimeContractForImage,
   validateAutomationContract,
   validateComposeContracts,
+  validateEdgeMonitorContract,
   validateEngineHostRuntimeContract,
   validateOperationalSchedulerContract,
   validatePublicIngressContract,
@@ -60,7 +61,9 @@ describe("release assurance policy", () => {
   it("packages every persistent least-privileged operational scheduler", async () => {
     const result = await validateOperationalSchedulerContract(root);
     expect(result.failures).toEqual([]);
-    expect(result.unitsChecked).toHaveLength(24);
+    expect(result.unitsChecked).toHaveLength(28);
+    expect(result.unitsChecked).toContain("vasi-edge-image-assurance.timer");
+    expect(result.unitsChecked).toContain("vasi-edge-runtime-readiness.timer");
     expect(result.unitsChecked).toContain("vasi-engine-operational-readiness.timer");
     expect(result.unitsChecked).toContain("vasi-gateway-operational-readiness.timer");
     expect(result.unitsChecked).toContain("vasi-gateway-backup-check.timer");
@@ -79,6 +82,55 @@ describe("release assurance policy", () => {
   it("keeps the canonical public ingress bounded and independently auditable", async () => {
     const result = await validatePublicIngressContract(root);
     expect(result).toEqual({ failures: [], filesChecked: 4 });
+  });
+
+  it("keeps recurring public-edge assurance exact and socket-free", async () => {
+    const result = await validateEdgeMonitorContract(root);
+    expect(result).toEqual({ failures: [], filesChecked: 9 });
+  });
+
+  it("rejects a mutable or privileged recurring edge monitor", async () => {
+    const fixture = await mkdtemp(path.join(tmpdir(), "vasi-edge-monitor-assurance-"));
+    try {
+      await mkdir(path.join(fixture, "config"), { recursive: true });
+      await mkdir(path.join(fixture, "deployment", "nginx"), { recursive: true });
+      await mkdir(path.join(fixture, "scripts"), { recursive: true });
+      for (const filename of [
+        "Dockerfile",
+        "Dockerfile.engine",
+        "package.json",
+      ]) await cp(path.join(root, filename), path.join(fixture, filename));
+      await cp(
+        path.join(root, "config", "edge-monitor-policy.json"),
+        path.join(fixture, "config", "edge-monitor-policy.json"),
+      );
+      await cp(
+        path.join(root, "deployment", "nginx", "vasi-edge-monitor.example.json"),
+        path.join(fixture, "deployment", "nginx", "vasi-edge-monitor.example.json"),
+      );
+      for (const filename of [
+        "edge-monitor-common.sh",
+        "edge-image-assurance.sh",
+        "probe-edge-runtime.sh",
+      ]) await cp(path.join(root, "scripts", filename), path.join(fixture, "scripts", filename));
+      const imageScript = path.join(fixture, "scripts", "edge-image-assurance.sh");
+      await writeFile(
+        imageScript,
+        `${(await readFile(imageScript, "utf8")).replace(
+          "docker run --rm --network none --read-only",
+          "docker run --rm --network host --privileged",
+        )}\n-v /var/run/docker.sock:/var/run/docker.sock\n`,
+      );
+      const result = await validateEdgeMonitorContract(fixture);
+      expect(result.failures).toContain(
+        "the edge monitor scripts contain prohibited privilege or environment state",
+      );
+      expect(result.failures).toContain(
+        "the edge evidence and auditor containers are not consistently network-isolated",
+      );
+    } finally {
+      await rm(fixture, { force: true, recursive: true });
+    }
   });
 
   it("rejects a weakened canonical public ingress", async () => {
@@ -226,7 +278,7 @@ describe("release assurance policy", () => {
   });
 
   it("requires an explicit non-root readability contract for every release image role", () => {
-    expect(runtimeContractForImage("vasi:0.39.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi:0.40.0")).toMatchObject({
       allowedOptionalPackagePaths: [
         "node_modules/@img/colour",
         "node_modules/@img/sharp-libvips-linuxmusl-x64",
@@ -239,7 +291,7 @@ describe("release assurance policy", () => {
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.39.0")).toMatchObject({
+    expect(runtimeContractForImage("registry.example.test/vasi-engine:0.40.0")).toMatchObject({
       entrypoints: [
         "scripts/engine-migrate.mjs",
         "services/engine/server.mjs",
@@ -260,7 +312,7 @@ describe("release assurance policy", () => {
       imageUser: "",
       runUser: "0:0",
     });
-    expect(runtimeContractForImage("vasi-engine-maintenance:0.39.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-engine-maintenance:0.40.0")).toMatchObject({
       entrypoints: [
         "scripts/backup-custody.mjs",
         "scripts/backup-continuity.mjs",
@@ -274,7 +326,7 @@ describe("release assurance policy", () => {
       imageUser: "node",
       runUser: "1000:1000",
     });
-    expect(runtimeContractForImage("vasi-database-gateway:0.39.0")).toMatchObject({
+    expect(runtimeContractForImage("vasi-database-gateway:0.40.0")).toMatchObject({
       entrypoints: ["services/database-gateway/server.mjs"],
       imageUser: "node",
       runUser: "1000:1000",
@@ -291,7 +343,7 @@ describe("release assurance policy", () => {
   it("derives a bounded physical prohibition inventory from the exact lock graph", async () => {
     const packageJSON = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
     const packageLock = JSON.parse(await readFile(path.join(root, "package-lock.json"), "utf8"));
-    const allowed = runtimeContractForImage("vasi:0.39.0").allowedOptionalPackagePaths;
+    const allowed = runtimeContractForImage("vasi:0.40.0").allowedOptionalPackagePaths;
     const result = runtimeDependencyAuditPaths(packageJSON, packageLock, allowed);
     expect(result.lockPackageCount).toBeGreaterThan(400);
     expect(result.prohibitedPackagePaths).toContain("node_modules/vitest");

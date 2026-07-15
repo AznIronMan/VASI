@@ -20,6 +20,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { parse as parseYAML } from "yaml";
 
 import policy from "../config/assurance-policy.json" with { type: "json" };
+import { parseEdgeMonitorConfiguration } from "./edge-monitor-contract.mjs";
 import {
   auditPublicIngressConfiguration,
   PUBLIC_INGRESS_EXAMPLE_SETTINGS,
@@ -346,6 +347,27 @@ export async function validateOperationalSchedulerContract(repositoryRoot = root
     ];
   };
 
+  addService("vasi-edge-image-assurance.service", [
+    "After=docker.service network-online.target",
+    "ExecStart=/bin/sh scripts/edge-image-assurance.sh /var/lib/vasi-edge/monitor.json",
+    "WorkingDirectory=/opt/vasi-edge/current",
+    "ReadWritePaths=/var/lib/vasi-edge /var/cache/vasi-edge /run/lock",
+    "RestrictAddressFamilies=AF_UNIX",
+  ]);
+  addTimer("vasi-edge-image-assurance.timer", "vasi-edge-image-assurance.service", {
+    active: "30min", boot: "30min", inactive: "24h",
+  });
+  addService("vasi-edge-runtime-readiness.service", [
+    "After=docker.service network-online.target",
+    "ExecStart=/bin/sh scripts/probe-edge-runtime.sh /var/lib/vasi-edge/monitor.json",
+    "WorkingDirectory=/opt/vasi-edge/current",
+    "ReadWritePaths=/var/lib/vasi-edge /run/lock",
+    "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6",
+  ]);
+  addTimer("vasi-edge-runtime-readiness.timer", "vasi-edge-runtime-readiness.service", {
+    active: "2min", boot: "2min", inactive: "15min",
+  });
+
   addService("vasi-engine-database-egress-policy.service", [
       "After=docker.service network-online.target",
       "ExecStart=/bin/sh scripts/apply-database-egress-policy.sh apply",
@@ -627,6 +649,139 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
   return { failures, filesChecked: 4 };
 }
 
+export async function validateEdgeMonitorContract(repositoryRoot = root) {
+  const failures = [];
+  let edgePolicy = {};
+  let packageJSON = {};
+  let example = {};
+  let gatewayDockerfile = "";
+  let engineDockerfile = "";
+  const scripts = {};
+  try {
+    edgePolicy = JSON.parse(await readFile(
+      path.join(repositoryRoot, "config", "edge-monitor-policy.json"),
+      "utf8",
+    ));
+  } catch {
+    failures.push("the edge monitor tool policy is unavailable");
+  }
+  try {
+    packageJSON = JSON.parse(await readFile(path.join(repositoryRoot, "package.json"), "utf8"));
+  } catch {
+    failures.push("package.json is unavailable for edge monitor assurance");
+  }
+  try {
+    example = JSON.parse(await readFile(
+      path.join(repositoryRoot, "deployment", "nginx", "vasi-edge-monitor.example.json"),
+      "utf8",
+    ));
+    parseEdgeMonitorConfiguration(example);
+  } catch {
+    failures.push("the sanitized edge monitor example is invalid");
+  }
+  try {
+    gatewayDockerfile = await readFile(path.join(repositoryRoot, "Dockerfile"), "utf8");
+    engineDockerfile = await readFile(path.join(repositoryRoot, "Dockerfile.engine"), "utf8");
+  } catch {
+    failures.push("the release Dockerfiles are unavailable for edge auditor pinning");
+  }
+  for (const filename of [
+    "edge-monitor-common.sh",
+    "edge-image-assurance.sh",
+    "probe-edge-runtime.sh",
+  ]) {
+    try {
+      scripts[filename] = await readFile(path.join(repositoryRoot, "scripts", filename), "utf8");
+    } catch {
+      failures.push(`${filename} is unavailable`);
+      scripts[filename] = "";
+    }
+  }
+
+  const policyKeys = [
+    "auditorImage",
+    "maximumArtifactBytes",
+    "maximumConfigurationBytes",
+    "maximumRetainedScans",
+    "maximumScanAgeHours",
+    "maximumVulnerabilityDatabaseAgeHours",
+    "scannerImage",
+    "schema",
+  ];
+  if (
+    JSON.stringify(Object.keys(edgePolicy).sort()) !== JSON.stringify(policyKeys.sort()) ||
+    edgePolicy.schema !== "vasi-edge-monitor-policy/v1" ||
+    !isDigestPinnedImage(edgePolicy.auditorImage) ||
+    !isDigestPinnedImage(edgePolicy.scannerImage) ||
+    edgePolicy.scannerImage !== policy.images.scannerImage ||
+    edgePolicy.maximumConfigurationBytes !== 65_536 ||
+    edgePolicy.maximumArtifactBytes !== 16_777_216 ||
+    edgePolicy.maximumVulnerabilityDatabaseAgeHours !== 26 ||
+    edgePolicy.maximumScanAgeHours !== 168 ||
+    edgePolicy.maximumRetainedScans !== 60
+  ) {
+    failures.push("the edge monitor tool policy is weakened or inconsistent");
+  }
+  const nodeBases = [...`${gatewayDockerfile}\n${engineDockerfile}`.matchAll(
+    /^FROM (node:24-alpine@sha256:[a-f0-9]{64})(?:\s|$)/gm,
+  )].map((match) => match[1]);
+  if (!nodeBases.length || nodeBases.some((image) => image !== edgePolicy.auditorImage)) {
+    failures.push("the edge auditor is not pinned to the exact reviewed Node base");
+  }
+  if (packageJSON?.scripts?.["assurance:edge-image"] !== "/bin/sh scripts/edge-image-assurance.sh") {
+    failures.push("package.json is missing the exact edge image assurance command");
+  }
+  if (packageJSON?.scripts?.["assurance:edge-runtime"] !== "/bin/sh scripts/probe-edge-runtime.sh") {
+    failures.push("package.json is missing the exact edge runtime assurance command");
+  }
+
+  for (const filename of ["edge-image-assurance.sh", "probe-edge-runtime.sh"]) {
+    const lines = scripts[filename].split("\n");
+    if (!lines.includes("set -eu") || !lines.includes("umask 077")) {
+      failures.push(`${filename} is missing fail-closed shell initialization`);
+    }
+  }
+  const requiredMarkers = {
+    "edge-monitor-common.sh": [
+      "[ \"$(id -u)\" -eq 0 ] || edge_fail",
+      "[ \"$(stat -c %a -- \"$EDGE_CONFIGURATION_FILE\")\" = \"600\" ] || edge_fail",
+      "--cap-drop ALL --security-opt no-new-privileges:true",
+      ".[0].HostConfig.RestartPolicy.Name == \"always\"",
+      ".[0].HostConfig.RestartPolicy.Name == \"no\"",
+    ],
+    "edge-image-assurance.sh": [
+      "docker image save \"$edge_scanned_image_id\" > \"$edge_image_archive\" || edge_fail",
+      "--skip-db-update --offline-scan --scanners vuln --format json",
+      "--skip-db-update --offline-scan --scanners vuln --format cyclonedx",
+      "create-manifest /evidence \"$edge_scan_name\" \"$edge_scanned_image_id\"",
+      "mv -f -- \"$edge_latest_temporary\" \"$EDGE_SCAN_ROOT/latest.json\" || edge_fail",
+    ],
+    "probe-edge-runtime.sh": [
+      "docker exec \"$EDGE_LIVE_CONTAINER\" nginx -t >/dev/null 2>&1 || edge_fail",
+      "node scripts/public-ingress-config.mjs audit",
+      "--write-out '%{http_code}' \"https://$EDGE_PUBLIC_HOST/api/health\") || edge_fail",
+      "--write-out '%{http_code}' \"https://$EDGE_RETIRED_HOST/\") || edge_fail",
+      "node scripts/edge-monitor-contract.mjs verify-evidence",
+    ],
+  };
+  for (const [filename, markers] of Object.entries(requiredMarkers)) {
+    for (const marker of markers) {
+      if (!scripts[filename].includes(marker)) failures.push(`${filename} is missing ${marker}`);
+    }
+  }
+  const combinedScripts = Object.values(scripts).join("\n");
+  if (
+    /docker\.sock|--privileged|--network(?:=|\s+)host|Environment(?:File)?=|\.env\b/.test(combinedScripts)
+  ) {
+    failures.push("the edge monitor scripts contain prohibited privilege or environment state");
+  }
+  const imageScan = scripts["edge-image-assurance.sh"];
+  if ((imageScan.match(/docker run --rm --network none/g) || []).length !== 5) {
+    failures.push("the edge evidence and auditor containers are not consistently network-isolated");
+  }
+  return { failures, filesChecked: 9 };
+}
+
 async function sourceAssurance(output, { allowDirty }) {
   const dirtyOutput = await capture("git", ["status", "--porcelain=v1"], { cwd: root });
   const dirty = Boolean(dirtyOutput.trim());
@@ -639,6 +794,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const engineHostRuntime = await validateEngineHostRuntimeContract(root);
   const operationalSchedulers = await validateOperationalSchedulerContract(root);
   const publicIngress = await validatePublicIngressContract(root);
+  const edgeMonitor = await validateEdgeMonitorContract(root);
   const runtimeImageBuild = await validateRuntimeImageBuildContract(root);
   if (source.forbiddenPaths.length) throw new Error(`Forbidden tracked paths: ${source.forbiddenPaths.join(", ")}.`);
   if (source.secretFindings.length) {
@@ -660,6 +816,9 @@ async function sourceAssurance(output, { allowDirty }) {
   }
   if (publicIngress.failures.length) {
     throw new Error(`Public ingress hardening failed: ${publicIngress.failures.join("; ")}.`);
+  }
+  if (edgeMonitor.failures.length) {
+    throw new Error(`Public edge monitor hardening failed: ${edgeMonitor.failures.join("; ")}.`);
   }
   if (runtimeImageBuild.failures.length) {
     throw new Error(`Runtime image build hardening failed: ${runtimeImageBuild.failures.join("; ")}.`);
@@ -684,6 +843,7 @@ async function sourceAssurance(output, { allowDirty }) {
     automation,
     compose,
     dirty,
+    edgeMonitor,
     engineHostRuntime,
     operationalSchedulers,
     publicIngress,
@@ -1070,6 +1230,12 @@ function serviceNetworks(service) {
 function isDockerSocketMount(volume) {
   if (typeof volume === "string") return volume.split(":", 1)[0] === "/var/run/docker.sock";
   return volume?.source === "/var/run/docker.sock" || volume?.target === "/var/run/docker.sock";
+}
+
+function isDigestPinnedImage(value) {
+  return typeof value === "string" &&
+    /^[A-Za-z0-9][A-Za-z0-9._/:@-]{12,255}@sha256:[a-f0-9]{64}$/.test(value) &&
+    value.indexOf("@sha256:") === value.lastIndexOf("@sha256:");
 }
 
 function portsAreLoopback(ports) {

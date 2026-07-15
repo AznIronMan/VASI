@@ -11,7 +11,7 @@ describe("public ingress black-box probe", () => {
         return response("Not Found", 404, { server: "nginx" });
       }
       if (url.pathname === "/api/health") {
-        return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.39.0" }), 200, secureHeaders());
+        return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.40.0" }), 200, secureHeaders());
       }
       if (url.pathname === "/" && init.method === "GET") {
         return response("<html>V Sign</html>", 200, secureHeaders());
@@ -41,7 +41,7 @@ describe("public ingress black-box probe", () => {
       retiredOrigin: "https://retired.example.test",
     })).resolves.toMatchObject({
       bodyLimitBytes: 65_536,
-      observedVersion: "0.39.0",
+      observedVersion: "0.40.0",
       rateLimit: { accepted: 30, limited: 10, requests: 40 },
       retiredStatus: 404,
       status: "pass",
@@ -53,7 +53,7 @@ describe("public ingress black-box probe", () => {
       const url = new URL(input);
       if (url.hostname === "retired.example.test") return response("VASI private engine", 200);
       if (url.pathname === "/api/health") {
-        return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.39.0" }), 200, {
+        return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.40.0" }), 200, {
           ...secureHeaders(),
           server: "nginx/1.28.3",
         });
@@ -69,7 +69,7 @@ describe("public ingress black-box probe", () => {
     const noRateLimit = async (input) => {
       const url = new URL(input);
       if (url.pathname === "/api/health") {
-        return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.39.0" }), 200, secureHeaders());
+        return response(JSON.stringify({ service: "vasi-auth", status: "ok", version: "0.40.0" }), 200, secureHeaders());
       }
       if (url.pathname === "/api/auth/sign-in/email") {
         return response(JSON.stringify({ error: "The request body is too large." }), 413, { "cache-control": "no-store" });
