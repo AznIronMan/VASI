@@ -1,0 +1,5 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+COPY --chown=root:root vasi.conf /etc/nginx/conf.d/vasi.conf
+RUN chmod 0644 /etc/nginx/conf.d/vasi.conf && nginx -t

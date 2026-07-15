@@ -574,6 +574,7 @@ export async function validateRuntimeImageBuildContract(repositoryRoot = root) {
 export async function validatePublicIngressContract(repositoryRoot = root) {
   const failures = [];
   let example = "";
+  let overlay = "";
   let packageJSON = {};
   try {
     example = await readFile(
@@ -582,6 +583,14 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
     );
   } catch {
     failures.push("the sanitized public ingress example is missing");
+  }
+  try {
+    overlay = await readFile(
+      path.join(repositoryRoot, "deployment", "nginx", "Dockerfile.overlay"),
+      "utf8",
+    );
+  } catch {
+    failures.push("the immutable public ingress overlay Dockerfile is missing");
   }
   try {
     packageJSON = JSON.parse(await readFile(path.join(repositoryRoot, "package.json"), "utf8"));
@@ -599,13 +608,23 @@ export async function validatePublicIngressContract(repositoryRoot = root) {
       failures.push("the sanitized public ingress example cannot be parsed safely");
     }
   }
+  const expectedOverlay = [
+    "ARG BASE_IMAGE",
+    "FROM ${BASE_IMAGE}",
+    "COPY --chown=root:root vasi.conf /etc/nginx/conf.d/vasi.conf",
+    "RUN chmod 0644 /etc/nginx/conf.d/vasi.conf && nginx -t",
+  ];
+  const overlayLines = overlay.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (JSON.stringify(overlayLines) !== JSON.stringify(expectedOverlay)) {
+    failures.push("the public ingress overlay must replace only vasi.conf on an explicit base and run nginx -t");
+  }
   if (packageJSON?.scripts?.["ingress:config"] !== "node scripts/public-ingress-config.mjs") {
     failures.push("package.json is missing the public ingress configuration command");
   }
   if (packageJSON?.scripts?.["assurance:ingress"] !== "node scripts/probe-public-ingress.mjs") {
     failures.push("package.json is missing the public ingress black-box assurance command");
   }
-  return { failures, filesChecked: 3 };
+  return { failures, filesChecked: 4 };
 }
 
 async function sourceAssurance(output, { allowDirty }) {

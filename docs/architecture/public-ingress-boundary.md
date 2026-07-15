@@ -64,6 +64,13 @@ public certificate paths so both HTTP and HTTPS terminate locally with 404.
 Keeping the denial server is safer than allowing a shared default virtual host
 to route the name elsewhere.
 
+For a shared ingress, the tracked overlay Dockerfile requires an explicitly
+approved local base image and replaces only `vasi.conf`. A VASI release must
+not rebuild unrelated virtual hosts or certificate material from a mutable
+upstream image tag. The candidate records the base and resulting image IDs,
+passes `nginx -t` plus the effective audit, and retains the exact prior image
+and launch contract for rollback.
+
 ## Effective configuration audit
 
 The audit consumes `nginx -T`, not only a source template. Its bounded parser

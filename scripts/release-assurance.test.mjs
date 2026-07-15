@@ -78,7 +78,7 @@ describe("release assurance policy", () => {
 
   it("keeps the canonical public ingress bounded and independently auditable", async () => {
     const result = await validatePublicIngressContract(root);
-    expect(result).toEqual({ failures: [], filesChecked: 3 });
+    expect(result).toEqual({ failures: [], filesChecked: 4 });
   });
 
   it("rejects a weakened canonical public ingress", async () => {
@@ -88,6 +88,10 @@ describe("release assurance policy", () => {
       await cp(
         path.join(root, "deployment", "nginx", "vasi-public.conf.example"),
         path.join(fixture, "deployment", "nginx", "vasi-public.conf.example"),
+      );
+      await cp(
+        path.join(root, "deployment", "nginx", "Dockerfile.overlay"),
+        path.join(fixture, "deployment", "nginx", "Dockerfile.overlay"),
       );
       const filename = path.join(fixture, "deployment", "nginx", "vasi-public.conf.example");
       await writeFile(
@@ -108,6 +112,13 @@ describe("release assurance policy", () => {
       );
       expect(result.failures.join("; ")).toContain("client_max_body_size 64k");
       expect(result.failures.join("; ")).toContain("replace x-forwarded-for");
+      await writeFile(
+        path.join(fixture, "deployment", "nginx", "Dockerfile.overlay"),
+        "FROM nginx:latest\nCOPY . /etc/nginx\n",
+      );
+      expect((await validatePublicIngressContract(fixture)).failures.join("; ")).toContain(
+        "replace only vasi.conf on an explicit base",
+      );
     } finally {
       await rm(fixture, { force: true, recursive: true });
     }

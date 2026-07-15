@@ -33,3 +33,19 @@ nginx -T 2>&1 | npm run ingress:config -- audit \
 The edge host and certificate lifecycle are deployment-owned. Do not place
 certificate keys in the repository, renderer arguments, environment files, or
 audit output; only their already-configured filesystem paths belong in Nginx.
+
+On a shared edge, build the rendered `vasi.conf` as a narrow overlay on an
+explicitly approved and locally retained immutable base image:
+
+```bash
+docker build --file deployment/nginx/Dockerfile.overlay \
+  --build-arg BASE_IMAGE=approved-edge-base:immutable-release \
+  --tag approved-edge:vasi-release /protected/overlay-context
+```
+
+The context contains only the rendered `vasi.conf` and the tracked overlay
+Dockerfile. Do not rebuild a shared edge from a mutable upstream tag during a
+VASI change: that can alter unrelated binaries, certificates, and virtual
+hosts. Validate the candidate with `nginx -t`, audit its `nginx -T`, scan an
+exported image tar without a Docker socket, and retain the exact prior image ID
+and launch contract for rollback.
