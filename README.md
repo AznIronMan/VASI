@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.42.0`
+Version: `0.42.1`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -542,6 +542,13 @@ source-unit allowlists, and systemd metadata; alert units cannot recursively
 alert. The exact scheduler contract expands from 28 to 37 units. VASI supplies
 the reliable idempotent handoff while external delivery, recipient, escalation,
 and total-host-loss monitoring remain installation proofs.
+
+Version 0.42.1 corrects the alert-unit sandbox after target-host verification
+found that masking the complete runtime directory was not portable across the
+supported systemd versions. The recorder and readiness services now combine a
+private network namespace with explicit denial of the entire network-I/O
+syscall group. This preserves Docker/systemd runtime compatibility while more
+directly preventing Internet and local Unix-socket transports.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

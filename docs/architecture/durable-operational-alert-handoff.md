@@ -1,6 +1,6 @@
 # Durable operational-alert handoff
 
-Status: implemented in VASI 0.42.0.
+Status: implemented in VASI 0.42.0 and corrected in VASI 0.42.1.
 
 ## Decision
 
@@ -93,10 +93,13 @@ Gateway, engine, and edge each have one recorder template, one stable spool
 readiness service, and one persistent readiness timer. The recorder and
 readiness units have no network transport or application/database dependency,
 run from the stable root-owned script outside `current`, have an empty
-capability bounding set, and can write only their fixed state root. Alert units
-have no `OnFailure` dependency, preventing recursion. The readiness timer
-repeats independently of each source control and leaves a stable failed unit
-for an external host monitor to detect while pending state exists.
+capability bounding set, use a private network namespace, deny the complete
+network-I/O syscall group, and can write only their fixed state root. This
+avoids relying on a distribution-sensitive broad runtime-filesystem mask while
+also preventing access to Internet or local Unix-socket transports. Alert
+units have no `OnFailure` dependency, preventing recursion. The readiness
+timer repeats independently of each source control and leaves a stable failed
+unit for an external host monitor to detect while pending state exists.
 
 Install the stable script before the units:
 

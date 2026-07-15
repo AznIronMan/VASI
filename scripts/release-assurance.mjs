@@ -489,7 +489,6 @@ export async function validateOperationalSchedulerContract(repositoryRoot = root
     const stateDirectory = alertState[role].replace("/var/lib/", "");
     const alertCommon = [
       "CapabilityBoundingSet=",
-      "InaccessiblePaths=/run",
       "PrivateNetwork=yes",
       "ProtectProc=invisible",
       "ProcSubset=pid",
@@ -499,6 +498,7 @@ export async function validateOperationalSchedulerContract(repositoryRoot = root
       "RestrictAddressFamilies=AF_UNIX",
       "RestrictNamespaces=yes",
       "RestrictRealtime=yes",
+      "SystemCallFilter=~@network-io",
     ];
     addService(`vasi-${role}-alert-record@.service`, [
       ...alertCommon,
