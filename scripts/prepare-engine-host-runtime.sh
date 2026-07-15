@@ -21,7 +21,7 @@ test -f package.json && test -f package-lock.json || {
   exit 1
 }
 
-NODE_ENV=production npm_config_engine_strict=true npm ci --omit=dev --ignore-scripts --no-audit --no-fund $offline
+NODE_ENV=production npm_config_engine_strict=true npm ci --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund $offline
 /usr/bin/install -d -o root -g root -m 0755 /usr/local/libexec/vasi
 /usr/bin/install -o root -g root -m 0644 scripts/verify-engine-host-runtime.mjs \
   /usr/local/libexec/vasi/verify-engine-host-runtime.mjs

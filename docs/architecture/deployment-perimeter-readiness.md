@@ -81,9 +81,10 @@ The tracked systemd suite schedules each deployment scope independently every
 six hours. The engine unit first runs the stable
 `vasi-engine-host-runtime/v1` verifier installed by
 `scripts/prepare-engine-host-runtime.sh`; unsupported Node, manifest/lock drift,
-missing or mismatched production packages, and an unloadable protected settings
-runtime stop the service before any network check. Prepare every exact engine
-release before changing `current`, including a release retained for rollback.
+missing or mismatched production packages, physically present nonproduction
+packages, and an unloadable protected settings runtime stop the service before
+any network check. Prepare every exact engine release before changing
+`current`, including a release retained for rollback.
 When its explicit origin argument is omitted, the probe resolves the gateway or
 engine public origin through the encrypted PostgreSQL runtime settings
 boundary. Alert on every nonzero exit.

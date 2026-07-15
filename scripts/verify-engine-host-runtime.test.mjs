@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,7 +19,10 @@ afterEach(async () => {
 
 describe("engine host runtime verification", () => {
   it("verifies the current exact production dependency and settings import contract", async () => {
-    await expect(verifyEngineHostRuntime({ rootDirectory: repositoryRoot })).resolves.toMatchObject({
+    await expect(verifyEngineHostRuntime({
+      pathExists: async () => false,
+      rootDirectory: repositoryRoot,
+    })).resolves.toMatchObject({
       dependencies: 7,
       nodeMajor: 24,
       schema: "vasi-engine-host-runtime/v1",
@@ -73,6 +76,32 @@ describe("engine host runtime verification", () => {
     })).rejects.toMatchObject({ code: "production_dependency_mismatch" });
   });
 
+  it("rejects a physically present declared or lock-marked nonproduction package", async () => {
+    const root = await fixture();
+    const lockPath = path.join(root, "package-lock.json");
+    const lock = JSON.parse(await readFile(lockPath, "utf8"));
+    lock.packages[""].devDependencies = { vitest: "4.1.10" };
+    lock.packages["node_modules/vitest"] = {
+      devOptional: true,
+      integrity: "sha512-fixture",
+      version: "4.1.10",
+    };
+    await writeFile(lockPath, JSON.stringify(lock));
+    const manifestPath = path.join(root, "package.json");
+    const manifest = packageManifest("8.22.0");
+    manifest.devDependencies = { vitest: "4.1.10" };
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    await mkdir(path.join(root, "node_modules", "vitest"), { recursive: true });
+    await writeFile(path.join(root, "node_modules", "vitest", "package.json"), JSON.stringify({
+      name: "vitest",
+      version: "4.1.10",
+    }));
+    await expect(verifyEngineHostRuntime({
+      importSettingsCore: async () => readySettingsCore(),
+      rootDirectory: root,
+    })).rejects.toMatchObject({ code: "nonproduction_dependency_present" });
+  });
+
   it("fails closed when the protected settings runtime cannot load", async () => {
     const root = await fixture();
     let caught;
@@ -103,6 +132,7 @@ async function fixture({ installed = true, installedVersion = "8.22.0" } = {}) {
     packages: {
       "": {
         dependencies: { pg: "8.22.0" },
+        devDependencies: {},
         name: "vasi-fixture",
         version: "1.2.3",
       },
@@ -125,6 +155,7 @@ async function fixture({ installed = true, installedVersion = "8.22.0" } = {}) {
 function packageManifest(pgVersion) {
   return {
     dependencies: { pg: pgVersion },
+    devDependencies: {},
     engines: { node: ">=24.0.0" },
     name: "vasi-fixture",
     version: "1.2.3",

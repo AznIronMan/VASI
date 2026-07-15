@@ -461,7 +461,7 @@ export async function validateEngineHostRuntimeContract(repositoryRoot = root) {
   }
 
   const preparationLines = preparation.split("\n");
-  const exactInstall = "NODE_ENV=production npm_config_engine_strict=true npm ci --omit=dev --ignore-scripts --no-audit --no-fund $offline";
+  const exactInstall = "NODE_ENV=production npm_config_engine_strict=true npm ci --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund $offline";
   for (const required of [
     "set -eu",
     "umask 022",
@@ -483,6 +483,7 @@ export async function validateEngineHostRuntimeContract(repositoryRoot = root) {
     "vasi-engine-host-runtime/v1",
     "production_dependency_missing",
     "production_dependency_mismatch",
+    "nonproduction_dependency_present",
     "settings_runtime_unavailable",
   ]) {
     if (!verifier.includes(marker)) failures.push(`engine host runtime verifier is missing ${marker}`);

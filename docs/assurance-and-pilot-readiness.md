@@ -389,14 +389,16 @@ Source assurance rejects direct `request.json()` use in tracked gateway
 request-handling source. Reverse-proxy concurrency, connection, header, idle, and sustained-load
 policy remains installation and pilot evidence.
 
-VASI 0.36.1 closes the fresh-release host dependency gap for the direct engine
+VASI 0.36.2 closes the fresh-release host dependency gap for the direct engine
 deployment probe. Tests cover exact manifest/lock/installed-package agreement,
 unsupported Node, missing and mismatched packages, settings-runtime import
-failure, bounded redaction, and assurance rejection of lifecycle scripts or a
-removed systemd preflight. Preparation uses production-only `npm ci` with
-engine enforcement and lifecycle scripts disabled; optional offline mode fails
-closed against a pre-provisioned cache. The recurring service verifies the
-currently selected release before every perimeter check.
+failure, physically present development/optional package rejection, bounded
+redaction, and assurance rejection of lifecycle scripts or a removed systemd
+preflight. Preparation uses required-production `npm ci` with engine
+enforcement, development and optional omission, and lifecycle scripts disabled;
+optional offline mode fails closed against a pre-provisioned cache. The
+recurring service verifies the currently selected release before every
+perimeter check.
 
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and

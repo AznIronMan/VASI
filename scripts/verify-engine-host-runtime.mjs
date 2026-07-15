@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -15,6 +15,7 @@ export class EngineHostRuntimeError extends Error {
 export async function verifyEngineHostRuntime({
   importSettingsCore = defaultImportSettingsCore,
   nodeVersion = process.versions.node,
+  pathExists = defaultPathExists,
   readText = (filename) => readFile(filename, "utf8"),
   rootDirectory = process.cwd(),
 } = {}) {
@@ -26,14 +27,47 @@ export async function verifyEngineHostRuntime({
   if (actualNodeMajor < minimumNodeMajor) fail("node_unsupported");
 
   const dependencies = validatedDependencies(packageJSON?.dependencies);
+  const developmentDependencies = validatedDependencies(packageJSON?.devDependencies, {
+    allowEmpty: true,
+    maximum: 128,
+  });
   const lockedRoot = packageLock?.packages?.[""];
   if (
     packageLock?.lockfileVersion !== 3 ||
     lockedRoot?.name !== packageJSON?.name ||
     lockedRoot?.version !== packageJSON?.version ||
-    !sameObject(lockedRoot?.dependencies, dependencies)
+    !sameObject(lockedRoot?.dependencies, dependencies) ||
+    !sameObject(lockedRoot?.devDependencies, developmentDependencies)
   ) {
     fail("manifest_lock_drift");
+  }
+
+  const lockPackages = Object.entries(packageLock.packages || {});
+  if (!lockPackages.length || lockPackages.length > 10_000) fail("lockfile_invalid");
+  const excludedPackagePaths = new Set(
+    Object.keys(developmentDependencies)
+      .filter((name) => !Object.hasOwn(dependencies, name))
+      .map((name) => `node_modules/${name}`),
+  );
+  for (const [packagePath, locked] of lockPackages) {
+    if (!packagePath.startsWith("node_modules/")) continue;
+    if (!validLockPackagePath(packagePath)) fail("lockfile_invalid");
+    if (
+      locked && typeof locked === "object" &&
+      (locked.dev === true || locked.devOptional === true || locked.optional === true) &&
+      !Object.hasOwn(dependencies, packagePath.slice("node_modules/".length))
+    ) {
+      excludedPackagePaths.add(packagePath);
+    }
+  }
+  for (const packagePath of excludedPackagePaths) {
+    let present;
+    try {
+      present = await pathExists(path.join(root, packagePath, "package.json"));
+    } catch {
+      fail("dependency_inventory_unavailable");
+    }
+    if (present) fail("nonproduction_dependency_present");
   }
 
   for (const [name, expectedVersion] of Object.entries(dependencies).sort(([left], [right]) =>
@@ -91,10 +125,10 @@ export function engineHostRuntimeFailure(error) {
   });
 }
 
-function validatedDependencies(value) {
+function validatedDependencies(value, { allowEmpty = false, maximum = 64 } = {}) {
   if (!value || Array.isArray(value) || typeof value !== "object") fail("manifest_invalid");
   const entries = Object.entries(value);
-  if (!entries.length || entries.length > 64) fail("manifest_invalid");
+  if ((!allowEmpty && !entries.length) || entries.length > maximum) fail("manifest_invalid");
   for (const [name, version] of entries) {
     if (!/^(?:@[a-z0-9][a-z0-9._-]{0,63}\/)?[a-z0-9][a-z0-9._-]{0,127}$/.test(name)) {
       fail("manifest_invalid");
@@ -102,6 +136,11 @@ function validatedDependencies(value) {
     if (typeof version !== "string" || version.length > 64) fail("manifest_invalid");
   }
   return Object.fromEntries(entries);
+}
+
+function validLockPackagePath(value) {
+  const name = "(?:@[a-z0-9][a-z0-9._-]{0,63}/)?[a-z0-9][a-z0-9._-]{0,127}";
+  return new RegExp(`^node_modules/${name}(?:/node_modules/${name})*$`).test(value);
 }
 
 function requiredNodeMajor(value) {
@@ -133,6 +172,16 @@ async function readJSON(filename, readText, code) {
 
 async function defaultImportSettingsCore(root) {
   return import(pathToFileURL(path.join(root, "scripts", "settings-core.mjs")).href);
+}
+
+async function defaultPathExists(filename) {
+  try {
+    await access(filename);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
 }
 
 function fail(code) {
