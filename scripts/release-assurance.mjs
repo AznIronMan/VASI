@@ -654,9 +654,15 @@ export async function validateOperationalAlertHandoffContract(repositoryRoot = r
 
 export async function validateEngineHostRuntimeContract(repositoryRoot = root) {
   const failures = [];
+  let directExecution = "";
   let preparation = "";
   let verifier = "";
   let packageJSON;
+  try {
+    directExecution = await readFile(path.join(repositoryRoot, "scripts", "direct-execution.mjs"), "utf8");
+  } catch {
+    failures.push("engine host runtime direct-execution helper is missing");
+  }
   try {
     preparation = await readFile(path.join(repositoryRoot, "scripts", "prepare-engine-host-runtime.sh"), "utf8");
   } catch {
@@ -681,6 +687,8 @@ export async function validateEngineHostRuntimeContract(repositoryRoot = root) {
     "if [ \"$(id -u)\" -ne 0 ]; then",
     exactInstall,
     "/usr/bin/install -d -o root -g root -m 0755 /usr/local/libexec/vasi",
+    "/usr/bin/install -o root -g root -m 0644 scripts/direct-execution.mjs \\",
+    "  /usr/local/libexec/vasi/direct-execution.mjs",
     "/usr/bin/install -o root -g root -m 0644 scripts/verify-engine-host-runtime.mjs \\",
     "  /usr/local/libexec/vasi/verify-engine-host-runtime.mjs",
     "exec node /usr/local/libexec/vasi/verify-engine-host-runtime.mjs",
@@ -701,10 +709,13 @@ export async function validateEngineHostRuntimeContract(repositoryRoot = root) {
   ]) {
     if (!verifier.includes(marker)) failures.push(`engine host runtime verifier is missing ${marker}`);
   }
+  if (!directExecution.includes("export function isDirectExecution(moduleURL, invocationPath)")) {
+    failures.push("engine host runtime direct-execution helper is invalid");
+  }
   if (packageJSON?.scripts?.["host:prepare:engine"] !== "/bin/sh scripts/prepare-engine-host-runtime.sh") {
     failures.push("package.json is missing the exact engine host runtime preparation command");
   }
-  return { failures, filesChecked: 3 };
+  return { failures, filesChecked: 4 };
 }
 
 export async function validateRuntimeImageBuildContract(repositoryRoot = root) {

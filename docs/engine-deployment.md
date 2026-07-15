@@ -537,7 +537,8 @@ sudo -H /bin/sh scripts/prepare-engine-host-runtime.sh
 ```
 
 This command uses the exact lockfile, omits development and optional packages,
-disables npm lifecycle scripts, rejects an unsupported Node engine, and
+disables npm lifecycle scripts, rejects an unsupported Node engine, installs
+the stable verifier together with its physical-path execution helper, and
 verifies required installed packages, absence of nonproduction residue, and
 the protected settings import. Use `--offline` only after a trusted process has
 populated the root npm cache with every required lockfile production artifact;

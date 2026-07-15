@@ -23,6 +23,8 @@ test -f package.json && test -f package-lock.json || {
 
 NODE_ENV=production npm_config_engine_strict=true npm ci --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund $offline
 /usr/bin/install -d -o root -g root -m 0755 /usr/local/libexec/vasi
+/usr/bin/install -o root -g root -m 0644 scripts/direct-execution.mjs \
+  /usr/local/libexec/vasi/direct-execution.mjs
 /usr/bin/install -o root -g root -m 0644 scripts/verify-engine-host-runtime.mjs \
   /usr/local/libexec/vasi/verify-engine-host-runtime.mjs
 exec node /usr/local/libexec/vasi/verify-engine-host-runtime.mjs

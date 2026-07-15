@@ -82,7 +82,7 @@ describe("release assurance policy", () => {
 
   it("keeps the direct engine host runtime exact and lifecycle-script-free", async () => {
     const result = await validateEngineHostRuntimeContract(root);
-    expect(result).toEqual({ failures: [], filesChecked: 3 });
+    expect(result).toEqual({ failures: [], filesChecked: 4 });
   });
 
   it("keeps every production image dependency stage exact and minimized", async () => {
@@ -400,6 +400,10 @@ describe("release assurance policy", () => {
         path.join(fixture, "scripts", "prepare-engine-host-runtime.sh"),
       );
       await cp(
+        path.join(root, "scripts", "direct-execution.mjs"),
+        path.join(fixture, "scripts", "direct-execution.mjs"),
+      );
+      await cp(
         path.join(root, "scripts", "verify-engine-host-runtime.mjs"),
         path.join(fixture, "scripts", "verify-engine-host-runtime.mjs"),
       );
@@ -409,7 +413,12 @@ describe("release assurance policy", () => {
       const preparation = path.join(fixture, "scripts", "prepare-engine-host-runtime.sh");
       await writeFile(
         preparation,
-        (await readFile(preparation, "utf8")).replace("--ignore-scripts", "--foreground-scripts"),
+        (await readFile(preparation, "utf8"))
+          .replace("--ignore-scripts", "--foreground-scripts")
+          .replace(
+            "/usr/bin/install -o root -g root -m 0644 scripts/direct-execution.mjs \\\n  /usr/local/libexec/vasi/direct-execution.mjs\n",
+            "",
+          ),
       );
       const result = await validateEngineHostRuntimeContract(fixture);
       expect(result.failures).toContain(
@@ -417,6 +426,9 @@ describe("release assurance policy", () => {
       );
       expect(result.failures).toContain(
         "package.json is missing the exact engine host runtime preparation command",
+      );
+      expect(result.failures).toContain(
+        "engine host runtime preparation is missing /usr/bin/install -o root -g root -m 0644 scripts/direct-execution.mjs \\",
       );
     } finally {
       await rm(fixture, { force: true, recursive: true });

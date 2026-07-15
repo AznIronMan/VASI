@@ -99,8 +99,9 @@ cd /opt/vasi-engine/releases/RELEASE_ID
 sudo -H /bin/sh scripts/prepare-engine-host-runtime.sh
 ```
 
-The helper requires root because it atomically replaces the stable verifier at
-`/usr/local/libexec/vasi/verify-engine-host-runtime.mjs`. It runs `npm ci`
+The helper requires root because it replaces the stable verifier and its
+physical-path execution helper under `/usr/local/libexec/vasi/` as one
+release preparation. It runs `npm ci`
 against the exact lockfile with engine-version enforcement, production-only
 installation, development and optional packages omitted, lifecycle scripts
 disabled, and audit/update side effects disabled. It then validates the
