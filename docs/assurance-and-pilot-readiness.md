@@ -289,6 +289,14 @@ persists a monotonic provider outcome. Because no email protocol can atomically
 couple provider acceptance to the identity database, the residual crash window
 is explicitly reported as `delivery_unknown` and never retried automatically.
 
+VASI 0.29.0 preserves that command through a same-tab reload without adding a
+browser plaintext-data cache. Only a strict UUID, SHA-256 normalized-form
+digest, and bounded timestamp can enter per-tab session storage. Unknown,
+malformed, more-than-one-minute-future, and expired records are deleted; success and definite client
+rejection clear the command; ambiguous server/transport outcomes retain it.
+Browser storage and digest failures remain non-authoritative and cannot weaken
+the private-engine actor/input binding.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.28.0`
+Version: `0.29.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -335,6 +335,18 @@ unavoidable provider-acceptance/receipt gap is reported as `delivery_unknown`
 instead of being misrepresented or automatically redelivered. Replay records
 contain no plaintext input command, remain installation-scoped, and are
 excluded from tenant transfer archives.
+
+Version 0.29.0 extends the same recovery guarantee across an administrator tab
+reload or renderer crash. Before provider contact, both company-provisioning
+forms normalize the durable choices and compute a SHA-256 digest with browser
+Web Crypto. Per-tab session storage may retain only the opaque UUID command,
+the 64-character digest, and a bounded creation timestamp—never the company
+name, owner email, identifier, or invitation choice. Strict parsing removes
+unknown, corrupt, more-than-one-minute-future, or older-than-24-hour state. An unchanged form
+recovers its command after reload; changed input receives a new command;
+success or a definite client rejection clears it; ambiguous transport/server
+outcomes retain it. Storage or digest unavailability never blocks the
+server-enforced provisioning contract.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

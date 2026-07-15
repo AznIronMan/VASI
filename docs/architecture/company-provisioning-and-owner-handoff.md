@@ -1,6 +1,6 @@
 # Company provisioning and owner handoff
 
-Status: implemented in VASI 0.27.0 and replay-hardened in VASI 0.28.0.
+Status: implemented in VASI 0.27.0 and replay-hardened through VASI 0.29.0.
 
 ## Purpose and boundary
 
@@ -70,9 +70,15 @@ bindings remain blocked until all eight assurance gates are approved.
 
 The browser generates a cryptographically random UUID and reuses it only while
 the normalized company name, identifier, owner email, and invitation choice
-remain unchanged. A successful response clears it. A network or server failure
-retains it, allowing the operator to retry without first deciding whether the
-private transaction committed.
+remain unchanged. It computes a SHA-256 digest of those normalized choices with
+Web Crypto. Per-tab session storage contains only the UUID, digest, and creation
+timestamp; it never contains the company or owner fields. A successful response
+or definite 4xx rejection clears it. A network or server failure retains it,
+allowing the operator to retry—even after a tab reload—without first deciding
+whether the private transaction committed. Unknown fields, invalid UUIDs or
+digests, timestamps more than one minute in the future, and state older than 24 hours are removed. Storage
+or Web Crypto failure degrades to a new command and cannot bypass the engine
+binding.
 
 Inside the engine transaction, a PostgreSQL advisory lock serializes all uses
 of that command. The engine hashes the normalized provisioning input together

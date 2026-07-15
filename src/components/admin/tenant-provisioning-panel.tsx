@@ -5,7 +5,11 @@ import Link from "next/link";
 
 import type { AdminCompanyProvisioningResult } from "@/lib/owner-types";
 import {
+  clearCompanyProvisioningRetry,
+  companyProvisioningRetryDefinitelyRejected,
+  loadCompanyProvisioningRetry,
   nextCompanyProvisioningCommand,
+  saveCompanyProvisioningRetry,
   type CompanyProvisioningRetry,
 } from "@/lib/company-provisioning-retry";
 
@@ -20,9 +24,12 @@ export function TenantProvisioningPanel() {
   const [message, setMessage] = useState<string>();
   const [messageType, setMessageType] = useState<"error" | "success" | "warning">("success");
   const retryCommand = useRef<CompanyProvisioningRetry | undefined>(undefined);
+  const submissionActive = useRef(false);
 
   async function provision(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submissionActive.current) return;
+    submissionActive.current = true;
     const form = event.currentTarget;
     const data = new FormData(form);
     setPending(true);
@@ -34,13 +41,14 @@ export function TenantProvisioningPanel() {
       ownerEmail: String(data.get("ownerEmail") || ""),
       slug: String(data.get("slug") || ""),
     };
-    const command = nextCompanyProvisioningCommand(
-      retryCommand.current,
-      draft,
-      () => crypto.randomUUID(),
-    );
-    retryCommand.current = command;
     try {
+      const command = await nextCompanyProvisioningCommand(
+        retryCommand.current ?? loadCompanyProvisioningRetry(),
+        draft,
+        () => crypto.randomUUID(),
+      );
+      retryCommand.current = command;
+      saveCompanyProvisioningRetry(command);
       const response = await fetch("/api/admin/product/tenants", {
         body: JSON.stringify({
           commandId: command.commandId,
@@ -51,10 +59,14 @@ export function TenantProvisioningPanel() {
       });
       const body = await response.json() as AdminCompanyProvisioningResult & { error?: string };
       if (!response.ok) {
-        if (response.status >= 400 && response.status < 500) retryCommand.current = undefined;
+        if (companyProvisioningRetryDefinitelyRejected(response.status)) {
+          retryCommand.current = undefined;
+          clearCompanyProvisioningRetry();
+        }
         throw new Error(body.error || "The company could not be provisioned.");
       }
       retryCommand.current = undefined;
+      clearCompanyProvisioningRetry();
       setResult(body);
       const outcome = provisioningMessage(body);
       setMessage(outcome.message);
@@ -70,6 +82,7 @@ export function TenantProvisioningPanel() {
       setMessage(error instanceof Error ? error.message : "The company could not be provisioned.");
       setMessageType("error");
     } finally {
+      submissionActive.current = false;
       setPending(false);
     }
   }

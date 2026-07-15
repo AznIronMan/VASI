@@ -89,6 +89,13 @@ before rollout, then replace the engine before the gateway so a command-bearing
 gateway never reaches an engine that rejects the new strict field. Deploying
 the release does not create a tenant or approve production admission.
 
+VASI 0.29.0 adds no database migration. It persists only the browser's opaque
+provisioning UUID, normalized-input digest, and timestamp in per-tab session
+storage so an unchanged retry can survive reload. The gateway continues to use
+the 0.28 engine command contract; engine-first rollout remains the supported
+version-aligned procedure. No storage value is authoritative, and deployment
+does not create a tenant or invitation.
+
 ## Initialize
 
 Requirements are Docker Engine with Compose, PostgreSQL 15 or newer, an HTTPS

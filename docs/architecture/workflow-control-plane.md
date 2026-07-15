@@ -1,6 +1,6 @@
 # Workflow and company-owner control plane
 
-Status: implemented in VASI 0.6.0 and extended through VASI 0.28.0.
+Status: implemented in VASI 0.6.0 and extended through VASI 0.29.0.
 
 ## Ownership boundary
 

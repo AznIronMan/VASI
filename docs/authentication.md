@@ -227,6 +227,10 @@ returns the exact committed company for that command, and the identity service
 binds any requested invitation to it. Confirmed provider acceptance replays
 without another email; a provider/receipt crash window is reported as
 `delivery_unknown` and never redelivered automatically. The
+UUID and a SHA-256 digest of normalized form choices may persist in per-tab
+session storage for at most 24 hours so a reload can recover an ambiguous
+result. Company and owner fields are never stored there; corrupt or extended
+state is removed. The
 `/admin/evidence` first-slice console remains a compatibility adapter for
 issuing the narrow terms/response transaction and delegates company creation to
 the same supported provisioning route. The engine creates a separate tenant

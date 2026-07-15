@@ -9,7 +9,11 @@ import type {
 } from "@/lib/evidence-types";
 import type { AdminCompanyProvisioningResult } from "@/lib/owner-types";
 import {
+  clearCompanyProvisioningRetry,
+  companyProvisioningRetryDefinitelyRejected,
+  loadCompanyProvisioningRetry,
   nextCompanyProvisioningCommand,
+  saveCompanyProvisioningRetry,
   type CompanyProvisioningRetry,
 } from "@/lib/company-provisioning-retry";
 
@@ -26,9 +30,12 @@ export function EvidenceConsole({
   const [pending, setPending] = useState<string>();
   const [message, setMessage] = useState<string>();
   const tenantRetryCommand = useRef<CompanyProvisioningRetry | undefined>(undefined);
+  const tenantProvisioningActive = useRef(false);
 
   async function createTenant(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (tenantProvisioningActive.current) return;
+    tenantProvisioningActive.current = true;
     const form = event.currentTarget;
     const data = new FormData(form);
     setPending("tenant");
@@ -39,13 +46,14 @@ export function EvidenceConsole({
       ownerEmail: String(data.get("ownerEmail") || ""),
       slug: String(data.get("slug") || ""),
     };
-    const command = nextCompanyProvisioningCommand(
-      tenantRetryCommand.current,
-      draft,
-      () => crypto.randomUUID(),
-    );
-    tenantRetryCommand.current = command;
     try {
+      const command = await nextCompanyProvisioningCommand(
+        tenantRetryCommand.current ?? loadCompanyProvisioningRetry(),
+        draft,
+        () => crypto.randomUUID(),
+      );
+      tenantRetryCommand.current = command;
+      saveCompanyProvisioningRetry(command);
       const result = await api<AdminCompanyProvisioningResult>("/api/admin/product/tenants", {
         body: JSON.stringify({
           commandId: command.commandId,
@@ -54,6 +62,7 @@ export function EvidenceConsole({
         method: "POST",
       });
       tenantRetryCommand.current = undefined;
+      clearCompanyProvisioningRetry();
       setTenants((current) => [...current, result.company]);
       form.reset();
       setMessage(
@@ -64,8 +73,16 @@ export function EvidenceConsole({
             : "Company evidence space and owner handoff created.",
       );
     } catch (error) {
+      if (
+        error instanceof AdminEvidenceApiError &&
+        companyProvisioningRetryDefinitelyRejected(error.status)
+      ) {
+        tenantRetryCommand.current = undefined;
+        clearCompanyProvisioningRetry();
+      }
       setMessage(errorMessage(error));
     } finally {
+      tenantProvisioningActive.current = false;
       setPending(undefined);
     }
   }
@@ -188,8 +205,19 @@ async function api<T>(url: string, init: RequestInit) {
     headers: { "content-type": "application/json", ...init.headers },
   });
   const result = await response.json() as T & { error?: string };
-  if (!response.ok) throw new Error(result.error || "The request could not be completed.");
+  if (!response.ok) {
+    throw new AdminEvidenceApiError(
+      result.error || "The request could not be completed.",
+      response.status,
+    );
+  }
   return result;
+}
+
+class AdminEvidenceApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+  }
 }
 
 function errorMessage(error: unknown) {

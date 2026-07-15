@@ -1,6 +1,6 @@
 # Productized tenancy, integrations, and deployment
 
-Status: implemented in VASI 0.11.0 and extended through VASI 0.28.0.
+Status: implemented in VASI 0.11.0 and extended through VASI 0.29.0.
 
 VASI 0.28.0 binds supported company provisioning and its optional identity
 invitation to one stable UUID command. The engine's immutable
