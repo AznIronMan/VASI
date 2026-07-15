@@ -22,19 +22,20 @@ export async function runGatewayOperationalReadinessProbe({
   const started = performance.now();
   try {
     await client.query("begin isolation level repeatable read read only");
-    const [chain, head, migrations, commands] = await Promise.all([
-      client.query(`
+    const chain = await client.query(`
         select "id", "actorUserId", "targetUserId", "action", "metadata", "createdAt",
                "commandId", "phase", "requestId", "actorSessionId", "ipAddress",
                "userAgent", "sequence", "previousHash", "canonicalPayload", "eventHash"
         from "vasi_admin_audit" order by "sequence"
-      `),
-      client.query(`
+      `);
+    const head = await client.query(`
         select "lastSequence", "lastHash"
         from "vasi_admin_audit_chain_head" where "id" = 1
-      `),
-      client.query('select "name", "checksum" from "_vasi_migrations" order by "name"'),
-      client.query(`
+      `);
+    const migrations = await client.query(
+      'select "name", "checksum" from "_vasi_migrations" order by "name"',
+    );
+    const commands = await client.query(`
         with incomplete as (
           select started."createdAt"
           from "vasi_admin_audit" started
@@ -51,8 +52,7 @@ export async function runGatewayOperationalReadinessProbe({
           (select count(*)::text from "vasi_admin_audit"
            where "phase" = 'ambiguous'
              and "createdAt" >= CURRENT_TIMESTAMP - interval '24 hours') as "ambiguous24Hours"
-      `),
-    ]);
+      `);
     await client.query("commit");
     const snapshot = buildGatewayOperationalSnapshot({
       chainRows: chain.rows,
