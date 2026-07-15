@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.32.0`
+Version: `0.33.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -394,6 +394,20 @@ or future-skewed observations fail closed. V·Sign presents an explicit sign-out
 sign-in-again, and `/workspace` return path without exposing provider subjects,
 tokens, secrets, or another participant's request.
 
+Version 0.33.0 makes reviewed participant-data delivery an engine-owned durable
+workflow. The private worker—not a participant download request—atomically
+builds, seals, chunks, and marks each fully reviewed export ready in PostgreSQL;
+deterministic size-limit failures become visible terminal states instead of
+worker retry loops. Each reviewing company owns its readiness, scope-denial,
+preparation-failure, and export-expiry notice through its admitted tenant
+integration binding. Payloads remain encrypted until dispatch and are redacted
+at terminal state. Queueing and final provider acceptance, suppression, or
+failure join the immutable participant-data request chain, while the participant
+workspace exposes truthful delivery status and requires the existing recent
+authentication gate before any ready artifact can open. The isolated integration
+gateway independently binds every delivery to the exact running outbox job and
+locks the current source status through provider submission.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -692,7 +706,8 @@ current manifest sealing, report audience reduction, and offline tamper
 rejection.
 `npm run engine:probe:lifecycle` verifies named retention-policy binding,
 legal-hold enforcement and release, sealed purge tombstones, retired public
-verification, participant history, reviewed data export, controlled expiry,
+verification, participant history, worker-prepared reviewed data export,
+encrypted and controller-scoped status delivery, controlled expiry,
 immutability, isolation, and lifecycle-chain integrity.
 `npm run engine:probe:productization` verifies profile revisions, tenant
 isolation, transactional quotas, exact destination allowlists, integration

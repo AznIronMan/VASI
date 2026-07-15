@@ -153,6 +153,15 @@ export type ParticipantDataRequest = {
     sha256: string;
   };
   id: string;
+  notifications: Array<{
+    adapter?: "disabled" | "engine" | "microsoft_graph" | "notification" | "smtp" | "webhook";
+    completedAt?: string;
+    notificationType: "participant_data.ready" | "participant_data.denied" | "participant_data.preparation_failed" | "participant_data.expired";
+    queuedAt: string;
+    scheduledFor: string;
+    status: "scheduled" | "queued" | "processing" | "provider_accepted" | "suppressed" | "failed" | "indeterminate";
+    tenant: { id: string; name: string };
+  }>;
   requestedAt: string;
   reviewCompletedAt?: string;
   scopes: Array<{
@@ -162,5 +171,5 @@ export type ParticipantDataRequest = {
     status: "pending_review" | "approved" | "denied";
     tenant: { id: string; name: string };
   }>;
-  status: "pending_review" | "approved" | "partially_approved" | "denied" | "ready" | "expired" | "cancelled";
+  status: "pending_review" | "approved" | "partially_approved" | "preparation_failed" | "denied" | "ready" | "expired" | "cancelled";
 };

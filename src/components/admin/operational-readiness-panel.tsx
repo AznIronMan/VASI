@@ -54,7 +54,7 @@ export function OperationalReadinessPanel() {
         <OperationsMetric label="Provider accepted (24h)" value={snapshot.delivery.delivered24Hours} detail={`${snapshot.delivery.gatewayFailures24Hours} failed · ${snapshot.delivery.suppressed24Hours} suppressed`} />
         <OperationsMetric label="Document scanning" value={snapshot.scanning.retryable} detail={`${snapshot.scanning.failed24Hours} failed · ${snapshot.scanning.threats24Hours} threats (24h)`} />
         <OperationsMetric label="Integrity keys" value={snapshot.signing.activeIntegrityKeys} detail={`${snapshot.signing.activeOptionalKeys} optional active`} />
-        <OperationsMetric label="Lifecycle" value={snapshot.lifecycle.purgeDueRecords} detail={`${snapshot.lifecycle.purgeBlocked24Hours} purge blocks · ${snapshot.lifecycle.pendingDataRequests} data requests`} />
+        <OperationsMetric label="Lifecycle" value={snapshot.lifecycle.purgeDueRecords} detail={`${snapshot.lifecycle.purgeBlocked24Hours} purge blocks · ${snapshot.lifecycle.pendingDataRequests} reviews · ${snapshot.lifecycle.preparingDataExports} exports preparing · ${snapshot.lifecycle.failedDataExportPreparations} preparation failures`} />
         <OperationsMetric label="Company tenants" value={snapshot.tenancy.active} detail={`${snapshot.tenancy.admitted} admitted · ${snapshot.tenancy.pendingAdmission} pending`} />
       </div>
       <div className="operations-footnote">

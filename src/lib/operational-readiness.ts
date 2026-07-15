@@ -28,8 +28,11 @@ export type OperationalSnapshot = {
   engineVersion: string;
   generatedAt: string;
   lifecycle: {
+    failedDataExportPreparations: number;
     oldestPendingDataRequestSeconds: number;
+    oldestPreparingDataExportSeconds: number;
     pendingDataRequests: number;
+    preparingDataExports: number;
     purgeBlocked24Hours: number;
     purgeDueRecords: number;
   };

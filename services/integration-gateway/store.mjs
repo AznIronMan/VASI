@@ -42,6 +42,7 @@ export function createIntegrationGatewayStore(database, settings, installationId
         let binding;
         let bindingFailure;
         try {
+          await assertNotificationJobCurrent(client, command);
           binding = await loadBinding(client, command, credentialSecret, installationId);
         } catch (error) {
           bindingFailure = error;
@@ -56,7 +57,9 @@ export function createIntegrationGatewayStore(database, settings, installationId
           delivery = {
             adapter: binding.adapterId,
             errorCode: boundedErrorCode(bindingFailure.code),
-            outcome: bindingFailure.code === "tenant_not_admitted" ? "suppressed" : "failed",
+            outcome: ["notification_job_obsolete", "tenant_not_admitted"].includes(bindingFailure.code)
+              ? "suppressed"
+              : "failed",
             responseMetadata: {},
           };
         } else try {
@@ -215,6 +218,79 @@ export function createIntegrationGatewayStore(database, settings, installationId
       }
     },
   });
+}
+
+export async function assertNotificationJobCurrent(client, command) {
+  const result = await client.query(
+    `select "jobType", "notificationType", "tenantId", "requestId",
+            "participantDataRequestId", "idempotencyKey", "payloadHash", "status", "attempts"
+     from "vasi_engine"."outbox_job" where "id" = $1 for share`,
+    [command.jobId],
+  );
+  if (!result.rowCount) throw gatewayError("integration_job_integrity_failure");
+  const job = result.rows[0];
+  if (
+    job.jobType !== "notification" ||
+    job.notificationType !== command.payload.eventType ||
+    job.tenantId !== command.tenantId ||
+    job.idempotencyKey !== command.idempotencyKey ||
+    job.payloadHash !== hashCanonicalJSON(command.payload) ||
+    job.status !== "running" ||
+    Number(job.attempts) !== command.attempt
+  ) throw gatewayError("integration_job_integrity_failure");
+
+  if (job.participantDataRequestId) {
+    const source = await client.query(
+      `select r."status" as "requestStatus", s."status" as "scopeStatus"
+       from "vasi_engine"."participant_data_request" r
+       join "vasi_engine"."participant_data_request_scope" s
+         on s."requestId" = r."id" and s."tenantId" = $2
+       where r."id" = $1 for share of r, s`,
+      [job.participantDataRequestId, command.tenantId],
+    );
+    if (!source.rowCount || !participantDataStatusAllows(
+      job.notificationType,
+      source.rows[0].requestStatus,
+      source.rows[0].scopeStatus,
+    )) throw gatewayError("notification_job_obsolete");
+    return;
+  }
+
+  if (job.requestId) {
+    const source = await client.query(
+      `select "status" from "vasi_engine"."request_instance" where "id" = $1 for share`,
+      [job.requestId],
+    );
+    if (!source.rowCount || !workflowStatusAllows(job.notificationType, source.rows[0].status)) {
+      throw gatewayError("notification_job_obsolete");
+    }
+    return;
+  }
+  throw gatewayError("integration_job_integrity_failure");
+}
+
+function participantDataStatusAllows(notificationType, requestStatus, scopeStatus) {
+  if (notificationType === "participant_data.ready") {
+    return requestStatus === "ready" && scopeStatus === "approved";
+  }
+  if (notificationType === "participant_data.denied") {
+    return ["ready", "denied"].includes(requestStatus) && scopeStatus === "denied";
+  }
+  if (notificationType === "participant_data.preparation_failed") {
+    return requestStatus === "preparation_failed" && scopeStatus === "approved";
+  }
+  if (notificationType === "participant_data.expired") {
+    return requestStatus === "expired" && scopeStatus === "approved";
+  }
+  return false;
+}
+
+function workflowStatusAllows(notificationType, requestStatus) {
+  if (["request.issued", "request.reminder"].includes(notificationType)) {
+    return ["scheduled", "issued", "in_progress"].includes(requestStatus);
+  }
+  if (notificationType === "request.completed") return requestStatus === "completed";
+  return !["expired", "revoked"].includes(requestStatus);
 }
 
 async function loadBinding(client, command, credentialSecret, installationId) {

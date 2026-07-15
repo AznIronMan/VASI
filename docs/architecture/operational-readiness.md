@@ -71,7 +71,9 @@ The default versioned policy fails on:
 - any failed scanner call, scanner threat verdict, or retryable quarantined
   artifact under the default zero-tolerance thresholds;
 - a pending job older than 900 seconds or a stale worker lock; or
-- a pending participant data request older than 30 days.
+- a pending participant data request older than 30 days; or
+- any terminal participant-data export preparation failure, or an approved
+  export still awaiting preparation beyond the data-request age threshold.
 
 Every numeric threshold has a bounded command-line override for an approved
 installation policy. Setup warnings such as no first tenant or no active

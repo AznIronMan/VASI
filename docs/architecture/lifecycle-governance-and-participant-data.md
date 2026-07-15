@@ -1,6 +1,6 @@
 # Lifecycle governance and participant data access
 
-Status: implemented in VASI 0.10.0 and extended through VASI 0.32.0.
+Status: implemented in VASI 0.10.0 and extended through VASI 0.33.0.
 
 VASI 0.18.0 includes eligible participant-context snapshots and provenance in
 approved technical participant exports and removes their PostgreSQL rows only
@@ -123,6 +123,53 @@ open an export while any scope remains pending. Approved exports:
 - expire after the configured delivery window, when chunks are deleted but
   request/export metadata and the access audit remain.
 
+The retention worker selects an export by its own delivery deadline even when
+the containing review request has a later expiration. Thus the shorter artifact
+window controls chunk deletion and expiry notification; the review horizon
+cannot silently extend download availability.
+
+Export construction is not a participant-side effect. After the last review,
+the private worker locks one eligible request, reconstructs only its approved
+scopes under the stored redaction policies, creates the canonical payload and
+seals, writes every bounded chunk, changes the request to `ready`, and appends
+`export.created` in one PostgreSQL transaction. A retry after rollback sees no
+artifact and can safely repeat; a retry after commit sees the request-level
+unique artifact and does nothing. If the canonical payload exceeds the
+configured maximum, the same transaction records `preparation_failed` and an
+`export.preparation_failed` chain event. The participant open path never builds
+an artifact: `approved` and `partially_approved` report preparation in progress,
+and only `ready` can return metadata.
+
+After a final status, the worker creates at most one encrypted outbox job for
+each organization scope and status purpose. An approved scope can send ready,
+preparation-failure, and later expiry status; a denied scope can send its own
+denial. This intentionally allows one message per data controller in a
+multi-company request rather than selecting an arbitrary sender. Each job uses
+that company's admitted `notification.delivery` binding and the installation's
+destination allowlist. There is no global mail provider or provider-specific
+logic in the data-request domain.
+
+The provider message contains only the participant recipient, organization
+identity, bounded status, applicable expiration, and the VASI-owned
+`/workspace` path. It never contains the export, scope reason, record IDs,
+provider subject, token, or request telemetry. Pending jobs are encrypted;
+terminal jobs are payload-redacted. The request hash chain records queueing and
+final provider acceptance, suppression, or failure. Immutable attempt rows keep
+bounded retry evidence. “Provider accepted” never claims inbox delivery,
+receipt, reading, attention, or identity.
+
+Privacy jobs use the migration-added `participant_pending` state. It is
+deliberately outside the prior worker's claim predicate, so an emergency
+rollback preserves queued privacy notices instead of treating them as unbound
+workflow mail. The current worker retains that state across retry and stale-lock
+recovery; aggregate readiness counts it with the normal pending queue.
+
+The worker and isolated integration gateway both recheck request/scope status
+before dispatch. The gateway also binds tenant, purpose, idempotency key,
+attempt, payload hash, and running job identity, then holds a shared lock on the
+source status through provider submission. A ready notice that became obsolete
+is suppressed and audited; it cannot be converted into a stale provider call.
+
 Request creation, every organization decision, export creation/open/download,
 and expiration form a separate immutable hash chain. Metadata and chunks cannot
 be altered; expiration is the one controlled chunk-deletion path. This workflow
@@ -135,7 +182,7 @@ requirements, response deadlines, litigation duties, or deletion rights.
 Participant history and data-request status remain available under the normal
 verified-session and retention controls. The more sensitive actions use a
 separate product-mandated policy: authentication must be no more than 900
-seconds old before request creation, export open/generation, and every export
+seconds old before request creation, ready-export open, and every export
 chunk read. The private engine evaluates this boundary before payload/request
 lookup, so a stale session receives the same bounded
 `reauthentication_required` result for an existing, unknown, or another
@@ -182,7 +229,9 @@ standard and certificate tombstone seals, retired fingerprint verification,
 participant history chronology and content-policy truthfulness,
 cross-participant isolation, reviewed/redacted export,
 recent/missing/stale authentication rejection, bounded accepted-assurance audit,
-controlled expiry, immutable metadata, and backup/restore fingerprints.
+worker-only exactly-once preparation, encrypted controller-scoped ready/denied/
+expiry status, stale-job suppression, terminal payload redaction, controlled
+expiry, immutable metadata, and backup/restore fingerprints.
 
 ## Remaining assurance work
 

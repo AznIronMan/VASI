@@ -7,7 +7,13 @@ function snapshot(overrides = {}) {
     configuration: { installationProfilePresent: true, migrationDrift: false },
     database: { pool: { waiting: 0 }, queryMilliseconds: 12 },
     delivery: { activeBindings: 1, gatewayFailures24Hours: 0 },
-    lifecycle: { oldestPendingDataRequestSeconds: 0, pendingDataRequests: 0 },
+    lifecycle: {
+      failedDataExportPreparations: 0,
+      oldestPendingDataRequestSeconds: 0,
+      oldestPreparingDataExportSeconds: 0,
+      pendingDataRequests: 0,
+      preparingDataExports: 0,
+    },
     queue: { failed24Hours: 0, oldestPendingSeconds: 0, pending: 0, staleRunning: 0 },
     scanning: { failed24Hours: 0, retryable: 0, threats24Hours: 0 },
     reasons: [],
@@ -75,5 +81,23 @@ describe("operational readiness policy", () => {
       "stale_running_jobs",
     ]);
     expect(result.warnings).toEqual([]);
+  });
+
+  it("fails terminal or stale participant-data export preparation", () => {
+    const failed = evaluateOperationalReadiness(snapshot({
+      lifecycle: {
+        failedDataExportPreparations: 1,
+        oldestPendingDataRequestSeconds: 0,
+        oldestPreparingDataExportSeconds: 1001,
+        pendingDataRequests: 0,
+        preparingDataExports: 1,
+      },
+      reasons: ["participant_data_export_preparation_failed"],
+    }), thresholds);
+    expect(failed.failures).toEqual([
+      "data_export_preparation_age_threshold_exceeded",
+      "data_export_preparation_failed",
+    ]);
+    expect(failed.warnings).toEqual([]);
   });
 });

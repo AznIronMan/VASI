@@ -7,11 +7,14 @@ import {
   verifyDetachedIntegritySeal,
 } from "../packages/engine-crypto/index.mjs";
 import { DATA_EXPORT_PROFILE } from "../packages/engine-domain/lifecycle.mjs";
+import { createParticipantDataExportWorker } from "../services/engine/lifecycle-store.mjs";
+import { queueOneParticipantDataNotification } from "../services/engine/participant-data-notifications.mjs";
 import { createSigningProvider } from "../services/engine/signing-provider.mjs";
 import {
   advanceOneRetentionLifecycle,
   expireOneParticipantDataRequest,
 } from "../services/worker/retention-worker.mjs";
+import { deliverJob } from "../services/worker/worker.mjs";
 import {
   createSettingsPool,
   readRuntimeSettings,
@@ -22,6 +25,7 @@ const gatewaySettings = await readRuntimeSettings({ scope: "gateway" });
 const engineSettings = await readRuntimeSettings({ scope: "engine" });
 const database = createSettingsPool();
 const signingProvider = createSigningProvider(engineSettings);
+const dataExportWorker = createParticipantDataExportWorker(database, engineSettings);
 const issuedAt = Math.floor(Date.now() / 1_000);
 const owner = actor("lifecycle-owner", "lifecycle-owner@example.test", ["admin"]);
 const participant = actor("lifecycle-participant", "lifecycle-participant@example.test", ["user"]);
@@ -336,6 +340,62 @@ async function proveReviewedParticipantDataExport() {
   });
   expectStatus(approved, 200, "participant data request approval");
 
+  const preparing = await call(participant, "POST", "/v1/participant/data-exports", {
+    requestId: requested.body.id,
+  });
+  expectStatus(preparing, 409, "worker-owned participant data export preparation");
+  if (preparing.body?.error !== "participant_data_export_preparing") {
+    throw new Error("The participant request path did not report worker-owned export preparation.");
+  }
+  const beforePreparation = await database.query(
+    `select count(*)::integer as "count" from "vasi_engine"."participant_data_export"
+     where "requestId" = $1`,
+    [requested.body.id],
+  );
+  if (beforePreparation.rows[0].count !== 0) {
+    throw new Error("The participant request path constructed a data export.");
+  }
+  const prepared = await dataExportWorker.prepareOne();
+  if (prepared?.action !== "export.created" || prepared.requestId !== requested.body.id) {
+    throw new Error("The private worker did not atomically prepare the reviewed data export.");
+  }
+  if (await dataExportWorker.prepareOne()) {
+    throw new Error("The private worker prepared the same reviewed data export more than once.");
+  }
+
+  const queued = await queueOneParticipantDataNotification(
+    database,
+    engineSettings.ENGINE_OUTBOX_ENCRYPTION_SECRET,
+  );
+  if (
+    queued?.requestId !== requested.body.id ||
+    queued.notificationType !== "participant_data.ready" ||
+    queued.tenantId !== tenant.id
+  ) throw new Error("The worker did not queue the controller-scoped readiness notification.");
+  const claimed = await database.query(
+    `update "vasi_engine"."outbox_job"
+     set "status" = 'running', "attempts" = "attempts" + 1,
+         "lockedAt" = CURRENT_TIMESTAMP, "lockedBy" = 'lifecycle-probe'
+     where "id" = $1 and "status" = 'participant_pending' returning *`,
+    [queued.jobId],
+  );
+  if (!claimed.rowCount) throw new Error("The readiness notification was not claimable.");
+  await deliverJob(
+    database,
+    claimed.rows[0],
+    async () => ({ adapter: "disabled", outcome: "suppressed", responseMetadata: {} }),
+    engineSettings.ENGINE_OUTBOX_ENCRYPTION_SECRET,
+  );
+  const readinessJob = await database.query(
+    `select "status", "payload", "result" from "vasi_engine"."outbox_job" where "id" = $1`,
+    [queued.jobId],
+  );
+  if (
+    readinessJob.rows[0]?.status !== "completed" ||
+    readinessJob.rows[0]?.payload?.redacted !== true ||
+    readinessJob.rows[0]?.result?.outcome !== "suppressed"
+  ) throw new Error("The terminal readiness notification was not durably redacted.");
+
   const staleOpened = await call(staleParticipant, "POST", "/v1/participant/data-exports", {
     requestId: requested.body.id,
   });
@@ -384,6 +444,15 @@ async function proveReviewedParticipantDataExport() {
   if (!opened.body.seal.every((seal) => verifyLifecycleSeal(payload, seal, DATA_EXPORT_PROFILE))) {
     throw new Error("The participant data export seal is invalid.");
   }
+  const privacyRequests = await call(participant, "GET", "/v1/participant/data-requests");
+  expectStatus(privacyRequests, 200, "participant data notification status");
+  const projected = privacyRequests.body.find((entry) => entry.id === requested.body.id);
+  if (
+    projected?.status !== "ready" || projected.notifications?.length !== 1 ||
+    projected.notifications[0]?.notificationType !== "participant_data.ready" ||
+    projected.notifications[0]?.status !== "suppressed" ||
+    projected.notifications[0]?.tenant?.id !== tenant.id
+  ) throw new Error("The participant workspace omitted truthful readiness delivery status.");
   await assertParticipantDataAuthenticationAssurance(requested.body.id);
   const denied = await call(outsider, "POST", "/v1/participant/data-exports", {
     requestId: requested.body.id,
@@ -400,6 +469,30 @@ async function proveReviewedParticipantDataExport() {
     `delete from "vasi_engine"."participant_data_export_chunk" where "exportId" = $1`,
     [opened.body.id],
   );
+
+  const deniedRequest = await call(participant, "POST", "/v1/participant/data-requests", {
+    commandId: randomUUID(),
+  });
+  expectStatus(deniedRequest, 200, "denied participant data request creation");
+  const deniedReview = await call(owner, "POST", "/v1/owner/data-request-reviews", {
+    commandId: randomUUID(),
+    decision: "deny",
+    reason: "Denied by the automated privacy conformance review.",
+    requestId: deniedRequest.body.id,
+    tenantId: tenant.id,
+  });
+  expectStatus(deniedReview, 200, "participant data request denial");
+  if (deniedReview.body.status !== "denied" || deniedReview.body.export) {
+    throw new Error("The denied data request exposed or prepared an export.");
+  }
+  const deniedJob = await ensureParticipantDataNotification(
+    deniedRequest.body.id,
+    "participant_data.denied",
+  );
+  if (deniedJob.tenantId !== tenant.id || deniedJob.requestId !== null) {
+    throw new Error("The denial notification was not isolated from workflow requests.");
+  }
+  await assertHashChain("participant_data_request_event", "requestId", deniedRequest.body.id);
 }
 
 async function proveRollbackFailsClosedWithoutAdmissionSnapshot(requestId) {
@@ -428,12 +521,14 @@ async function proveRollbackFailsClosedWithoutAdmissionSnapshot(requestId) {
 }
 
 async function proveExpiredExportCleanup() {
+  const tenant = await createTenant("VASI Expired Privacy Export Proof", "privacy-expiry");
   const requestId = randomUUID();
   const exportId = randomUUID();
   const bytes = Buffer.from("{}", "utf8");
   const now = new Date();
   const createdAt = new Date(now.getTime() - 172_800_000);
   const expiresAt = new Date(now.getTime() - 86_400_000);
+  const requestExpiresAt = new Date(now.getTime() + 2_592_000_000);
   const client = await database.connect();
   try {
     await client.query("begin");
@@ -442,12 +537,34 @@ async function proveExpiredExportCleanup() {
         ("id", "requesterPrincipalId", "requesterEmail", "status", "commandId",
          "requestedAt", "reviewCompletedAt", "expiresAt", "updatedAt")
        values ($1, $2, $3, 'ready', $4, $5, $5, $6, $5)`,
-      [requestId, participant.principalId, participant.email, randomUUID(), createdAt, expiresAt],
+      [requestId, participant.principalId, participant.email, randomUUID(), createdAt, requestExpiresAt],
     );
     await client.query(
       `insert into "vasi_engine"."participant_data_request_chain_head"
         ("requestId", "lastSequence", "lastHash") values ($1, 0, $2)`,
       [requestId, "0".repeat(64)],
+    );
+    await client.query(
+      `insert into "vasi_engine"."participant_data_request_scope"
+        ("requestId", "tenantId", "status", "matchedAssignmentIds", "reviewPolicy",
+         "reviewedByPrincipalId", "reviewCommandId", "reviewReason", "reviewedAt")
+       values ($1, $2, 'approved', '{}', $3, $4, $5,
+               'Approved for the disposable expiry proof.', $6)`,
+      [
+        requestId,
+        tenant.id,
+        {
+          excludeRequestingOrganizationInternalMetadata: true,
+          excludeSecrets: true,
+          excludeThirdPartyPersonalData: true,
+          includeAuthenticationProvenance: true,
+          includeTechnicalTelemetry: false,
+          schema: "vasi-participant-data-redaction/v1",
+        },
+        owner.principalId,
+        randomUUID(),
+        createdAt,
+      ],
     );
     await client.query(
       `insert into "vasi_engine"."participant_data_export"
@@ -483,7 +600,39 @@ async function proveExpiredExportCleanup() {
   if (!expired.rows[0]?.contentDeletedAt || expired.rows[0].status !== "expired" || Number(expired.rows[0].chunks)) {
     throw new Error("Expired export content was not removed while retaining its metadata.");
   }
+  const expiredJob = await ensureParticipantDataNotification(
+    requestId,
+    "participant_data.expired",
+  );
+  if (expiredJob.tenantId !== tenant.id || expiredJob.requestId !== null) {
+    throw new Error("The expiry notification was not bound to the participant data request.");
+  }
+  const encrypted = JSON.stringify(expiredJob.payload);
+  if (
+    encrypted.includes(participant.email) ||
+    (!expiredJob.payload?.envelope && expiredJob.payload?.redacted !== true)
+  ) throw new Error("The expiry outbox payload was not encrypted or terminally redacted.");
   await assertHashChain("participant_data_request_event", "requestId", requestId);
+}
+
+async function ensureParticipantDataNotification(requestId, notificationType) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const existing = await database.query(
+      `select "id", "tenantId", "requestId", "participantDataRequestId", "notificationType",
+              "payload", "status"
+       from "vasi_engine"."outbox_job"
+       where "participantDataRequestId" = $1 and "notificationType" = $2
+       order by "createdAt", "id" limit 1`,
+      [requestId, notificationType],
+    );
+    if (existing.rowCount) return existing.rows[0];
+    await queueOneParticipantDataNotification(
+      database,
+      engineSettings.ENGINE_OUTBOX_ENCRYPTION_SECRET,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`The ${notificationType} participant data notification was not queued.`);
 }
 
 async function issueAndCompleteWorkflow(tenantId, participantActor, title) {

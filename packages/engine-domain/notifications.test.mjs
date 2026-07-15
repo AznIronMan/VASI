@@ -19,6 +19,7 @@ describe("notification delivery evidence", () => {
     })).toBe("provider_accepted");
     expect(notificationOperationalStatus({ status: "completed", resultOutcome: "suppressed" })).toBe("suppressed");
     expect(notificationOperationalStatus({ availableAt: "2026-07-15T00:00:00.000Z", status: "pending" }, new Date(capturedAt))).toBe("scheduled");
+    expect(notificationOperationalStatus({ availableAt: "2026-07-14T19:00:00.000Z", status: "participant_pending" }, new Date(capturedAt))).toBe("queued");
     expect(notificationEvidenceOutcome("delivered")).toBe("provider_accepted");
   });
 

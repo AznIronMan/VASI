@@ -32,6 +32,12 @@ const provisionReplayMigrationPath = path.join(
   "database",
   "engine-tenant-provision-replay.sql",
 );
+const participantDataDeliveryMigrationPath = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "database",
+  "engine-participant-data-delivery.sql",
+);
 
 describe("engine migration ledger", () => {
   it("remains anchored to public after the engine user schema exists", async () => {
@@ -49,6 +55,21 @@ describe("engine migration ledger", () => {
     expect(source).toContain("0015_engine_tenant_admission");
     expect(source).toContain("0016_engine_tenant_production_stop");
     expect(source).toContain("0017_engine_tenant_provision_replay");
+    expect(source).toContain("0018_engine_participant_data_delivery");
+  });
+
+  it("binds participant-data notification jobs to their request and audit chain", async () => {
+    const source = await readFile(participantDataDeliveryMigrationPath, "utf8");
+
+    expect(source).toContain('"participantDataRequestId"');
+    expect(source).toContain("participant_pending");
+    expect(source).toContain("outbox_job_participant_claim_idx");
+    expect(source).toContain("outbox_job_request_purpose_check");
+    expect(source).toContain("participant_data.ready");
+    expect(source).toContain("participant_data.preparation_failed");
+    expect(source).toContain("notification.provider_accepted");
+    expect(source).toContain("export.preparation_failed");
+    expect(source).toContain("participant_data_request_preparation_idx");
   });
 
   it("stores integrity-checked tenant-provision results in an immutable installation command index", async () => {

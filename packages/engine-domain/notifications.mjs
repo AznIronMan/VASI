@@ -2,6 +2,10 @@ export const NOTIFICATION_TYPES = Object.freeze([
   "request.issued",
   "request.reminder",
   "request.completed",
+  "participant_data.ready",
+  "participant_data.denied",
+  "participant_data.preparation_failed",
+  "participant_data.expired",
 ]);
 
 export const NOTIFICATION_JOB_LIMIT = 32;
@@ -39,7 +43,7 @@ export function notificationOperationalStatus(job, now = new Date()) {
   // The job result is the authoritative current outcome. A sealed history may
   // contain earlier failed attempts before a later provider acceptance.
   const outcome = job?.resultOutcome || job?.attemptOutcome;
-  if (status === "pending") {
+  if (["pending", "participant_pending"].includes(status)) {
     const availableAt = new Date(job.availableAt);
     return !Number.isNaN(availableAt.getTime()) && availableAt > now ? "scheduled" : "queued";
   }

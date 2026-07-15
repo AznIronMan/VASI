@@ -332,6 +332,17 @@ non-disclosure, direct chunk bypass, accepted audit shape, sealed export content
 and cross-participant isolation. Provider subjects and reusable authentication
 material remain excluded.
 
+VASI 0.33.0 moves reviewed participant-data export construction into an atomic,
+retry-safe private worker transaction and makes ready, scoped denial,
+preparation failure, and export expiry durable tenant-governed notification
+purposes. Disposable proofs cover participant-path non-generation,
+exactly-once PostgreSQL artifact creation, encrypted outbox binding, terminal
+redaction, status projection, denied/no-export behavior, expiry, and hash-chain
+integrity. The worker and isolated integration gateway independently reject
+obsolete or substituted jobs, and the gateway holds source status stable
+through provider submission. Provider acceptance remains explicitly weaker than
+inbox delivery or participant receipt.
+
 Health and brand endpoints are intentionally read-only and are the only targets
 of the built-in load probe. Evidence, authentication, invitation, and
 verification endpoints must not be load-tested in production without an

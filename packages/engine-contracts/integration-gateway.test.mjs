@@ -38,6 +38,31 @@ describe("integration gateway contract", () => {
       payload: { ...command.payload, participantPath: "/admin" },
     })).toThrow(/participant path/i);
   });
+
+  it("accepts only bounded participant-data status mail to the workspace", () => {
+    const privacyCommand = {
+      ...command,
+      idempotencyKey: "participant-data:request-1:tenant-1:participant_data.ready",
+      payload: {
+        eventType: "participant_data.ready",
+        expiresAt: "2030-01-02T03:04:05.000Z",
+        participantPath: "/workspace",
+        recipient: "person@example.test",
+        requestStatus: "ready",
+        schema: "vasi-participant-data-notification/v1",
+        tenant: { id: "tenant-1", name: "Example Company" },
+      },
+    };
+    expect(validateIntegrationDeliveryCommand(privacyCommand).payload).toEqual(privacyCommand.payload);
+    expect(() => validateIntegrationDeliveryCommand({
+      ...privacyCommand,
+      payload: { ...privacyCommand.payload, participantPath: "/admin" },
+    })).toThrow(/path/i);
+    expect(() => validateIntegrationDeliveryCommand({
+      ...privacyCommand,
+      payload: { ...privacyCommand.payload, rawExport: {} },
+    })).toThrow(/unsupported/i);
+  });
 });
 
 describe("artifact scan gateway contract", () => {

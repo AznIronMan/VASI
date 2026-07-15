@@ -129,6 +129,16 @@ before the participant UI begins handling the bounded reauthentication code.
 Deployment does not rewrite a request, export, session, tenant, or evidence
 record.
 
+VASI 0.33.0 adds engine migration `0018_engine_participant_data_delivery`. It
+binds privacy-status outbox jobs to participant-data requests, extends the
+bounded request and notification state sets, and adds immutable preparation and
+delivery audit purposes. Run the engine migration before starting the 0.33.0
+engine, worker, or integration gateway. The prior 0.32.0 runtime can operate
+after this additive migration for rollback, but it does not prepare newly
+reviewed exports. New privacy-status jobs remain in the dedicated
+`participant_pending` state, which the prior worker deliberately cannot claim,
+until the current worker returns.
+
 ## Initialize
 
 Requirements are Docker Engine with Compose, PostgreSQL 15 or newer, an HTTPS
@@ -423,7 +433,8 @@ docker compose -f compose.engine.yaml --profile tools run --rm \
 The command exits nonzero when the release migration ledger drifts, the
 integrity key or installation profile is unavailable, worker locks are stale,
 or the configured database, queue-age, delivery-failure, scanner-failure,
-failed-job, or data-request-age thresholds are exceeded. Its JSON output
+failed-job, data-request-age, export-preparation-age, or terminal
+export-preparation-failure thresholds are exceeded. Its JSON output
 contains aggregate counts, ages, versions, status codes, scan retry/threat
 counts, and pool pressure only. Forward that output to the
 installation-selected monitor; do not add participant fields or secrets to

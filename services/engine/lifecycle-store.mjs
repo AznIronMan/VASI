@@ -26,27 +26,11 @@ import { EngineStoreError } from "./errors.mjs";
 import { requireRecentParticipantDataAuthentication } from "./authentication-assurance.mjs";
 import { createSigningProvider } from "./signing-provider.mjs";
 
-const ENGINE_VERSION = "0.32.0";
+const ENGINE_VERSION = "0.33.0";
 const GENESIS_HASH = "0".repeat(64);
 const DATA_EXPORT_SCHEMA = "vasi-participant-data-export/v1";
 
 export function createLifecycleStore(database, settings) {
-  const signingProvider = createSigningProvider(settings);
-  const contextEvidencePolicy = participantContextPolicy(settings);
-  const chunkBytes = boundedSetting(
-    settings.ENGINE_EXPORT_CHUNK_BYTES,
-    262_144,
-    65_536,
-    524_288,
-    "ENGINE_EXPORT_CHUNK_BYTES",
-  );
-  const maxBytes = boundedSetting(
-    settings.ENGINE_PARTICIPANT_DATA_EXPORT_MAX_BYTES,
-    67_108_864,
-    1_048_576,
-    536_870_912,
-    "ENGINE_PARTICIPANT_DATA_EXPORT_MAX_BYTES",
-  );
   const reviewDays = boundedSetting(
     settings.ENGINE_DATA_REQUEST_REVIEW_DAYS,
     30,
@@ -54,14 +38,6 @@ export function createLifecycleStore(database, settings) {
     90,
     "ENGINE_DATA_REQUEST_REVIEW_DAYS",
   );
-  const deliveryDays = boundedSetting(
-    settings.ENGINE_DATA_EXPORT_DELIVERY_DAYS,
-    7,
-    1,
-    30,
-    "ENGINE_DATA_EXPORT_DELIVERY_DAYS",
-  );
-
   return Object.freeze({
     async listPolicies(actor, payload) {
       requireActor(actor);
@@ -544,45 +520,8 @@ export function createLifecycleStore(database, settings) {
       return transaction(database, async (client) => {
         const request = await participantDataRequest(client, input.requestId, actor, true);
         assertDataRequestExportable(request, now);
-        let artifact = await participantDataExport(client, request.id);
-        if (!artifact) {
-          const generated = await buildParticipantDataExport(
-            client,
-            request,
-            actor,
-            now,
-            contextEvidencePolicy,
-          );
-          if (!generated.bytes.length || generated.bytes.length > maxBytes) {
-            throw new EngineStoreError("participant_data_export_too_large", 413);
-          }
-          artifact = await persistParticipantDataExport(client, {
-            bytes: generated.bytes,
-            chunkBytes,
-            deliveryDays,
-            payload: generated.payload,
-            request,
-            signingProvider,
-            now,
-          });
-          await client.query(
-            `update "vasi_engine"."participant_data_request"
-             set "status" = 'ready', "updatedAt" = $2 where "id" = $1`,
-            [request.id, now],
-          );
-          await appendDataRequestEvent(client, {
-            actor: serviceActor("vasi-engine"),
-            eventType: "export.created",
-            payload: {
-              byteLength: Number(artifact.byteLength),
-              exportId: artifact.id,
-              expiresAt: new Date(artifact.expiresAt).toISOString(),
-              sha256: artifact.sha256,
-            },
-            requestId: request.id,
-            createdAt: now,
-          });
-        }
+        const artifact = await participantDataExport(client, request.id);
+        if (!artifact) throw new EngineStoreError("participant_data_export_unavailable", 503);
         if (artifact.contentDeletedAt || new Date(artifact.expiresAt) <= now) {
           throw new EngineStoreError("participant_data_export_expired", 410);
         }
@@ -640,6 +579,110 @@ export function createLifecycleStore(database, settings) {
           sequence: Number(chunk.sequence),
           sha256: chunk.sha256,
         };
+      });
+    },
+  });
+}
+
+export function createParticipantDataExportWorker(database, settings) {
+  const signingProvider = createSigningProvider(settings);
+  const contextEvidencePolicy = participantContextPolicy(settings);
+  const chunkBytes = boundedSetting(
+    settings.ENGINE_EXPORT_CHUNK_BYTES,
+    262_144,
+    65_536,
+    524_288,
+    "ENGINE_EXPORT_CHUNK_BYTES",
+  );
+  const maxBytes = boundedSetting(
+    settings.ENGINE_PARTICIPANT_DATA_EXPORT_MAX_BYTES,
+    67_108_864,
+    1_048_576,
+    536_870_912,
+    "ENGINE_PARTICIPANT_DATA_EXPORT_MAX_BYTES",
+  );
+  const deliveryDays = boundedSetting(
+    settings.ENGINE_DATA_EXPORT_DELIVERY_DAYS,
+    7,
+    1,
+    30,
+    "ENGINE_DATA_EXPORT_DELIVERY_DAYS",
+  );
+
+  return Object.freeze({
+    async prepareOne(now = new Date()) {
+      return transaction(database, async (client) => {
+        const result = await client.query(
+          `select r.* from "vasi_engine"."participant_data_request" r
+           where r."status" in ('approved', 'partially_approved')
+             and r."expiresAt" > $1
+             and not exists (
+               select 1 from "vasi_engine"."participant_data_export" e
+               where e."requestId" = r."id"
+             )
+           order by coalesce(r."reviewCompletedAt", r."requestedAt"), r."id"
+           limit 1 for update of r skip locked`,
+          [now],
+        );
+        if (!result.rowCount) return null;
+        const request = result.rows[0];
+        const generated = await buildParticipantDataExport(
+          client,
+          request,
+          participantExportActor(request),
+          now,
+          contextEvidencePolicy,
+        );
+        if (!generated.bytes.length || generated.bytes.length > maxBytes) {
+          await client.query(
+            `update "vasi_engine"."participant_data_request"
+             set "status" = 'preparation_failed', "updatedAt" = $2 where "id" = $1`,
+            [request.id, now],
+          );
+          await appendDataRequestEvent(client, {
+            actor: serviceActor("vasi-worker"),
+            createdAt: now,
+            eventType: "export.preparation_failed",
+            payload: {
+              errorCode: "participant_data_export_too_large",
+              maximumBytes: maxBytes,
+              observedBytes: generated.bytes.length,
+            },
+            requestId: request.id,
+          });
+          return Object.freeze({ action: "export.preparation_failed", requestId: request.id });
+        }
+        const artifact = await persistParticipantDataExport(client, {
+          bytes: generated.bytes,
+          chunkBytes,
+          deliveryDays,
+          payload: generated.payload,
+          request,
+          signingProvider,
+          now,
+        });
+        await client.query(
+          `update "vasi_engine"."participant_data_request"
+           set "status" = 'ready', "updatedAt" = $2 where "id" = $1`,
+          [request.id, now],
+        );
+        await appendDataRequestEvent(client, {
+          actor: serviceActor("vasi-worker"),
+          createdAt: now,
+          eventType: "export.created",
+          payload: {
+            byteLength: Number(artifact.byteLength),
+            exportId: artifact.id,
+            expiresAt: new Date(artifact.expiresAt).toISOString(),
+            sha256: artifact.sha256,
+          },
+          requestId: request.id,
+        });
+        return Object.freeze({
+          action: "export.created",
+          exportId: artifact.id,
+          requestId: request.id,
+        });
       });
     },
   });
@@ -1289,7 +1332,13 @@ function assertDataRequestExportable(request, now) {
   }
   if (request.status === "pending_review") throw new EngineStoreError("data_request_review_pending", 409);
   if (request.status === "denied") throw new EngineStoreError("data_request_denied", 403);
-  if (!['approved', 'partially_approved', 'ready'].includes(request.status)) {
+  if (["approved", "partially_approved"].includes(request.status)) {
+    throw new EngineStoreError("participant_data_export_preparing", 409);
+  }
+  if (request.status === "preparation_failed") {
+    throw new EngineStoreError("participant_data_export_preparation_failed", 409);
+  }
+  if (request.status !== "ready") {
     throw new EngineStoreError("data_request_unavailable", 409);
   }
 }
@@ -1320,10 +1369,41 @@ async function loadDataRequestProjection(client, requestId, actor) {
     [requestId],
   );
   const artifact = await participantDataExport(client, requestId);
+  const notificationResult = await client.query(
+    `select j."id", j."notificationType", j."status", j."availableAt", j."createdAt",
+            j."completedAt", j."result"->>'outcome' as "resultOutcome",
+            j."result"->>'adapter' as "resultAdapter", t."id" as "tenantId",
+            t."name" as "tenantName", attempt."outcome" as "attemptOutcome",
+            attempt."adapter" as "attemptAdapter", attempt."completedAt" as "attemptCompletedAt"
+     from "vasi_engine"."outbox_job" j
+     join "vasi_engine"."tenant" t on t."id" = j."tenantId"
+     left join lateral (
+       select a."outcome", a."adapter", a."completedAt"
+       from "vasi_engine"."notification_delivery_attempt" a
+       where a."jobId" = j."id" order by a."attempt" desc limit 1
+     ) attempt on true
+     where j."participantDataRequestId" = $1 and j."jobType" = 'notification'
+     order by j."createdAt", j."id"`,
+    [requestId],
+  );
   return {
     export: artifact ? participantDataExportProjection(artifact) : null,
     expiresAt: iso(request.expiresAt),
     id: request.id,
+    notifications: notificationResult.rows.map((job) => ({
+      adapter: safeNotificationAdapter(job.attemptAdapter || job.resultAdapter),
+      completedAt: iso(job.attemptCompletedAt || job.completedAt),
+      notificationType: job.notificationType,
+      queuedAt: iso(job.createdAt),
+      scheduledFor: iso(job.availableAt),
+      status: notificationOperationalStatus({
+        attemptOutcome: job.attemptOutcome,
+        availableAt: job.availableAt,
+        resultOutcome: job.resultOutcome,
+        status: job.status,
+      }),
+      tenant: { id: job.tenantId, name: job.tenantName },
+    })),
     requestedAt: iso(request.requestedAt),
     reviewCompletedAt: iso(request.reviewCompletedAt),
     scopes: scopes.rows.map((scope) => ({
@@ -1715,6 +1795,16 @@ function lifecycleActorSnapshot(actor) {
 
 function serviceActor(principalId) {
   return { authentication: { method: "service" }, principalId, roles: ["service"] };
+}
+
+function participantExportActor(request) {
+  return {
+    authentication: { method: "service_preparation" },
+    email: request.requesterEmail,
+    gatewaySessionId: "vasi-worker",
+    principalId: request.requesterPrincipalId,
+    roles: ["service"],
+  };
 }
 
 function isoDeadlines(deadlines) {

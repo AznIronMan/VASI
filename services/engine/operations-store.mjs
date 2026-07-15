@@ -28,14 +28,16 @@ const SUMMARY_QUERY = `
           on r."id" = p."activeRevisionId" and r."tenantId" = p."tenantId"
         where p."tenantId" = t."id" and r."admission"->>'status' = 'admitted'
       )) as "pendingAdmissionTenants",
-    (select count(*)::integer from "vasi_engine"."outbox_job" where "status" = 'pending') as "pendingJobs",
+    (select count(*)::integer from "vasi_engine"."outbox_job"
+      where "status" in ('pending', 'participant_pending')) as "pendingJobs",
     (select count(*)::integer from "vasi_engine"."outbox_job" where "status" = 'running') as "runningJobs",
     (select count(*)::integer from "vasi_engine"."outbox_job"
       where "status" = 'running' and "lockedAt" < CURRENT_TIMESTAMP - interval '10 minutes') as "staleRunningJobs",
     (select count(*)::integer from "vasi_engine"."outbox_job"
       where "status" = 'failed' and "updatedAt" >= CURRENT_TIMESTAMP - interval '24 hours') as "failedJobs24Hours",
     coalesce((select floor(extract(epoch from (CURRENT_TIMESTAMP - min("createdAt"))))::bigint
-      from "vasi_engine"."outbox_job" where "status" = 'pending'), 0) as "oldestPendingSeconds",
+      from "vasi_engine"."outbox_job"
+      where "status" in ('pending', 'participant_pending')), 0) as "oldestPendingSeconds",
     (select count(*)::integer from "vasi_engine"."notification_delivery_attempt"
       where "outcome" = 'delivered' and "completedAt" >= CURRENT_TIMESTAMP - interval '24 hours') as "delivered24Hours",
     (select count(*)::integer from "vasi_engine"."notification_delivery_attempt"
@@ -74,6 +76,13 @@ const SUMMARY_QUERY = `
       where "status" = 'pending_review') as "pendingDataRequests",
     coalesce((select floor(extract(epoch from (CURRENT_TIMESTAMP - min("requestedAt"))))::bigint
       from "vasi_engine"."participant_data_request" where "status" = 'pending_review'), 0) as "oldestDataRequestSeconds",
+    (select count(*)::integer from "vasi_engine"."participant_data_request"
+      where "status" in ('approved', 'partially_approved')) as "preparingDataExports",
+    coalesce((select floor(extract(epoch from (CURRENT_TIMESTAMP - min("reviewCompletedAt"))))::bigint
+      from "vasi_engine"."participant_data_request"
+      where "status" in ('approved', 'partially_approved')), 0) as "oldestPreparingDataExportSeconds",
+    (select count(*)::integer from "vasi_engine"."participant_data_request"
+      where "status" = 'preparation_failed') as "failedDataExportPreparations",
     (select count(*)::integer from latest_key_status
       where "sealRole" = 'vasi_integrity' and "status" = 'active') as "activeIntegrityKeys",
     (select count(*)::integer from latest_key_status
@@ -161,8 +170,11 @@ export async function collectOperationalSnapshot(database, {
     engineVersion: boundedVersion(engineVersion),
     generatedAt: validDate(row.observedAt).toISOString(),
     lifecycle: {
+      failedDataExportPreparations: safeNumber(row.failedDataExportPreparations),
       oldestPendingDataRequestSeconds: safeNumber(row.oldestDataRequestSeconds),
+      oldestPreparingDataExportSeconds: safeNumber(row.oldestPreparingDataExportSeconds),
       pendingDataRequests: safeNumber(row.pendingDataRequests),
+      preparingDataExports: safeNumber(row.preparingDataExports),
       purgeBlocked24Hours: safeNumber(row.purgeBlocked24Hours),
       purgeDueRecords: safeNumber(row.purgeDueRecords),
     },
@@ -209,6 +221,9 @@ export function operationalAssessment(snapshot) {
   if (snapshot.scanning?.retryable > 0) attention.push("documents_awaiting_scan_retry");
   if (snapshot.scanning?.threats24Hours > 0) attention.push("recent_document_threats");
   if (snapshot.lifecycle.purgeBlocked24Hours > 0) attention.push("recent_purge_blocks");
+  if (snapshot.lifecycle.failedDataExportPreparations > 0) {
+    attention.push("participant_data_export_preparation_failed");
+  }
   if (snapshot.database.pool.waiting > 0) attention.push("database_pool_waiting");
   if (snapshot.tenancy.active < 1) attention.push("no_active_tenants");
   if (snapshot.tenancy.pendingAdmission > 0) attention.push("tenants_pending_admission");

@@ -62,6 +62,16 @@ export function evaluateOperationalReadiness(snapshot, thresholds = policy.opera
   ) {
     failures.add("data_request_age_threshold_exceeded");
   }
+  if (snapshot.lifecycle.failedDataExportPreparations > 0) {
+    failures.add("data_export_preparation_failed");
+    warnings.delete("participant_data_export_preparation_failed");
+  }
+  if (
+    snapshot.lifecycle.preparingDataExports > 0 &&
+    snapshot.lifecycle.oldestPreparingDataExportSeconds > thresholds.maximumOldestPendingDataRequestSeconds
+  ) {
+    failures.add("data_export_preparation_age_threshold_exceeded");
+  }
   return Object.freeze({
     failures: Object.freeze([...failures].sort()),
     status: failures.size ? "fail" : "pass",

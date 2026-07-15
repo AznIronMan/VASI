@@ -12,8 +12,11 @@ export async function expireOneParticipantDataRequest(database, now = new Date()
       `select r.*, e."id" as "exportId", e."contentDeletedAt"
        from "vasi_engine"."participant_data_request" r
        left join "vasi_engine"."participant_data_export" e on e."requestId" = r."id"
-       where r."status" not in ('expired', 'cancelled') and r."expiresAt" <= $1
-       order by r."expiresAt", r."id" limit 1 for update of r skip locked`,
+       where r."status" not in ('expired', 'cancelled')
+         and ((e."id" is not null and e."expiresAt" <= $1)
+           or (e."id" is null and r."expiresAt" <= $1))
+       order by least(r."expiresAt", coalesce(e."expiresAt", r."expiresAt")), r."id"
+       limit 1 for update of r skip locked`,
       [now],
     );
     if (!result.rowCount) return null;

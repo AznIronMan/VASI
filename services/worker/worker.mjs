@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
 
 import {
   decryptJSONEnvelope,
@@ -9,56 +10,111 @@ import {
   loadBootstrapSettings,
   readRuntimeSettings,
 } from "../../scripts/settings-core.mjs";
+import {
+  appendDataRequestEvent,
+  createParticipantDataExportWorker,
+} from "../engine/lifecycle-store.mjs";
+import { queueOneParticipantDataNotification } from "../engine/participant-data-notifications.mjs";
 import { createSigningProvider } from "../engine/signing-provider.mjs";
 import { createIntegrationGatewayClient } from "./integration-gateway-client.mjs";
-import { suppressObsoleteJobs } from "./notification-lifecycle.mjs";
+import {
+  participantDataJobIsEligible,
+  suppressObsoleteJobs,
+  suppressOneObsoleteParticipantDataJob,
+} from "./notification-lifecycle.mjs";
 import {
   advanceOneRetentionLifecycle,
   expireOneParticipantDataRequest,
 } from "./retention-worker.mjs";
 
-const ENGINE_VERSION = "0.32.0";
+const ENGINE_VERSION = "0.33.0";
 const GENESIS_HASH = "0".repeat(64);
-const bootstrap = loadBootstrapSettings();
-const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
-const database = createSettingsPool(bootstrap);
-const pollMilliseconds = boundedPollMilliseconds(settings.ENGINE_WORKER_POLL_MS);
-const dispatchNotification = createIntegrationGatewayClient(settings);
-const signingProvider = createSigningProvider(settings);
 let stopping = false;
 
-console.info(`VASI worker ${ENGINE_VERSION} started with deterministic lifecycle and outbox processing.`);
-while (!stopping) {
+export async function runWorker() {
+  const bootstrap = loadBootstrapSettings();
+  const settings = await readRuntimeSettings({ bootstrap, scope: "engine" });
+  const database = createSettingsPool(bootstrap);
+  const pollMilliseconds = boundedPollMilliseconds(settings.ENGINE_WORKER_POLL_MS);
+  const dispatchNotification = createIntegrationGatewayClient(settings);
+  const signingProvider = createSigningProvider(settings);
+  const dataExportWorker = createParticipantDataExportWorker(database, settings);
+  const stop = () => { stopping = true; };
+  stopping = false;
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
+  console.info(`VASI worker ${ENGINE_VERSION} started with deterministic lifecycle and outbox processing.`);
   try {
-    await database.query(
-      'delete from "vasi_engine"."actor_assertion_replay" where "expiresAt" < CURRENT_TIMESTAMP',
-    );
-    await recoverStaleJobs(database);
-    await suppressObsoleteJobs(database);
-    await advanceOneLifecycle(database);
-    await expireOneParticipantDataRequest(database);
-    await advanceOneRetentionLifecycle(database, signingProvider);
-    const job = await claimJob(database);
-    if (job) await deliverJob(database, job, dispatchNotification, settings.ENGINE_OUTBOX_ENCRYPTION_SECRET);
-  } catch (error) {
-    console.error("VASI worker poll failed", error?.code || "database_unavailable");
+    while (!stopping) {
+      try {
+        await database.query(
+          'delete from "vasi_engine"."actor_assertion_replay" where "expiresAt" < CURRENT_TIMESTAMP',
+        );
+        await recoverStaleJobs(database);
+        await advanceOneLifecycle(database);
+        await expireOneParticipantDataRequest(database);
+        await suppressObsoleteJobs(database);
+        await suppressOneObsoleteParticipantDataJob(database);
+        await dataExportWorker.prepareOne();
+        await queueOneParticipantDataNotification(
+          database,
+          settings.ENGINE_OUTBOX_ENCRYPTION_SECRET,
+        );
+        await advanceOneRetentionLifecycle(database, signingProvider);
+        const job = await claimJob(database);
+        if (job) {
+          await deliverJob(
+            database,
+            job,
+            dispatchNotification,
+            settings.ENGINE_OUTBOX_ENCRYPTION_SECRET,
+          );
+        }
+      } catch (error) {
+        console.error("VASI worker poll failed", error?.code || "database_unavailable");
+      }
+      await delay(pollMilliseconds);
+    }
+  } finally {
+    process.off("SIGINT", stop);
+    process.off("SIGTERM", stop);
+    await database.end();
   }
-  await delay(pollMilliseconds);
 }
-await database.end();
+
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  await runWorker();
+}
 
 export async function claimJob(databaseClient) {
   const result = await databaseClient.query(
     `with candidate as (
        select j."id" from "vasi_engine"."outbox_job" j
        left join "vasi_engine"."request_instance" r on r."id" = j."requestId"
-       where j."status" = 'pending' and j."availableAt" <= CURRENT_TIMESTAMP
+       left join "vasi_engine"."participant_data_request" d
+         on d."id" = j."participantDataRequestId"
+       left join "vasi_engine"."participant_data_request_scope" s
+         on s."requestId" = d."id" and s."tenantId" = j."tenantId"
+       where j."status" in ('pending', 'participant_pending')
+         and j."availableAt" <= CURRENT_TIMESTAMP
          and (
-           r."id" is null or
-           (j."notificationType" in ('request.issued', 'request.reminder') and
-             r."status" in ('scheduled', 'issued', 'in_progress')) or
-           (j."notificationType" = 'request.completed' and r."status" = 'completed') or
-           (j."notificationType" is null and r."status" not in ('revoked', 'expired'))
+           (j."participantDataRequestId" is not null and (
+             (j."notificationType" = 'participant_data.ready'
+               and d."status" = 'ready' and s."status" = 'approved') or
+             (j."notificationType" = 'participant_data.denied'
+               and d."status" in ('ready', 'denied') and s."status" = 'denied') or
+             (j."notificationType" = 'participant_data.preparation_failed'
+               and d."status" = 'preparation_failed' and s."status" = 'approved') or
+             (j."notificationType" = 'participant_data.expired'
+               and d."status" = 'expired' and s."status" = 'approved')
+           )) or
+           (j."participantDataRequestId" is null and (
+             r."id" is null or
+             (j."notificationType" in ('request.issued', 'request.reminder') and
+               r."status" in ('scheduled', 'issued', 'in_progress')) or
+             (j."notificationType" = 'request.completed' and r."status" = 'completed') or
+             (j."notificationType" is null and r."status" not in ('revoked', 'expired'))
+           ))
          )
        order by j."availableAt", j."createdAt", j."id"
        limit 1 for update of j skip locked
@@ -78,15 +134,23 @@ export async function deliverJob(databaseClient, job, dispatch, encryptionSecret
   let delivery;
   try {
     if (job.jobType !== "notification") throw workerError("unsupported_job_type");
-    const payload = decryptJSONEnvelope(job.payload?.envelope, encryptionSecret);
-    if (hashCanonicalJSON(payload) !== job.payloadHash) throw workerError("outbox_payload_mismatch");
-    delivery = await dispatch({
-      attempt: job.attempts,
-      id: job.id,
-      idempotencyKey: job.idempotencyKey,
-      payload,
-      tenantId: job.tenantId,
-    });
+    if (!await participantDataJobIsEligible(databaseClient, job)) {
+      delivery = {
+        adapter: "engine",
+        outcome: "suppressed",
+        responseMetadata: {},
+      };
+    } else {
+      const payload = decryptJSONEnvelope(job.payload?.envelope, encryptionSecret);
+      if (hashCanonicalJSON(payload) !== job.payloadHash) throw workerError("outbox_payload_mismatch");
+      delivery = await dispatch({
+        attempt: job.attempts,
+        id: job.id,
+        idempotencyKey: job.idempotencyKey,
+        payload,
+        tenantId: job.tenantId,
+      });
+    }
   } catch (error) {
     delivery = {
       adapter: adapterName(job),
@@ -99,7 +163,7 @@ export async function deliverJob(databaseClient, job, dispatch, encryptionSecret
   const terminal = delivery.outcome !== "failed" || Number(job.attempts) >= Number(job.maxAttempts);
   const nextStatus = terminal
     ? (delivery.outcome === "failed" ? "failed" : "completed")
-    : "pending";
+    : job.participantDataRequestId ? "participant_pending" : "pending";
   const nextAvailableAt = new Date(completedAt.getTime() + retryDelayMilliseconds(Number(job.attempts)));
   const client = await databaseClient.connect();
   try {
@@ -138,6 +202,9 @@ export async function deliverJob(databaseClient, job, dispatch, encryptionSecret
         terminal,
       ],
     );
+    if (terminal && job.participantDataRequestId) {
+      await appendParticipantDataNotificationResult(client, job, delivery, completedAt);
+    }
     await client.query("commit");
   } catch (error) {
     await client.query("rollback").catch(() => undefined);
@@ -147,10 +214,35 @@ export async function deliverJob(databaseClient, job, dispatch, encryptionSecret
   }
 }
 
+async function appendParticipantDataNotificationResult(client, job, delivery, completedAt) {
+  const outcome = delivery.outcome === "delivered" ? "provider_accepted" : delivery.outcome;
+  await appendDataRequestEvent(client, {
+    actor: {
+      authentication: { method: "service" },
+      principalId: "vasi-worker",
+      roles: ["service"],
+    },
+    commandId: `participant-data-notification:${job.id}:terminal`,
+    createdAt: completedAt,
+    eventType: `notification.${outcome}`,
+    payload: {
+      adapter: delivery.adapter,
+      ...(delivery.errorCode ? { errorCode: delivery.errorCode } : {}),
+      jobId: job.id,
+      notificationType: job.notificationType,
+      outcome,
+    },
+    requestId: job.participantDataRequestId,
+    tenantId: job.tenantId,
+  });
+}
+
 async function recoverStaleJobs(databaseClient) {
   await databaseClient.query(
     `update "vasi_engine"."outbox_job"
-     set "status" = 'pending', "lockedAt" = null, "lockedBy" = null,
+     set "status" = case when "participantDataRequestId" is null
+           then 'pending' else 'participant_pending' end,
+         "lockedAt" = null, "lockedBy" = null,
          "availableAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
      where "status" = 'running' and "lockedAt" < CURRENT_TIMESTAMP - interval '10 minutes'`,
   );
@@ -309,10 +401,3 @@ function workerError(code) {
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
-
-process.on("SIGINT", () => {
-  stopping = true;
-});
-process.on("SIGTERM", () => {
-  stopping = true;
-});

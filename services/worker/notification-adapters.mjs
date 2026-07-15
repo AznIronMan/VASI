@@ -141,6 +141,9 @@ export function notificationMessage(payload, origin) {
   const link = payload.participantPath && origin
     ? new URL(payload.participantPath, origin).toString()
     : undefined;
+  if (payload.eventType?.startsWith("participant_data.")) {
+    return participantDataNotificationMessage(payload, company, link);
+  }
   if (payload.eventType === "request.completed") {
     return {
       html: `<p>Your response to <strong>${escapeHTML(title)}</strong> was recorded.</p><p>Sign in to VASI to review the available receipt.</p>`,
@@ -157,6 +160,48 @@ export function notificationMessage(payload, origin) {
     subject: `${payload.eventType === "request.reminder" ? "Reminder" : "Action requested"}: ${title}`,
     text: `${company} ${action} ${title}.${linkText}`,
   };
+}
+
+function participantDataNotificationMessage(payload, company, link) {
+  const openText = link
+    ? ` Sign in securely at ${link}.`
+    : " Sign in to your VASI workspace for the authoritative status.";
+  const openHTML = link
+    ? `<p><a href="${escapeHTML(link)}">Open your secure VASI workspace</a></p>`
+    : "<p>Sign in to your VASI workspace for the authoritative status.</p>";
+  if (payload.eventType === "participant_data.ready") {
+    const expires = notificationDate(payload.expiresAt);
+    const expiryText = expires ? ` It is available until ${expires}.` : " It is available for a limited time.";
+    return {
+      html: `<p>${escapeHTML(company)} approved its scope of your VASI data request. Your protected export is ready.${escapeHTML(expiryText)}</p>${openHTML}<p>A recent sign-in is required before download.</p>`,
+      subject: "Your protected VASI data export is ready",
+      text: `${company} approved its scope of your VASI data request. Your protected export is ready.${expiryText}${openText} A recent sign-in is required before download.`,
+    };
+  }
+  if (payload.eventType === "participant_data.denied") {
+    return {
+      html: `<p>${escapeHTML(company)} completed its review and did not approve a data export for its scope. Other organizations may reach a different decision.</p>${openHTML}`,
+      subject: "VASI data-request review completed",
+      text: `${company} completed its review and did not approve a data export for its scope. Other organizations may reach a different decision.${openText}`,
+    };
+  }
+  if (payload.eventType === "participant_data.preparation_failed") {
+    return {
+      html: `<p>${escapeHTML(company)} approved its scope, but VASI could not prepare the protected data export within its safety limits. No export was released.</p>${openHTML}`,
+      subject: "VASI data export needs attention",
+      text: `${company} approved its scope, but VASI could not prepare the protected data export within its safety limits. No export was released.${openText}`,
+    };
+  }
+  return {
+    html: `<p>Your protected VASI data export involving ${escapeHTML(company)} has expired and is no longer downloadable. Audit metadata remains protected.</p>${openHTML}`,
+    subject: "Your protected VASI data export expired",
+    text: `Your protected VASI data export involving ${company} has expired and is no longer downloadable. Audit metadata remains protected.${openText}`,
+  };
+}
+
+function notificationDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 async function microsoftGraphAccessToken({ clientId, clientSecret, now, request, tenantId }) {

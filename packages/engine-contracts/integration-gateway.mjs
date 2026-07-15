@@ -46,6 +46,9 @@ export function validateIntegrationDeliveryCommand(value) {
 }
 
 function validateNotificationPayload(value) {
+  if (typeof value?.eventType === "string" && value.eventType.startsWith("participant_data.")) {
+    return validateParticipantDataNotificationPayload(value);
+  }
   const input = strictObject(value, "notification payload", [
     "dueAt", "eventType", "participantPath", "recipient", "requestId", "tenant", "title",
   ]);
@@ -68,6 +71,49 @@ function validateNotificationPayload(value) {
       name: boundedString(tenant.name, "tenant.name", 1, 160),
     }),
     title: boundedString(input.title, "title", 1, 160),
+  });
+}
+
+function validateParticipantDataNotificationPayload(value) {
+  const input = strictObject(value, "participant data notification payload", [
+    "eventType", "expiresAt", "participantPath", "recipient", "requestStatus", "schema", "tenant",
+  ]);
+  if (![
+    "participant_data.ready",
+    "participant_data.denied",
+    "participant_data.preparation_failed",
+    "participant_data.expired",
+  ].includes(input.eventType)) {
+    invalid("The participant data notification event type is unsupported.");
+  }
+  if (input.schema !== "vasi-participant-data-notification/v1") {
+    invalid("The participant data notification schema is unsupported.");
+  }
+  if (input.participantPath !== "/workspace") {
+    invalid("The participant data notification path is invalid.");
+  }
+  const tenant = strictObject(input.tenant, "notification tenant", ["id", "name"]);
+  const statuses = [
+    "ready", "denied", "preparation_failed", "expired",
+  ];
+  if (!statuses.includes(input.requestStatus)) {
+    invalid("The participant data request status is invalid.");
+  }
+  const expiresAt = optionalDate(input.expiresAt, "expiresAt");
+  if (["participant_data.ready", "participant_data.expired"].includes(input.eventType) && !expiresAt) {
+    invalid("The participant data export expiration is required.");
+  }
+  return Object.freeze({
+    eventType: input.eventType,
+    ...(expiresAt ? { expiresAt } : {}),
+    participantPath: "/workspace",
+    recipient: email(input.recipient),
+    requestStatus: input.requestStatus,
+    schema: input.schema,
+    tenant: Object.freeze({
+      id: token(tenant.id, "tenant.id"),
+      name: boundedString(tenant.name, "tenant.name", 1, 160),
+    }),
   });
 }
 

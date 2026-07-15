@@ -62,6 +62,9 @@ export function friendlyEngineError(code?: string) {
     case "data_request_already_reviewed": return "That organization has already reviewed this data request.";
     case "data_request_expired": return "That participant data request has expired.";
     case "data_request_denied": return "The reviewed participant data request was denied.";
+    case "participant_data_export_preparing": return "Your reviewed data export is being prepared. Refresh the workspace shortly.";
+    case "participant_data_export_preparation_failed": return "VASI could not prepare this export within its safety limits. Submit a new request or contact the requesting organization.";
+    case "participant_data_export_unavailable": return "The reviewed data export is temporarily unavailable. Refresh the workspace shortly.";
     case "participant_data_export_expired": return "That participant data export has expired. Submit a new data request if needed.";
     case "not_found": return "The requested record was not found or is not available to this account.";
     case "forbidden": return "This account is not authorized for that company or record.";

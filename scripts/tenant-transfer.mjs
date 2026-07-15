@@ -329,7 +329,7 @@ async function insertRows(client, table, rows) {
 async function assertTransferReady(database, tenantId) {
   const [dataRequests, jobs] = await Promise.all([
     database.query(`select 1 from "vasi_engine"."participant_data_request_scope" where "tenantId" = $1 limit 1`, [tenantId]),
-    database.query(`select 1 from "vasi_engine"."outbox_job" where "tenantId" = $1 and "status" in ('pending', 'running') limit 1`, [tenantId]),
+    database.query(`select 1 from "vasi_engine"."outbox_job" where "tenantId" = $1 and "status" in ('pending', 'participant_pending', 'running') limit 1`, [tenantId]),
   ]);
   if (dataRequests.rowCount) throw new Error("Complete or expire participant data-request scopes before tenant transfer.");
   if (jobs.rowCount) throw new Error("Drain pending and running tenant outbox jobs before tenant transfer.");

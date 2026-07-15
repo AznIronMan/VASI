@@ -147,4 +147,25 @@ describe("notification adapters", () => {
     expect(message.html).toContain("&lt;Example&gt;");
     expect(message.html).toContain("https://vsign.example.test/r/opaque");
   });
+
+  it.each([
+    ["participant_data.ready", "protected VASI data export is ready"],
+    ["participant_data.denied", "review completed"],
+    ["participant_data.preparation_failed", "needs attention"],
+    ["participant_data.expired", "data export expired"],
+  ])("renders truthful, workspace-only participant status mail for %s", (eventType, subjectText) => {
+    const message = notificationMessage({
+      eventType,
+      expiresAt: "2030-01-02T03:04:05.000Z",
+      participantPath: "/workspace",
+      recipient: "person@example.test",
+      requestStatus: eventType.split(".").at(-1),
+      schema: "vasi-participant-data-notification/v1",
+      tenant: { id: "tenant-1", name: "<Example>" },
+    }, new URL("https://vsign.example.test"));
+    expect(message.subject.toLowerCase()).toContain(subjectText.toLowerCase());
+    expect(message.html).toContain("&lt;Example&gt;");
+    expect(message.html).toContain("https://vsign.example.test/workspace");
+    expect(message.text).not.toContain("delivered");
+  });
 });

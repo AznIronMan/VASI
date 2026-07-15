@@ -34,7 +34,7 @@ export function ParticipantWorkspace({
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string>();
   const activeDataRequest = dataRequests.find((request) =>
-    !["cancelled", "denied", "expired"].includes(request.status),
+    !["cancelled", "denied", "expired", "preparation_failed"].includes(request.status),
   );
 
   async function refresh() {
@@ -125,7 +125,7 @@ export function ParticipantWorkspace({
       <summary>Privacy and access to my VASI data</summary>
       <div><h2>Request a portable copy</h2><p>You may request the VASI data associated with this verified account. Each requesting organization reviews only its own record scope. Approved exports exclude organization secrets, internal-only workflow material, and unrelated third-party information.</p><p>The resulting sealed JSON file is available for a limited delivery window. Request and access events remain in the audit trail.</p>
         <button className="secondary-button" type="button" disabled={pending || Boolean(activeDataRequest)} onClick={() => void requestData()}>{activeDataRequest ? "A data request is already open" : "Request my VASI data"}</button>
-        {dataRequests.map((request) => <article className="workspace-data-request" key={request.id}><div><strong>{request.status.replaceAll("_", " ")}</strong><span>Requested {formatWorkspaceDate(request.requestedAt)}</span><small>{request.scopes.map((scope) => `${scope.tenant.name}: ${scope.status.replaceAll("_", " ")}`).join(" · ") || "No organization scopes matched"}</small></div>{["approved", "partially_approved", "ready"].includes(request.status) && <a href={`/api/workspace/data-export?requestId=${encodeURIComponent(request.id)}`}>Download sealed JSON</a>}</article>)}
+        {dataRequests.map((request) => <article className="workspace-data-request" key={request.id}><div><strong>{request.status.replaceAll("_", " ")}</strong><span>Requested {formatWorkspaceDate(request.requestedAt)}</span><small>{request.scopes.map((scope) => `${scope.tenant.name}: ${scope.status.replaceAll("_", " ")}`).join(" · ") || "No organization scopes matched"}</small>{request.notifications.length > 0 && <small>{request.notifications.map(notificationText).join(" · ")}</small>}</div>{request.status === "ready" && <a href={`/api/workspace/data-export?requestId=${encodeURIComponent(request.id)}`}>Download sealed JSON</a>}</article>)}
       </div>
     </details>
   </main>;
@@ -133,6 +133,14 @@ export function ParticipantWorkspace({
 
 function formatWorkspaceDate(value?: string) {
   return value ? new Date(value).toLocaleString() : "Not recorded";
+}
+
+function notificationText(notification: ParticipantDataRequest["notifications"][number]) {
+  const purpose = notification.notificationType.replace("participant_data.", "").replaceAll("_", " ");
+  const status = notification.status === "provider_accepted"
+    ? "email provider accepted"
+    : notification.status.replaceAll("_", " ");
+  return `${notification.tenant.name} ${purpose}: ${status}`;
 }
 
 function authenticationText(record: ParticipantHistoryRecord) {
