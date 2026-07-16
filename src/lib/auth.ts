@@ -7,7 +7,11 @@ import { resolveSessionAuthentication } from "@/lib/auth-provenance";
 import { recordConnectorAuthentication } from "@/lib/connector-authentication-health";
 import { database, getDatabase } from "@/lib/database";
 import { sendAuthEmail } from "@/lib/email";
-import { isProviderConfigured } from "@/lib/auth-providers";
+import {
+  isProviderConfigured,
+  validateAuthProviderConfiguration,
+} from "@/lib/auth-providers";
+import { normalizeZohoAccountsOrigin } from "../../packages/auth-provider-readiness/index.mjs";
 import { getRuntimeSettings } from "@/lib/runtime-settings";
 import { resolveServerSettings } from "@/lib/server-settings";
 
@@ -24,6 +28,7 @@ export function getAuth() {
 
 async function createAuth() {
   const settings = await getRuntimeSettings();
+  validateAuthProviderConfiguration(settings);
   const brand = resolveProductBrand(settings);
   const { adminEmails, adminOrigin, authSecret, baseURL, trustedProxyCIDRs } =
     resolveServerSettings(settings);
@@ -78,19 +83,14 @@ async function createAuth() {
   }
 
   if (isProviderConfigured("zoho", settings)) {
-    const accountsOrigin = new URL(
-      settings.ZOHO_ACCOUNTS_ORIGIN?.trim() || "https://accounts.zoho.com",
-    );
-    if (accountsOrigin.protocol !== "https:") {
-      throw new Error("ZOHO_ACCOUNTS_ORIGIN must use HTTPS.");
-    }
+    const accountsOrigin = normalizeZohoAccountsOrigin(settings.ZOHO_ACCOUNTS_ORIGIN);
 
     genericOAuthConfigs.push({
       providerId: "zoho",
       clientId: settings.ZOHO_CLIENT_ID!,
       clientSecret: settings.ZOHO_CLIENT_SECRET!,
-      discoveryUrl: `${accountsOrigin.origin}/.well-known/openid-configuration`,
-      issuer: accountsOrigin.origin,
+      discoveryUrl: `${accountsOrigin}/.well-known/openid-configuration`,
+      issuer: accountsOrigin,
       scopes: ["openid", "profile", "email"],
       authentication: "basic",
     });

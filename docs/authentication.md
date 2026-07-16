@@ -115,6 +115,13 @@ register it with the provider before enabling that provider for internal admin
 sign-in. Better Auth validates both allowed hosts and trusted origins before
 constructing a host-specific callback.
 
+The private administrator console derives and displays both exact callbacks
+for every provider without receiving credential values. The shared activation
+contract distinguishes an intentionally absent provider from a dangerous
+partial tuple; `settings validate` and gateway authentication startup reject
+partial configuration before activation. See
+[Identity-provider activation readiness](architecture/identity-provider-activation-readiness.md).
+
 Every authentication POST is byte-bounded by VASI before Better Auth reads it.
 The gateway accepts no more than 65,536 bytes, checks a declared length before
 reading, independently counts the streamed body, and removes the original
@@ -186,7 +193,10 @@ above. Configure `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, and the matching
 `ZOHO_ACCOUNTS_ORIGIN`; the origin defaults to `https://accounts.zoho.com` for
 the United States data center. VASI uses that origin's OIDC discovery metadata,
 requests only `openid`, `profile`, and `email`, and uses the stable subject claim
-as the connector identity. Review Zoho's multi-data-center requirements before
+as the connector identity. VASI accepts only Zoho's documented HTTPS account
+origins for the US, EU, India, Australia, Japan, Canada, Saudi Arabia, and
+United Kingdom data centers; arbitrary discovery hosts and non-origin URL
+material fail closed. Review and enable Zoho's multi-data-center policy before
 accepting accounts homed outside the configured application data center.
 
 ## Username and password

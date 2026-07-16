@@ -67,7 +67,7 @@ legal enforceability by itself.
 
 | ID | Threat | Enforced controls and evidence | Residual risk / required owner |
 |---|---|---|---|
-| AUTH-1 | Account takeover, provider confusion, manual-password downgrade, or privileged identity change without trustworthy history | Verified provider subject/email binding; SSO-first UI; password controls hidden under Other methods; session-specific provenance; connector and session revocation; provider callback allowlists; command-correlated immutable administrator audit chain; atomic local outcomes; explicit provider ambiguity; internal-only verifier and independent aggregate monitor | Customer identity/MFA policy and recovery-channel security remain operator/provider responsibilities; host/database owners remain trusted without external anchoring |
+| AUTH-1 | Account takeover, provider confusion, manual-password downgrade, partial provider activation, or privileged identity change without trustworthy history | Verified provider subject/email binding; SSO-first UI; password controls hidden under Other methods; session-specific provenance; connector and session revocation; one fail-closed provider tuple/visibility/callback contract; documented Zoho issuer allowlist; secret-free private activation readiness; command-correlated immutable administrator audit chain; atomic local outcomes; explicit provider ambiguity; internal-only verifier and independent aggregate monitor | Provider-console registration, consent, client validity, customer identity/MFA policy, and recovery-channel security remain operator/provider responsibilities; host/database owners remain trusted without external anchoring |
 | AUTH-2 | Open redirect, forged origin, CSRF, host/request-target confusion, cross-origin authorization, or page-method confusion | Bounded same-origin return paths; configured public/private origins; origin checks on state-changing routes; Better Auth CSRF/session controls and mandatory no-store responses; canonical configured-host redirects and exact-host edge servers; pre-proxy encoded traversal/separator/NUL denial; effective-config audit; GET/HEAD-only page rendering and method-override resistance; restrictive browser headers; raw hostile-host/absolute-target proof, hostile simple/preflight CORS denial, and TLS 1.2/1.3 black-box proof | DNS, TLS, and any upstream load balancer must preserve the audited host/scheme contract |
 | AUTH-3 | Forged forwarding headers falsify evidence context or evade an instance-local public throttle | Strict IPv4/IPv6 parsing; bounded forwarding chains; right-to-left approved-proxy walk; ambiguous-address omission; one policy for Better Auth, engine actors, administrator audit, and verification; PostgreSQL atomic counters keyed by address HMAC; IPv6 `/64` and shared unattributable buckets; storage failure denial; edge replacement of `Forwarded`, `X-Real-IP`, and the complete forwarding chain | The gateway origin must remain private and accept only approved edge sources; any upstream proxy before the audited edge must supply authenticated peer data |
 | AUTH-4 | Unauthenticated provider detection is used for unbounded DNS work, cross-host exposure, or cache poisoning | Public-host and Fetch Metadata checks; bounded email/domain parsing; fixed consumer mappings without DNS; atomic per-client and installation HMAC counters; shared strict proxy provenance; same-domain coalescing; 16-active/64-queued ceiling; cancellable timeout; strict 20-record MX validation; short authoritative-negative cache; transient-failure non-caching | Upstream proxy limits and gateway DNS availability remain installation controls; MX metadata is a recommendation, never identity or mailbox proof |
@@ -563,6 +563,15 @@ counts, and SHA-256 values across the complete set. It returns only total
 artifact count/bytes and a matched state. Artifact meaning, review quality,
 reviewer authority, custody history, and external approval remain outside this
 integrity check.
+
+VASI 0.54.0 makes identity-provider activation structurally fail closed. One
+shared provider contract now distinguishes absent credentials from partial
+tuples, requires a complete Apple credential route before visibility, and
+restricts Zoho discovery to documented regional account origins. Settings
+validation and authentication startup consume the same result. The private
+administrator console shows secret-free readiness plus exact public/private
+callbacks for all five providers. Provider registration, approval, consent,
+credential validity, and an actual login remain external evidence.
 
 ## Readiness dossier handoff
 

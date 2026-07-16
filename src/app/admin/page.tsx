@@ -32,6 +32,7 @@ export default async function AdminPage() {
       audit={dashboard.audit}
       invitations={dashboard.invitations}
       operatorId={authorization.session.user.id}
+      providers={dashboard.providers}
       users={dashboard.users}
     />
   );

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   getAuthProviderAvailability,
+  getAuthProviderReadiness,
   getLoginAuthProviderAvailability,
   isProviderConfigured,
+  validateAuthProviderConfiguration,
 } from "@/lib/auth-providers";
 
 describe("authentication provider configuration", () => {
@@ -74,5 +76,31 @@ describe("authentication provider configuration", () => {
         ZOHO_CLIENT_SECRET: "client-secret",
       }),
     ).toBe(true);
+  });
+
+  it("derives secret-free installation callbacks and state", () => {
+    const readiness = getAuthProviderReadiness({
+      APPLE_LOGIN_ENABLED: "false",
+      GOOGLE_CLIENT_ID: "client-id",
+      GOOGLE_CLIENT_SECRET: "client-secret",
+    }, {
+      adminOrigin: "https://admin.example.test",
+      publicOrigin: "https://login.example.test",
+    });
+    expect(readiness.find((provider) => provider.id === "google")).toMatchObject({
+      adminCallback: "https://admin.example.test/api/auth/callback/google",
+      publicCallback: "https://login.example.test/api/auth/callback/google",
+      status: "ready",
+    });
+    expect(readiness.find((provider) => provider.id === "apple")).toMatchObject({
+      status: "hidden",
+      visible: false,
+    });
+    expect(JSON.stringify(readiness)).not.toContain("client-secret");
+  });
+
+  it("fails closed on partial provider settings", () => {
+    expect(() => validateAuthProviderConfiguration({ YAHOO_CLIENT_ID: "client-only" }))
+      .toThrow("Yahoo (partial_credentials)");
   });
 });

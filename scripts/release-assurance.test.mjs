@@ -10,6 +10,7 @@ import {
   inspectTrackedSource,
   runtimeDependencyAuditPaths,
   runtimeContractForImage,
+  validateAuthProviderReadinessContract,
   validateAutomationContract,
   validateComposeContracts,
   validateDirectExecutionContract,
@@ -112,6 +113,69 @@ describe("release assurance policy", () => {
       failures: ["the direct-execution source inventory is invalid"],
       filesChecked: 0,
     });
+  });
+
+  it("keeps identity-provider activation shared, fail-closed, and secret-free", async () => {
+    const result = await validateAuthProviderReadinessContract(root);
+    expect(result).toEqual({ failures: [], filesChecked: 10 });
+  });
+
+  it("rejects weakened identity-provider activation boundaries", async () => {
+    const fixture = await mkdtemp(path.join(tmpdir(), "vasi-provider-readiness-assurance-"));
+    try {
+      const files = [
+        "docs/architecture/identity-provider-activation-readiness.md",
+        "docs/authentication.md",
+        "packages/auth-provider-readiness/index.d.mts",
+        "packages/auth-provider-readiness/index.mjs",
+        "packages/auth-provider-readiness/index.test.mjs",
+        "scripts/settings-core.mjs",
+        "src/components/admin/provider-readiness-panel.tsx",
+        "src/lib/admin-users.ts",
+        "src/lib/auth-providers.ts",
+        "src/lib/auth.ts",
+      ];
+      for (const filename of files) {
+        await mkdir(path.dirname(path.join(fixture, filename)), { recursive: true });
+        await cp(path.join(root, filename), path.join(fixture, filename));
+      }
+      const library = path.join(fixture, "packages/auth-provider-readiness/index.mjs");
+      await writeFile(
+        library,
+        (await readFile(library, "utf8")).replace(
+          "!ZOHO_ACCOUNTS_ORIGINS.includes(parsed.origin)",
+          "false",
+        ),
+      );
+      const authentication = path.join(fixture, "src/lib/auth.ts");
+      await writeFile(
+        authentication,
+        (await readFile(authentication, "utf8")).replace(
+          "validateAuthProviderConfiguration(settings);",
+          "// validation removed",
+        ),
+      );
+      const panel = path.join(fixture, "src/components/admin/provider-readiness-panel.tsx");
+      await writeFile(
+        panel,
+        (await readFile(panel, "utf8")).replace(
+          "provider.publicCallback",
+          "provider.callbackPath",
+        ),
+      );
+      const result = await validateAuthProviderReadinessContract(fixture);
+      expect(result.failures).toContain(
+        "the shared identity-provider readiness library is missing !ZOHO_ACCOUNTS_ORIGINS.includes(parsed.origin)",
+      );
+      expect(result.failures).toContain(
+        "the authentication runtime is missing validateAuthProviderConfiguration(settings);",
+      );
+      expect(result.failures).toContain(
+        "the private provider-readiness panel is missing provider.publicCallback",
+      );
+    } finally {
+      await rm(fixture, { force: true, recursive: true });
+    }
   });
 
   it("keeps pilot-gate evidence deterministic, bounded, offline, and privacy-safe", async () => {

@@ -31,8 +31,15 @@ export function resolveServerSettings(
   if (production && parsedAdminOrigin.protocol !== "https:") {
     throw new Error("VASI_ADMIN_ORIGIN must use HTTPS in production.");
   }
-  if (parsedBaseURL.pathname !== "/" || parsedAdminOrigin.pathname !== "/") {
-    throw new Error("Authentication origins must not include a path.");
+  if (
+    [parsedBaseURL, parsedAdminOrigin].some((origin) =>
+      Boolean(
+        origin.username || origin.password || origin.pathname !== "/" ||
+        origin.search || origin.hash
+      )
+    )
+  ) {
+    throw new Error("Authentication origins must not include credentials, a path, query, or fragment.");
   }
 
   return {

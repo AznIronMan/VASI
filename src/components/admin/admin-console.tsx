@@ -8,6 +8,7 @@ import { AdminAuditPanel } from "@/components/admin/admin-audit-panel";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { InstallationProfilePanel } from "@/components/admin/installation-profile-panel";
 import { OperationalReadinessPanel } from "@/components/admin/operational-readiness-panel";
+import { ProviderReadinessPanel } from "@/components/admin/provider-readiness-panel";
 import { TenantAdmissionPanel } from "@/components/admin/tenant-admission-panel";
 import { TenantProvisioningPanel } from "@/components/admin/tenant-provisioning-panel";
 import { BrandMark } from "@/components/brand-mark";
@@ -19,16 +20,19 @@ import type {
   PendingInvitation,
 } from "@/lib/admin-users";
 import type { AdminAuditOverview } from "@/lib/admin-audit";
+import type { AuthProviderReadiness } from "@/lib/auth-providers";
 
 export function AdminConsole({
   audit,
   invitations,
   operatorId,
+  providers,
   users,
 }: {
   audit: AdminAuditOverview;
   invitations: PendingInvitation[];
   operatorId: string;
+  providers: AuthProviderReadiness[];
   users: AdminUser[];
 }) {
   const brand = useProductBrand();
@@ -137,6 +141,8 @@ export function AdminConsole({
       </section>
 
       <InstallationProfilePanel />
+
+      <ProviderReadinessPanel providers={providers} />
 
       <TenantProvisioningPanel />
 

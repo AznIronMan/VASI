@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.53.0`
+Version: `0.54.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -688,6 +688,16 @@ the version 1 manifest-only result and its explicit `not_performed` state.
 Neither mode interprets an artifact or replaces reviewer authority, custody,
 trust policy, or accountable approval.
 
+Version 0.54.0 makes identity-provider activation explicit and fail closed.
+One shared contract distinguishes an absent optional provider from a partial
+credential tuple, requires complete Apple credentials before public
+visibility, restricts Zoho discovery to its documented regional account
+origins, and derives exact public/private callbacks. Settings validation and
+authentication startup enforce the contract. The private administrator
+console shows readiness and callbacks for all five providers without receiving
+credential values. Provider-console registration, approval, consent, current
+credentials, and real-login proof remain operator evidence.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -708,7 +718,8 @@ assessment remain installation or pilot gates.
 - Internal-host-only identity administration, operator allowlisting,
   invitations, connector health/disconnection, password controls, account
   disablement, session revocation, command-correlated immutable audit evidence,
-  independent chain verification, and bounded internal forensic context.
+  independent chain verification, bounded internal forensic context, and
+  secret-free installation-level provider activation readiness.
 - Administrator-only company provisioning with a transactionally durable
   initial-owner grant, separately reported login invitation outcome, and an
   explicit pending-production handoff to the eight assurance gates.
@@ -865,7 +876,9 @@ Keep the file at mode `0600` and its directory private.
 
 Settings are loaded once per application process. Restart the app after a
 settings change. The settings listing command reports names and versions but
-never values.
+never values. `settings validate` also rejects partial OAuth tuples, invalid
+Apple visibility, and unsupported Zoho account origins without printing any
+credential value.
 
 Disaster recovery to a different PostgreSQL endpoint uses the confirmed
 `settings rebind-database - --confirm-recovery-endpoint` command on a copy of
@@ -902,6 +915,7 @@ Useful commands:
 
 ```bash
 npm run settings:list
+npm run settings -- validate
 npm run settings -- set GOOGLE_CLIENT_ID
 npm run settings -- set GOOGLE_CLIENT_SECRET
 npm run settings -- unset GOOGLE_CLIENT_ID

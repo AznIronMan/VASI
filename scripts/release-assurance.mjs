@@ -1335,6 +1335,147 @@ export async function validateDirectExecutionContract(
   };
 }
 
+export async function validateAuthProviderReadinessContract(repositoryRoot = root) {
+  const failures = [];
+  const filenames = {
+    admin: "src/lib/admin-users.ts",
+    authentication: "src/lib/auth.ts",
+    declaration: "packages/auth-provider-readiness/index.d.mts",
+    documentation: "docs/architecture/identity-provider-activation-readiness.md",
+    library: "packages/auth-provider-readiness/index.mjs",
+    panel: "src/components/admin/provider-readiness-panel.tsx",
+    settings: "scripts/settings-core.mjs",
+    test: "packages/auth-provider-readiness/index.test.mjs",
+    userDocumentation: "docs/authentication.md",
+    wrapper: "src/lib/auth-providers.ts",
+  };
+  const files = {};
+  for (const [name, filename] of Object.entries(filenames)) {
+    try {
+      files[name] = await readFile(path.join(repositoryRoot, filename), "utf8");
+    } catch {
+      failures.push(`the identity-provider readiness ${name} source is missing`);
+      files[name] = "";
+    }
+  }
+  for (const marker of [
+    "export const AUTH_PROVIDER_IDS",
+    "export const ZOHO_ACCOUNTS_ORIGINS",
+    "partial_credentials",
+    "visibility_requires_credentials",
+    "invalid_visibility_setting",
+    "unsupported_accounts_origin",
+    '!ZOHO_ACCOUNTS_ORIGINS.includes(parsed.origin)',
+    'parsed.pathname !== "/"',
+    "validateAuthProviderConfiguration",
+  ]) {
+    if (!files.library.includes(marker)) {
+      failures.push(`the shared identity-provider readiness library is missing ${marker}`);
+    }
+  }
+  for (const origin of [
+    "https://accounts.zoho.com",
+    "https://accounts.zoho.eu",
+    "https://accounts.zoho.in",
+    "https://accounts.zoho.com.au",
+    "https://accounts.zoho.jp",
+    "https://accounts.zohocloud.ca",
+    "https://accounts.zoho.sa",
+    "https://accounts.zoho.uk",
+  ]) {
+    if (!files.library.includes(`"${origin}"`)) {
+      failures.push(`the shared identity-provider readiness library is missing ${origin}`);
+    }
+  }
+  if (/\bfetch\s*\(/.test(files.library)) {
+    failures.push("the shared identity-provider readiness library must remain offline");
+  }
+  for (const marker of [
+    "AuthProviderReadinessStatus",
+    "AuthProviderReadiness",
+    "normalizeZohoAccountsOrigin",
+  ]) {
+    if (!files.declaration.includes(marker)) {
+      failures.push(`the identity-provider readiness declaration is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    'from "../../packages/auth-provider-readiness/index.mjs"',
+    "resolveAuthProviderReadiness(settings)",
+    "validateSharedAuthProviderConfiguration(settings)",
+  ]) {
+    if (!files.wrapper.includes(marker)) {
+      failures.push(`the gateway identity-provider wrapper is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    "validateAuthProviderConfiguration(settings);",
+    "normalizeZohoAccountsOrigin(settings.ZOHO_ACCOUNTS_ORIGIN)",
+  ]) {
+    if (!files.authentication.includes(marker)) {
+      failures.push(`the authentication runtime is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    'if (scope === "gateway") {',
+    "validateAuthProviderConfiguration(runtimeSettings);",
+    "getAuthProviderReadiness(runtimeSettings, {",
+    "adminOrigin: runtimeSettings.VASI_ADMIN_ORIGIN",
+    "publicOrigin: runtimeSettings.BETTER_AUTH_URL",
+  ]) {
+    if (!files.settings.includes(marker)) {
+      failures.push(`settings validation is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    "getAuthProviderReadiness(settings, {",
+    "adminOrigin: serverSettings.adminOrigin",
+    "publicOrigin: serverSettings.baseURL",
+  ]) {
+    if (!files.admin.includes(marker)) {
+      failures.push(`the private administrator data boundary is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    "Credential values are never shown.",
+    "provider.publicCallback",
+    "provider.adminCallback",
+    "unsupported Zoho account origin",
+  ]) {
+    if (!files.panel.includes(marker)) {
+      failures.push(`the private provider-readiness panel is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    "One framework-independent contract owns",
+    "Multi-DC OAuth documentation",
+    "provider/operator activation gates",
+  ]) {
+    if (!files.documentation.includes(marker)) {
+      failures.push(`the identity-provider readiness documentation is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    "partial tuple",
+    "documented HTTPS account",
+    "settings validate",
+  ]) {
+    if (!files.userDocumentation.includes(marker)) {
+      failures.push(`the authentication documentation is missing ${marker}`);
+    }
+  }
+  for (const marker of [
+    'expect(serialized).not.toContain(secret)',
+    '"https://accounts.zoho.example"',
+    "visibility_requires_credentials",
+  ]) {
+    if (!files.test.includes(marker)) {
+      failures.push(`the identity-provider readiness tests are missing ${marker}`);
+    }
+  }
+  return { failures, filesChecked: Object.keys(files).length };
+}
+
 export async function validateReadinessDossierVerifierContract(repositoryRoot = root) {
   const failures = [];
   const files = {
@@ -1831,6 +1972,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const commit = (await capture("git", ["rev-parse", "HEAD"], { cwd: root })).trim();
   const source = await inspectTrackedSource(root);
   const directExecution = await validateDirectExecutionContract(root, source.files.map((entry) => entry.path));
+  const authProviderReadiness = await validateAuthProviderReadinessContract(root);
   const pilotAdmissionEvidence = await validatePilotAdmissionEvidenceContract(root);
   const pilotGateEvidence = await validatePilotGateEvidenceContract(root);
   const readinessDossierVerifier = await validateReadinessDossierVerifierContract(root);
@@ -1856,6 +1998,9 @@ async function sourceAssurance(output, { allowDirty }) {
   }
   if (directExecution.failures.length) {
     throw new Error(`Operational CLI execution hardening failed: ${directExecution.failures.join("; ")}.`);
+  }
+  if (authProviderReadiness.failures.length) {
+    throw new Error(`Identity-provider readiness hardening failed: ${authProviderReadiness.failures.join("; ")}.`);
   }
   if (pilotAdmissionEvidence.failures.length) {
     throw new Error(`Pilot-admission evidence hardening failed: ${pilotAdmissionEvidence.failures.join("; ")}.`);
@@ -1911,6 +2056,7 @@ async function sourceAssurance(output, { allowDirty }) {
   return {
     commit,
     automation,
+    authProviderReadiness,
     compose,
     directExecution,
     dirty,

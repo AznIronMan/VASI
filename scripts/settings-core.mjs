@@ -20,6 +20,10 @@ import { DatabaseSync } from "node:sqlite";
 import pg from "pg";
 
 import settingDefinitions from "../config/runtime-settings.json" with { type: "json" };
+import {
+  getAuthProviderReadiness,
+  validateAuthProviderConfiguration,
+} from "../packages/auth-provider-readiness/index.mjs";
 
 const { Pool } = pg;
 const BOOTSTRAP_SCHEMA_VERSION = 1;
@@ -195,7 +199,14 @@ export function rebindBootstrapSettings({
 }
 
 export async function validateBootstrapBinding({ bootstrap, scope }) {
-  await readRuntimeSettings({ bootstrap, scope });
+  const runtimeSettings = await readRuntimeSettings({ bootstrap, scope });
+  if (scope === "gateway") {
+    validateAuthProviderConfiguration(runtimeSettings);
+    getAuthProviderReadiness(runtimeSettings, {
+      adminOrigin: runtimeSettings.VASI_ADMIN_ORIGIN,
+      publicOrigin: runtimeSettings.BETTER_AUTH_URL,
+    });
+  }
   const pool = createSettingsPool(bootstrap);
   try {
     const result = await pool.query(

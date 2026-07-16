@@ -41,6 +41,18 @@ describe("server settings", () => {
     ).toBe("http://localhost:3000");
   });
 
+  it("rejects non-origin URL material", () => {
+    for (const BETTER_AUTH_URL of [
+      "https://user@vsign.example.com",
+      "https://vsign.example.com/path",
+      "https://vsign.example.com?query=1",
+      "https://vsign.example.com#fragment",
+    ]) {
+      expect(() => resolveServerSettings({ ...validSettings, BETTER_AUTH_URL }, true))
+        .toThrow("must not include credentials, a path, query, or fragment");
+    }
+  });
+
   it("normalizes and validates the operator allowlist", () => {
     expect(
       resolveServerSettings(

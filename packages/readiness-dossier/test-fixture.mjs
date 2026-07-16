@@ -75,7 +75,7 @@ export function createReadinessExportFixture(
         mode: "self_hosted",
         publicIngress: "gateway_only",
       },
-      engineVersion: legacy ? "0.47.0" : "0.53.0",
+      engineVersion: legacy ? "0.47.0" : "0.54.0",
       organizationName: "Example Organization",
       productName: "V·Sign",
       profileHash: "d".repeat(64),

@@ -1,7 +1,9 @@
 import {
   authProviderIds,
   getAuthProviderAvailability,
+  getAuthProviderReadiness,
   type AuthProviderId,
+  type AuthProviderReadiness,
 } from "@/lib/auth-providers";
 import {
   connectorAuthenticationProvenance,
@@ -10,6 +12,7 @@ import {
 import { database } from "@/lib/database";
 import { loadAdminAuditOverview } from "@/lib/admin-audit";
 import { getRuntimeSettings, type RuntimeSettings } from "@/lib/runtime-settings";
+import { resolveServerSettings } from "@/lib/server-settings";
 
 export type ConnectorHealth = "active" | "stale" | "error" | "disconnected";
 
@@ -137,6 +140,7 @@ export async function loadAdminDashboard() {
     loadAdminAuditOverview(),
   ]);
 
+  const serverSettings = resolveServerSettings(settings);
   return {
     audit,
     invitations: invitationResult.rows.map((invitation) => ({
@@ -144,6 +148,10 @@ export async function loadAdminDashboard() {
       createdAt: new Date(invitation.createdAt).toISOString(),
       expiresAt: new Date(invitation.expiresAt).toISOString(),
     })) satisfies PendingInvitation[],
+    providers: getAuthProviderReadiness(settings, {
+      adminOrigin: serverSettings.adminOrigin,
+      publicOrigin: serverSettings.baseURL,
+    }) satisfies AuthProviderReadiness[],
     users: usersResult.rows.map((row) => toAdminUser(row, settings)),
   };
 }
