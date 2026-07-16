@@ -611,9 +611,12 @@ async function normalizeAndVerifyTree(directory, inspection, configuration, uid)
             (metadata.mode & 0o777) !== 0o755) fail("invalid_staged_directory");
         seenDirectories.add(childRelative);
         await walk(absolute, childRelative);
-      } else if (entry.isFile()) {
+      } else {
         const expected = inspection.files.get(childRelative);
-        const contents = await open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+        const contents = await open(
+          absolute,
+          constants.O_RDONLY | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0),
+        );
         try {
           const before = await contents.stat({ bigint: true });
           if (
@@ -630,8 +633,6 @@ async function normalizeAndVerifyTree(directory, inspection, configuration, uid)
           await contents.close();
         }
         seenFiles.add(childRelative);
-      } else {
-        fail("invalid_staged_entry_type");
       }
     }
   }
