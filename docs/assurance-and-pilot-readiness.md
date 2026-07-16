@@ -602,6 +602,18 @@ route inspection, runtime transport markers, evidence and passphrase inputs,
 and the SARIF gate itself. CodeQL remains first-party evidence and does not
 satisfy the independent penetration-review gate.
 
+VASI 0.55.1 adds the repository controls needed to preserve that exact-source
+evidence. GitHub's dependency-vulnerability alerts and dependency graph are
+enabled, automatic security fixes remain enabled, and an active repository
+ruleset with no bypass actors prevents deletion or non-fast-forward updates of
+`refs/heads/main`. Ordinary fast-forward pushes remain available so the
+operator's direct-to-`main` workflow is not silently changed. Existing secret
+scanning and push protection remain active. Non-provider secret patterns and
+secret-validity checks are accurately recorded as unavailable for this
+user-owned public repository rather than claimed as controls. These settings
+are verified by authenticated GitHub API readback; because they are hosted
+repository state, source assurance alone cannot prove that they remain active.
+
 ## Readiness dossier handoff
 
 VASI 0.45.0 lets an installation administrator export the current state behind

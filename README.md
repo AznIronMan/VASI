@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.55.0`
+Version: `0.55.1`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -717,6 +717,18 @@ route, transport, evidence, passphrase, and SARIF inputs by validating and
 reading through one no-follow file descriptor with stable metadata checks. This
 first-party control does not replace independent source review or penetration
 testing.
+
+Version 0.55.1 hardens the public source repository around that analysis.
+GitHub dependency-vulnerability alerts, the dependency graph, and automatic
+security fixes are enabled, while the existing secret scanning and push
+protection remain active. An active repository ruleset with no bypass actors
+protects `refs/heads/main` from deletion and non-fast-forward updates while
+preserving ordinary fast-forward pushes under the documented direct-to-`main`
+operator workflow. GitHub's non-provider secret patterns and secret-validity
+checks remain disabled because GitHub does not offer those features to this
+user-owned public repository; they must not be represented as active controls.
+Repository API readback is operational evidence for these externally hosted
+settings and does not replace independent review or protect another mirror.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
