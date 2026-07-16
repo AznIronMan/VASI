@@ -1,6 +1,6 @@
 # Recurring public-edge assurance
 
-Status: implemented in VASI 0.40.0 and corrected through VASI 0.40.2.
+Status: implemented in VASI 0.40.0 and corrected through VASI 0.54.1.
 
 ## Decision
 
@@ -93,7 +93,11 @@ eligible for bounded pruning.
 Effective configuration crosses the service's private temporary namespace
 through a dedicated root-only `/run/vasi-edge` handoff. The Docker daemon can
 read that bounded file while the service retains `PrivateTmp`; cleanup removes
-the complete handoff directory after every result.
+the complete per-run handoff directory after every result. The hardened unit
+declares `RuntimeDirectory=vasi-edge` at mode `0700`, so systemd creates the
+volatile parent before mount namespacing on every invocation, including the
+first run after reboot. The probe then revalidates that physical root-owned
+directory before writing into it.
 
 The result is aggregate JSON containing only status, listener count, artifact
 count, and scan age. It contains no hostname, container, image, address, path,

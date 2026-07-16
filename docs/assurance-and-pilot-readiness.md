@@ -573,6 +573,12 @@ administrator console shows secret-free readiness plus exact public/private
 callbacks for all five providers. Provider registration, approval, consent,
 credential validity, and an actual login remain external evidence.
 
+VASI 0.54.1 closes a first-run-after-reboot edge-monitoring gap. The recurring
+runtime unit now asks systemd to create the root-only mode-`0700`
+`/run/vasi-edge` handoff before constructing its mount namespace. Release
+assurance owns that exact unit contract; the probe still validates the physical
+directory and removes its bounded per-run child on every outcome.
+
 ## Readiness dossier handoff
 
 VASI 0.45.0 lets an installation administrator export the current state behind

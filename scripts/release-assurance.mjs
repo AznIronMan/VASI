@@ -394,6 +394,8 @@ export async function validateOperationalSchedulerContract(repositoryRoot = root
     "ExecStart=/bin/sh scripts/probe-edge-runtime.sh /var/lib/vasi-edge/monitor.json",
     "WorkingDirectory=/opt/vasi-edge/current",
     "ReadWritePaths=/var/lib/vasi-edge /run/lock /run/vasi-edge",
+    "RuntimeDirectory=vasi-edge",
+    "RuntimeDirectoryMode=0700",
     "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6",
   ]);
   addTimer("vasi-edge-runtime-readiness.timer", "vasi-edge-runtime-readiness.service", {

@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.54.0`
+Version: `0.54.1`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -697,6 +697,12 @@ authentication startup enforce the contract. The private administrator
 console shows readiness and callbacks for all five providers without receiving
 credential values. Provider-console registration, approval, consent, current
 credentials, and real-login proof remain operator evidence.
+
+Version 0.54.1 makes the recurring public-edge runtime proof safe on the first
+run after boot. Its hardened systemd unit now creates the root-only volatile
+handoff directory before mount namespacing instead of depending on a prior run
+to have left `/run/vasi-edge` present. Release assurance requires the exact
+runtime-directory name and mode so scheduler drift fails closed.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
