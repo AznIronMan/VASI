@@ -74,6 +74,7 @@ export const DIRECT_EXECUTION_ENTRYPOINTS = Object.freeze([
   "scripts/render-database-egress-policy.mjs",
   "scripts/render-private-ingress-egress-policy.mjs",
   "scripts/stage-production-release.mjs",
+  "scripts/verify-codeql-sarif.mjs",
   "scripts/verify-pilot-admission-evidence.mjs",
   "scripts/verify-readiness-dossier.mjs",
   "scripts/verify-engine-host-runtime.mjs",
@@ -343,6 +344,104 @@ export async function validateAutomationContract(repositoryRoot = root) {
     if (!String(scan).includes(`"${image}:`)) failures.push(`release workflow does not scan ${image}`);
   }
   return { failures, jobs: jobs.length, releaseImagesChecked: releaseImages };
+}
+
+export async function validateCodeScanningContract(repositoryRoot = root) {
+  const filename = path.join(repositoryRoot, ".github", "workflows", "codeql-analysis.yml");
+  const failures = [];
+  let workflow;
+  try {
+    workflow = parseYAML(await readFile(filename, "utf8"));
+  } catch {
+    return { actionsChecked: 0, failures: ["CodeQL workflow is missing or invalid"], languages: [] };
+  }
+
+  const triggers = Object.keys(workflow?.on || {}).sort();
+  if (JSON.stringify(triggers) !== JSON.stringify(["pull_request", "push", "schedule"])) {
+    failures.push("CodeQL workflow must use only pull request, main push, and schedule triggers");
+  }
+  for (const event of ["pull_request", "push"]) {
+    if (JSON.stringify(workflow?.on?.[event]?.branches) !== JSON.stringify(["main"])) {
+      failures.push(`CodeQL ${event} trigger must target only main`);
+    }
+  }
+  if (
+    !Array.isArray(workflow?.on?.schedule) || workflow.on.schedule.length !== 1 ||
+    workflow.on.schedule[0]?.cron !== "23 4 * * 1"
+  ) {
+    failures.push("CodeQL workflow must retain the reviewed weekly schedule");
+  }
+
+  const permissions = workflow?.permissions || {};
+  if (
+    permissions.contents !== "read" || permissions["security-events"] !== "write" ||
+    JSON.stringify(Object.keys(permissions).sort()) !== JSON.stringify(["contents", "security-events"])
+  ) {
+    failures.push("CodeQL workflow permissions must be read-only contents plus security-event upload");
+  }
+  if (
+    workflow?.concurrency?.group !== "codeql-${{ github.workflow }}-${{ github.ref }}" ||
+    workflow?.concurrency?.["cancel-in-progress"] !== true
+  ) {
+    failures.push("CodeQL workflow must cancel superseded runs in its exact concurrency group");
+  }
+
+  const jobNames = Object.keys(workflow?.jobs || {});
+  const job = workflow?.jobs?.analyze;
+  if (JSON.stringify(jobNames) !== JSON.stringify(["analyze"]) || !job) {
+    failures.push("CodeQL workflow must define only the analyze job");
+  }
+  if (
+    job?.["runs-on"] !== "ubuntu-24.04" || job?.["timeout-minutes"] !== 30 ||
+    job?.strategy?.["fail-fast"] !== false ||
+    JSON.stringify(job?.strategy?.matrix?.language) !== JSON.stringify(["javascript"])
+  ) {
+    failures.push("CodeQL analyze job runtime, timeout, and language matrix drifted");
+  }
+
+  const steps = job?.steps || [];
+  if (steps.length !== 4 || steps.slice(0, 3).some((step) => typeof step?.run === "string")) {
+    failures.push("CodeQL analyze job must contain only the four reviewed steps");
+  }
+  const expectedActions = [
+    "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
+    "github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa",
+    "github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa",
+  ];
+  const actualActions = steps.slice(0, 3).map((step) => step?.uses);
+  if (JSON.stringify(actualActions) !== JSON.stringify(expectedActions)) {
+    failures.push("CodeQL workflow actions are missing, reordered, or not pinned to reviewed commits");
+  }
+  for (const action of actualActions.filter(Boolean)) {
+    if (!/@[a-f0-9]{40}$/.test(action)) failures.push(`CodeQL action is not commit-pinned: ${action}`);
+  }
+  const initialize = steps[1];
+  if (
+    initialize?.with?.languages !== "${{ matrix.language }}" ||
+    initialize?.with?.queries !== "security-extended"
+  ) {
+    failures.push("CodeQL initialization must analyze JavaScript with security-extended queries");
+  }
+  if (
+    steps[2]?.id !== "analyze" ||
+    steps[2]?.with?.category !== "/language:${{ matrix.language }}"
+  ) {
+    failures.push("CodeQL result category must preserve the historical JavaScript analysis identity");
+  }
+  if (
+    steps[3]?.name !== "Reject high and critical security results" ||
+    steps[3]?.env?.VASI_CODEQL_SARIF_DIR !== "${{ steps.analyze.outputs.sarif-output }}" ||
+    steps[3]?.run !== 'node scripts/verify-codeql-sarif.mjs "$VASI_CODEQL_SARIF_DIR"' ||
+    steps[3]?.uses !== undefined
+  ) {
+    failures.push("CodeQL analysis must retain the reviewed fail-closed SARIF verification step");
+  }
+
+  return {
+    actionsChecked: actualActions.filter(Boolean).length,
+    failures,
+    languages: job?.strategy?.matrix?.language || [],
+  };
 }
 
 export async function validateOperationalSchedulerContract(repositoryRoot = root) {
@@ -1981,6 +2080,7 @@ async function sourceAssurance(output, { allowDirty }) {
   const versions = await validateVersionAlignment(root);
   const compose = await validateComposeContracts(root);
   const automation = await validateAutomationContract(root);
+  const codeScanning = await validateCodeScanningContract(root);
   const engineHostRuntime = await validateEngineHostRuntimeContract(root);
   const operationalAlertHandoff = await validateOperationalAlertHandoffContract(root);
   const operationalSchedulers = await validateOperationalSchedulerContract(root);
@@ -2016,6 +2116,7 @@ async function sourceAssurance(output, { allowDirty }) {
   if (versions.mismatches.length) throw new Error("VASI version declarations are not aligned.");
   if (compose.failures.length) throw new Error(`Compose hardening failed: ${compose.failures.join("; ")}.`);
   if (automation.failures.length) throw new Error(`Release automation hardening failed: ${automation.failures.join("; ")}.`);
+  if (codeScanning.failures.length) throw new Error(`Code scanning hardening failed: ${codeScanning.failures.join("; ")}.`);
   if (engineHostRuntime.failures.length) {
     throw new Error(`Engine host runtime hardening failed: ${engineHostRuntime.failures.join("; ")}.`);
   }
@@ -2059,6 +2160,7 @@ async function sourceAssurance(output, { allowDirty }) {
     commit,
     automation,
     authProviderReadiness,
+    codeScanning,
     compose,
     directExecution,
     dirty,

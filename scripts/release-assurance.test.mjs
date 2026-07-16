@@ -12,6 +12,7 @@ import {
   runtimeContractForImage,
   validateAuthProviderReadinessContract,
   validateAutomationContract,
+  validateCodeScanningContract,
   validateComposeContracts,
   validateDirectExecutionContract,
   validateEdgeMonitorContract,
@@ -67,6 +68,52 @@ describe("release assurance policy", () => {
     ]);
   });
 
+  it("keeps CodeQL current, least-privileged, extended, and commit-pinned", async () => {
+    const result = await validateCodeScanningContract(root);
+    expect(result.failures).toEqual([]);
+    expect(result.actionsChecked).toBe(3);
+    expect(result.languages).toEqual(["javascript"]);
+  });
+
+  it("rejects weakened CodeQL permissions, queries, and action pins", async () => {
+    const fixture = await mkdtemp(path.join(tmpdir(), "vasi-codeql-contract-"));
+    try {
+      const directory = path.join(fixture, ".github", "workflows");
+      await mkdir(directory, { recursive: true });
+      const source = await readFile(path.join(root, ".github", "workflows", "codeql-analysis.yml"), "utf8");
+      await writeFile(
+        path.join(directory, "codeql-analysis.yml"),
+        source
+          .replace("security-events: write", "security-events: read")
+          .replace("queries: security-extended", "queries: security-and-quality")
+          .replace(
+            "github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa",
+            "github/codeql-action/analyze@v4",
+          )
+          .replace(
+            'node scripts/verify-codeql-sarif.mjs "$VASI_CODEQL_SARIF_DIR"',
+            "true",
+          ),
+      );
+      const result = await validateCodeScanningContract(fixture);
+      expect(result.failures).toContain(
+        "CodeQL workflow permissions must be read-only contents plus security-event upload",
+      );
+      expect(result.failures).toContain(
+        "CodeQL workflow actions are missing, reordered, or not pinned to reviewed commits",
+      );
+      expect(result.failures).toContain(
+        "CodeQL initialization must analyze JavaScript with security-extended queries",
+      );
+      expect(result.failures).toContain("CodeQL action is not commit-pinned: github/codeql-action/analyze@v4");
+      expect(result.failures).toContain(
+        "CodeQL analysis must retain the reviewed fail-closed SARIF verification step",
+      );
+    } finally {
+      await rm(fixture, { force: true, recursive: true });
+    }
+  });
+
   it("packages every persistent least-privileged operational scheduler", async () => {
     const result = await validateOperationalSchedulerContract(root);
     expect(result.failures).toEqual([]);
@@ -100,14 +147,15 @@ describe("release assurance policy", () => {
     const tracked = await inspectTrackedSource(root);
     const result = await validateDirectExecutionContract(root, operationalSources(tracked));
     expect(result.failures).toEqual([]);
-    expect(result.filesChecked).toBe(27);
-    expect(result.cliFiles).toHaveLength(24);
+    expect(result.filesChecked).toBe(28);
+    expect(result.cliFiles).toHaveLength(25);
     expect(result.cliFiles).toContain("scripts/activate-production-release.mjs");
     expect(result.cliFiles).toContain("scripts/stage-production-release.mjs");
     expect(result.cliFiles).toContain("scripts/readiness-trust-anchor.mjs");
     expect(result.cliFiles).toContain("scripts/pilot-gate-evidence.mjs");
     expect(result.cliFiles).toContain("scripts/verify-pilot-admission-evidence.mjs");
     expect(result.cliFiles).toContain("scripts/verify-readiness-dossier.mjs");
+    expect(result.cliFiles).toContain("scripts/verify-codeql-sarif.mjs");
     expect(result.cliFiles).toContain("services/database-gateway/server.mjs");
     await expect(validateDirectExecutionContract(root, [null])).resolves.toMatchObject({
       failures: ["the direct-execution source inventory is invalid"],
@@ -377,7 +425,7 @@ describe("release assurance policy", () => {
     const modules = await Promise.all(result.cliFiles.map((filename) =>
       import(pathToFileURL(path.join(root, filename)).href)
     ));
-    expect(modules).toHaveLength(24);
+    expect(modules).toHaveLength(25);
   });
 
   it("rejects a silent-no-op operational CLI comparison", async () => {

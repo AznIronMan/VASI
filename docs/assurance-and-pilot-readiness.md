@@ -86,7 +86,7 @@ legal enforceability by itself.
 | CUST-1 | Matched backup disclosure, copy corruption, unsafe pruning, lost recipient key, or false off-host confidence | Verified matched source; no plaintext aggregate archive; streaming fixed-size independently authenticated AES-256-GCM chunks; ephemeral X25519/HKDF and per-recipient authenticated key wraps; application stores public recipients only; whole-package copy digest; strict structure/freshness checks; verified-candidate retention; authenticated offline extraction with no partial output | Installation must prove remote transfer, geographic/organizational separation, private-key custody and recovery, deletion/legal-hold policy, restore drills, and RPO/RTO; a compromised authorized source host can create a false backup |
 | LIFE-1 | Premature deletion, hold bypass, or privacy export overreach | Independent retention horizons; immutable policy revisions; append-only holds/releases; exact-match signed purge tombstones; data-request blockers; organization-scoped reviewed exports | The customer must approve legally appropriate retention and disclosure policy |
 | REVIEW-1 | A readiness dossier is altered, rendered differently from its embedded facts, oversized or executable, signed by an unexpected key, or presented as externally trusted when only self-consistent | One shared strict wrapper/dossier/attestation validator and renderer; canonical SHA-256 recomputation; exact eight-gate/readiness/quota/usage/adapter binding; 2 MiB strict-UTF-8 physical-file boundary; no final symlink; exact JSON serialization and byte-for-byte HTML reproduction; mandatory VASI integrity signature for new exports; optional certificate leaf signature; exact role/key/fingerprint binding; independently pinnable dossier and integrity-key fingerprints; explicit unsigned legacy result; fixed aggregate output; adversarial and release-assurance tests | Embedded keys alone do not establish controller identity; certificate chain trust, revocation, trusted time, gate sufficiency, external evidence, audit-chain comparison, and independent approval remain reviewer responsibilities |
-| SUP-1 | Vulnerable, unaccounted, or non-executable image content | Exact-lock production installs omit development/optional packages and lifecycle scripts; source assurance pins that build contract; physical image inspection rejects npm/npx plus every declared-development or lock-marked development/optional path outside the role-specific reviewed `sharp` exception; complete and production npm audits; CycloneDX source and image SBOMs; pinned Trivy scanner; HIGH/CRITICAL release denial; configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial; daily exact-live-edge-image rescan with atomic digest-bound retained evidence and independent finding recount | Vulnerability intelligence and scanner behavior remain external inputs; installations still require response ownership and independent assessment; the runtime-package exception is architecture-specific and must be reviewed when the supported image platform changes |
+| SUP-1 | Vulnerable source or vulnerable, unaccounted, or non-executable image content | Exact-lock production installs omit development/optional packages and lifecycle scripts; source assurance pins that build contract; physical image inspection rejects npm/npx plus every declared-development or lock-marked development/optional path outside the role-specific reviewed `sharp` exception; complete and production npm audits; CycloneDX source and image SBOMs; commit-pinned CodeQL JavaScript/TypeScript `security-extended` analysis on pull request, `main`, and schedule with a bounded fail-closed high/critical SARIF gate; pinned Trivy scanner; HIGH/CRITICAL release denial; configured-user and intended-UID parse of every declared runtime command in a no-network/read-only/capability-dropped container; unknown image-role denial; daily exact-live-edge-image rescan with atomic digest-bound retained evidence and independent finding recount | Query coverage, vulnerability intelligence, and scanner behavior remain external inputs; installations still require response ownership, independent source review, and penetration assessment; the runtime-package exception is architecture-specific and must be reviewed when the supported image platform changes |
 | AVAIL-1 | Resource exhaustion, dependency outage, or silently stopped recurring control | Pre-parser 64 KiB gateway/authentication body bounds with independent private-engine limits; bounded payloads/chunks/batches; PostgreSQL pool limits; durable public-verification and provider-detection throttling; bounded/cancellable DNS work; retry ceilings; canonical edge body/header/connection/request/upstream-time limits and no automatic retry; health checks; read-only readiness load gate; external provider isolation; independent persistent hardened backup, capacity, deployment, operational, egress, exact-edge-image, and edge-runtime timers; recurring effective-config/public/retired/scan-drift proof; root-owned bounded alert spools with non-recursive one-minute readiness and explicit acknowledgement; release-time exact scheduler contract validation | Customer-specific capacity, RTO/RPO, off-host alert delivery and host-loss detection, volumetric protection, and upstream infrastructure policy require measured pilot targets |
 | PRIV-1 | Excess collection, fingerprinting, or misleading evidence interpretation | Purpose-limited fixed fields; unavailable values remain absent; generalized telemetry excludes interaction detail; participant context rejects plugin/font enumeration, invasive fingerprints, precise location, hardware IDs, hidden media, keys/content/coordinates, and secrets; every browser value is labeled supporting; participant history and reviewed data request; redacted public verification and participant reports | Legal/privacy owners must approve notices, lawful basis, retention, and subject-right handling |
 
@@ -151,6 +151,15 @@ filesystem, all capabilities dropped, no privilege escalation, and the
 contract's intended UID. The manifest records the Git commit, image IDs,
 physical dependency result, runtime-contract result, scanner identity, policy,
 result summaries, and SHA-256 of every generated artifact.
+
+The hosted CodeQL workflow separately analyzes the exact pull-request or
+`main` source with commit-pinned actions and `security-extended` queries. Its
+generated SARIF is uploaded under the stable JavaScript analysis identity and
+then checked by VASI's bounded local verifier. Missing, malformed,
+unclassified, oversized, linked, or unexpected inputs fail closed, as does any
+security severity of `7.0` or higher. Output contains aggregate counts only.
+Source assurance rejects drift in the workflow permissions, triggers, runner,
+action pins, query suite, category, or verifier handoff.
 
 The packaged edge timers repeat the exact-live-image scan daily and verify
 runtime/evidence drift every 15 minutes. These controls are first-party
@@ -514,7 +523,7 @@ owner and dated evidence.
 
 | Gate | Minimum evidence | Approval owner |
 |---|---|---|
-| Exact release | Clean source manifest, SBOMs, zero blocking audit/image findings, build/test/conformance results, matched verified backup | VASI release owner |
+| Exact release | Clean source manifest, SBOMs, current exact-source CodeQL evidence, zero blocking source/dependency/image findings, build/test/conformance results, matched verified backup | VASI release owner |
 | Isolation and integrity | First-party isolation/tamper suite plus independent penetration review of public, private, and tenant boundaries | Independent security assessor |
 | Identity and delivery | Approved providers, callback origins, MFA/conditional-access policy where applicable, tested auth mail, and tenant delivery adapter or documented manual-link process | Customer identity/operations owner |
 | Privacy and legal | Approved notice/consent language, field inventory, data-request process, retention/hold policy, jurisdiction and electronic-act analysis | Customer privacy/legal owner |
@@ -578,6 +587,17 @@ runtime unit now asks systemd to create the root-only mode-`0700`
 `/run/vasi-edge` handoff before constructing its mount namespace. Release
 assurance owns that exact unit contract; the probe still validates the physical
 directory and removes its bounded per-run child on every outcome.
+
+VASI 0.55.0 restores a current exact-source static-analysis gate. A
+least-privileged hosted workflow analyzes JavaScript and TypeScript on every
+pull request and `main` push, repeats weekly, and preserves the prior analysis
+identity so stale upstream results can be closed by current evidence. All
+actions are commit-pinned and the `security-extended` suite is mandatory. The
+generated SARIF is uploaded before a bounded aggregate-only verifier rejects
+links, unexpected files, malformed schemas, unclassified findings, and every
+high or critical result. Release assurance owns the full workflow and verifier
+entrypoint. CodeQL remains first-party evidence and does not satisfy the
+independent penetration-review gate.
 
 ## Readiness dossier handoff
 

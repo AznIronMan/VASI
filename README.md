@@ -2,7 +2,7 @@
 
 Verified Authorized Signing Infrastructure
 
-Version: `0.54.1`
+Version: `0.55.0`
 
 A product-neutral service that can be branded and deployed for a single organization or as a multi-tenant service.
 
@@ -704,6 +704,16 @@ handoff directory before mount namespacing instead of depending on a prior run
 to have left `/run/vasi-edge` present. Release assurance requires the exact
 runtime-directory name and mode so scheduler drift fails closed.
 
+Version 0.55.0 restores current hosted static security analysis for every pull
+request and push to `main`, plus a weekly drift check. The least-privileged
+CodeQL workflow uses commit-pinned actions, JavaScript/TypeScript
+`security-extended` queries, and the historical analysis identity so obsolete
+upstream results are replaced by evidence for the exact VASI source. A bounded
+aggregate-only SARIF verifier rejects malformed or unclassified results and
+fails the workflow on every high or critical security result. Source assurance
+owns the complete workflow and verifier contract. This first-party control
+does not replace independent source review or penetration testing.
+
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal
 can establish an additional configured certificate identity, but local
@@ -834,10 +844,12 @@ assessment remain installation or pilot gates.
   export access, audited assurance, and automatic content expiry.
 - A release assurance gate with tracked-source policy, complete and production
   dependency audits, CycloneDX source/image SBOMs, digest-pinned image scanning,
-  fail-closed non-root runtime-command smoke checks, runtime version alignment,
-  sanitized Compose hardening checks, browser WCAG automation, and bounded
-  read-only readiness load testing; direct unbounded JSON parsing in gateway
-  request-handling source fails the release gate.
+  commit-pinned hosted CodeQL `security-extended` analysis with fail-closed
+  high/critical SARIF verification, fail-closed non-root runtime-command smoke
+  checks, runtime version alignment, sanitized Compose hardening checks,
+  browser WCAG automation, and bounded read-only readiness load testing;
+  direct unbounded JSON parsing in gateway request-handling source fails the
+  release gate.
 - An administrator-only operational snapshot and host probe with explicit
   migration, queue, delivery, document-scanning, signing, lifecycle, and
   database thresholds that exclude customer evidence and identity data.
