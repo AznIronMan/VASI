@@ -1,14 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
-import { createWriteStream } from "node:fs";
+import { constants, createWriteStream } from "node:fs";
 import {
   chmod,
   mkdir,
   mkdtemp,
+  open,
   readdir,
   readFile,
   rm,
-  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -121,9 +121,22 @@ export async function inspectTrackedSource(repositoryRoot = root) {
   const files = [];
   for (const filename of tracked) {
     const absolute = path.join(repositoryRoot, filename);
-    const metadata = await stat(absolute);
-    if (!metadata.isFile()) continue;
-    const contents = await readFile(absolute);
+    const handle = await open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    let contents;
+    try {
+      const before = await handle.stat();
+      if (!before.isFile()) throw new Error(`Tracked source is not a physical file: ${filename}`);
+      contents = await handle.readFile();
+      const after = await handle.stat();
+      if (
+        contents.length !== before.size || before.dev !== after.dev || before.ino !== after.ino ||
+        before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs
+      ) {
+        throw new Error(`Tracked source changed while it was inspected: ${filename}`);
+      }
+    } finally {
+      await handle.close();
+    }
     files.push({
       bytes: contents.length,
       path: filename,
@@ -424,7 +437,8 @@ export async function validateCodeScanningContract(repositoryRoot = root) {
   }
   if (
     steps[2]?.id !== "analyze" ||
-    steps[2]?.with?.category !== "/language:${{ matrix.language }}"
+    steps[2]?.with?.category !==
+      ".github/workflows/codeql-analysis.yml:analyze/language:${{ matrix.language }}"
   ) {
     failures.push("CodeQL result category must preserve the historical JavaScript analysis identity");
   }

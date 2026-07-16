@@ -1,4 +1,5 @@
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, open, readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
@@ -41,20 +42,29 @@ export async function verifyCodeQLSarifDirectory(directory) {
 
   for (const filename of sarifFiles) {
     const absolute = path.join(directory, filename);
-    const metadata = await lstat(absolute);
-    if (metadata.isSymbolicLink() || !metadata.isFile()) {
-      throw new Error("CodeQL SARIF input must contain only physical files");
-    }
-    bytes += metadata.size;
-    if (bytes > MAX_SARIF_BYTES) {
-      throw new Error("CodeQL SARIF input exceeds the assurance size bound");
-    }
-
     let sarif;
+    const handle = await open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
     try {
-      sarif = JSON.parse(await readFile(absolute, "utf8"));
-    } catch {
-      throw new Error("CodeQL SARIF input is not valid JSON");
+      const before = await handle.stat();
+      if (!before.isFile()) throw new Error("CodeQL SARIF input must contain only physical files");
+      bytes += before.size;
+      if (bytes > MAX_SARIF_BYTES) {
+        throw new Error("CodeQL SARIF input exceeds the assurance size bound");
+      }
+      const contents = await handle.readFile();
+      const after = await handle.stat();
+      if (
+        contents.length !== before.size || before.dev !== after.dev || before.ino !== after.ino ||
+        before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs
+      ) {
+        throw new Error("CodeQL SARIF input changed while it was read");
+      }
+      sarif = JSON.parse(contents.toString("utf8"));
+    } catch (error) {
+      if (error instanceof SyntaxError) throw new Error("CodeQL SARIF input is not valid JSON");
+      throw error;
+    } finally {
+      await handle.close();
     }
     if (sarif?.version !== "2.1.0" || !Array.isArray(sarif?.runs) || !sarif.runs.length) {
       throw new Error("CodeQL SARIF input does not use the supported schema");

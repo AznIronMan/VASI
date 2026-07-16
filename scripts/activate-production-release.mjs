@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { constants } from "node:fs";
 import { isIP } from "node:net";
 import {
   lstat,
   mkdir,
+  open,
   readFile,
   realpath,
   rename,
@@ -246,8 +248,7 @@ async function prepareActivation(configuration, releaseId, { commandRunner, scri
     throw new Error("The activation command must run from the candidate or selected trusted release.");
   }
   await validateDirectory(path.dirname(configuration.overlayFile), [0, uid], true);
-  await validateProtectedFile(configuration.overlayFile, [0, uid], 4096);
-  const protectedOverlaySource = await readFile(configuration.overlayFile, "utf8");
+  const protectedOverlaySource = await readProtectedFile(configuration.overlayFile, [0, uid], 4096);
   const listener = parseProtectedOverlay(protectedOverlaySource, configuration.role);
   const candidateOverlay = path.join(candidate, "compose.live.yaml");
   const overlayLinkMissing = await validateCandidateOverlay(candidateOverlay, configuration.overlayFile);
@@ -324,17 +325,34 @@ async function inspectReleaseRuntime(releaseDirectory, configuration, contract, 
 async function loadProtectedConfiguration(filename, uid) {
   const resolved = path.resolve(filename);
   await validateDirectory(path.dirname(resolved), [0, uid], true);
-  await validateProtectedFile(resolved, [0, uid], 64 * 1024);
-  return validateActivationConfigurationValue(JSON.parse(await readFile(resolved, "utf8")));
+  return validateActivationConfigurationValue(JSON.parse(await readProtectedFile(
+    resolved,
+    [0, uid],
+    64 * 1024,
+  )));
 }
 
-async function validateProtectedFile(filename, owners, maximumBytes) {
-  const metadata = await lstat(filename);
-  if (
-    !metadata.isFile() || metadata.isSymbolicLink() || metadata.size < 2 || metadata.size > maximumBytes ||
-    (metadata.mode & 0o777) !== 0o600 || !owners.includes(metadata.uid) || await realpath(filename) !== filename
-  ) {
-    throw new Error("A protected production release activation file failed validation.");
+async function readProtectedFile(filename, owners, maximumBytes) {
+  const handle = await open(filename, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+  try {
+    const before = await handle.stat();
+    if (
+      !before.isFile() || before.size < 2 || before.size > maximumBytes || before.nlink !== 1 ||
+      (before.mode & 0o777) !== 0o600 || !owners.includes(before.uid) || await realpath(filename) !== filename
+    ) {
+      throw new Error("A protected production release activation file failed validation.");
+    }
+    const contents = await handle.readFile();
+    const after = await handle.stat();
+    if (
+      contents.length !== before.size || before.dev !== after.dev || before.ino !== after.ino ||
+      before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs
+    ) {
+      throw new Error("A protected production release activation file changed while it was read.");
+    }
+    return contents.toString("utf8");
+  } finally {
+    await handle.close();
   }
 }
 
@@ -380,8 +398,7 @@ async function validateRollbackOverlay(rollbackOverlay, protectedOverlay, protec
     }
     return;
   }
-  await validateProtectedFile(rollbackOverlay, releaseOwners, 4096);
-  if (await readFile(rollbackOverlay, "utf8") !== protectedOverlaySource) {
+  if (await readProtectedFile(rollbackOverlay, releaseOwners, 4096) !== protectedOverlaySource) {
     throw new Error("The rollback release live overlay does not match the protected overlay.");
   }
 }

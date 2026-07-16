@@ -711,8 +711,12 @@ CodeQL workflow uses commit-pinned actions, JavaScript/TypeScript
 upstream results are replaced by evidence for the exact VASI source. A bounded
 aggregate-only SARIF verifier rejects malformed or unclassified results and
 fails the workflow on every high or critical security result. Source assurance
-owns the complete workflow and verifier contract. This first-party control
-does not replace independent source review or penetration testing.
+owns the complete workflow and verifier contract. The first exact-source pass
+also removed check-then-read races from security-sensitive release, source,
+route, transport, evidence, passphrase, and SARIF inputs by validating and
+reading through one no-follow file descriptor with stable metadata checks. This
+first-party control does not replace independent source review or penetration
+testing.
 
 The standard seal proves that the manifest and covered chain have not changed
 and were signed by the configured VASI seal key. An optional certificate seal

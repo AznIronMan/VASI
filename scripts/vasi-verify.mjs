@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { readFile, stat } from "node:fs/promises";
+import { constants } from "node:fs";
+import { open } from "node:fs/promises";
 
 import {
   verifyEvidenceBundle,
@@ -15,12 +16,21 @@ if (!path || args.some((argument) => argument.startsWith("-") && argument !== "-
   console.error("Usage: node scripts/vasi-verify.mjs [--json] <bundle.zip|record.json>");
   process.exitCode = 2;
 } else {
+  let handle;
   try {
-    const metadata = await stat(path);
+    handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    const metadata = await handle.stat();
     if (!metadata.isFile() || metadata.size < 2 || metadata.size > 1_073_741_824) {
       throw new Error("The evidence input must be a file between 2 bytes and 1 GiB.");
     }
-    const bytes = await readFile(path);
+    const bytes = await handle.readFile();
+    const after = await handle.stat();
+    if (
+      bytes.length !== metadata.size || metadata.dev !== after.dev || metadata.ino !== after.ino ||
+      metadata.size !== after.size || metadata.mtimeMs !== after.mtimeMs || metadata.ctimeMs !== after.ctimeMs
+    ) {
+      throw new Error("The evidence input changed while it was read.");
+    }
     const result = isZip(bytes)
       ? verifyEvidenceBundle(bytes)
       : verifyEvidenceRecord(JSON.parse(bytes.toString("utf8")));
@@ -38,6 +48,8 @@ if (!path || args.some((argument) => argument.startsWith("-") && argument !== "-
       console.error(`VASI verification failed: ${message}`);
     }
     process.exitCode = 1;
+  } finally {
+    await handle?.close().catch(() => undefined);
   }
 }
 

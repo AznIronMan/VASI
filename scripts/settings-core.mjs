@@ -6,6 +6,7 @@ import {
   constants,
   copyFileSync,
   existsSync,
+  fstatSync,
   fsyncSync,
   mkdirSync,
   openSync,
@@ -263,16 +264,28 @@ export function databaseConnectionOptions(
 }
 
 export function loadDatabaseGatewayTransport(filename = DATABASE_GATEWAY_TRANSPORT_PATH) {
-  if (!existsSync(filename)) return null;
-  const metadata = statSync(filename);
-  if (!metadata.isFile() || metadata.size < 2 || metadata.size > 1_024) {
-    throw new Error("The VASI database-gateway transport marker is invalid.");
-  }
+  let handle;
   let value;
   try {
-    value = JSON.parse(readFileSync(filename, "utf8"));
-  } catch {
+    handle = openSync(filename, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    const before = fstatSync(handle);
+    if (!before.isFile() || before.size < 2 || before.size > 1_024) {
+      throw new Error("The VASI database-gateway transport marker is invalid.");
+    }
+    const contents = readFileSync(handle, "utf8");
+    const after = fstatSync(handle);
+    if (
+      Buffer.byteLength(contents) !== before.size || before.dev !== after.dev || before.ino !== after.ino ||
+      before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs
+    ) {
+      throw new Error("The VASI database-gateway transport marker is invalid.");
+    }
+    value = JSON.parse(contents);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
     throw new Error("The VASI database-gateway transport marker is invalid.");
+  } finally {
+    if (handle !== undefined) closeSync(handle);
   }
   if (
     !value || Array.isArray(value) || typeof value !== "object" ||

@@ -10,7 +10,9 @@ import {
 } from "node:crypto";
 import {
   chmod,
+  constants,
   mkdir,
+  open,
   readFile,
   rename,
   rm,
@@ -407,13 +409,26 @@ async function confirmedPassphrase() {
 
 async function readPassphraseFile(source) {
   const filePath = path.resolve(source);
-  const metadata = await stat(filePath);
-  if (!metadata.isFile() || (metadata.mode & 0o077) !== 0) {
-    throw new Error("The archive passphrase file must be a regular file with mode 0600 or stricter.");
+  const handle = await open(filePath, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+  try {
+    const before = await handle.stat();
+    if (!before.isFile() || (before.mode & 0o077) !== 0) {
+      throw new Error("The archive passphrase file must be a regular file with mode 0600 or stricter.");
+    }
+    const contents = await handle.readFile();
+    const after = await handle.stat();
+    if (
+      contents.length !== before.size || before.dev !== after.dev || before.ino !== after.ino ||
+      before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs
+    ) {
+      throw new Error("The archive passphrase file changed while it was read.");
+    }
+    const value = contents.toString("utf8").replace(/\r?\n$/, "");
+    if (value.length < 16) throw new Error("The archive passphrase must contain at least 16 characters.");
+    return value;
+  } finally {
+    await handle.close();
   }
-  const value = (await readFile(filePath, "utf8")).replace(/\r?\n$/, "");
-  if (value.length < 16) throw new Error("The archive passphrase must contain at least 16 characters.");
-  return value;
 }
 
 async function hiddenQuestion(prompt) {

@@ -1,4 +1,5 @@
-import { lstat, readFile, readdir } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, open, readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -147,11 +148,24 @@ async function routeFilesUnder(directory, depth = 0) {
 }
 
 async function boundedRouteSource(filename) {
-  const metadata = await lstat(filename);
-  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size < 1 || metadata.size > MAXIMUM_ROUTE_SOURCE_BYTES) {
-    throw new Error("A sensitive route source is unavailable or outside its bound.");
+  const handle = await open(filename, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+  try {
+    const metadata = await handle.stat();
+    if (!metadata.isFile() || metadata.size < 1 || metadata.size > MAXIMUM_ROUTE_SOURCE_BYTES) {
+      throw new Error("A sensitive route source is unavailable or outside its bound.");
+    }
+    const contents = await handle.readFile();
+    const after = await handle.stat();
+    if (
+      contents.length !== metadata.size || metadata.dev !== after.dev || metadata.ino !== after.ino ||
+      metadata.size !== after.size || metadata.mtimeMs !== after.mtimeMs || metadata.ctimeMs !== after.ctimeMs
+    ) {
+      throw new Error("A sensitive route source changed while it was read.");
+    }
+    return contents.toString("utf8");
+  } finally {
+    await handle.close();
   }
-  return readFile(filename, "utf8");
 }
 
 export function exportedHTTPMethods(source) {

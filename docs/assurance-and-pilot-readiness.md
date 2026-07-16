@@ -596,8 +596,11 @@ actions are commit-pinned and the `security-extended` suite is mandatory. The
 generated SARIF is uploaded before a bounded aggregate-only verifier rejects
 links, unexpected files, malformed schemas, unclassified findings, and every
 high or critical result. Release assurance owns the full workflow and verifier
-entrypoint. CodeQL remains first-party evidence and does not satisfy the
-independent penetration-review gate.
+entrypoint. The first current scan also drove descriptor-bound, no-follow,
+stable-metadata reads for release activation and staging, tracked-source and
+route inspection, runtime transport markers, evidence and passphrase inputs,
+and the SARIF gate itself. CodeQL remains first-party evidence and does not
+satisfy the independent penetration-review gate.
 
 ## Readiness dossier handoff
 

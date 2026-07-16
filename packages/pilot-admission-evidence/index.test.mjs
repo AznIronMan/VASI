@@ -243,7 +243,7 @@ describe("complete pilot-admission evidence verification", () => {
     const manifestFile = path.join(noncanonical.manifestDirectory, "exact_release.json");
     await writeFile(
       manifestFile,
-      (await readFile(manifestFile, "utf8")).replace("\n", "\r\n"),
+      (await readFile(manifestFile, "utf8")).replaceAll("\n", "\r\n"),
       { mode: 0o600 },
     );
     await expectFailure(noncanonical);

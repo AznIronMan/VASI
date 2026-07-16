@@ -558,6 +558,11 @@ async function requireUnchangedArchive(archive) {
   }
 }
 
+function sameMetadata(before, after) {
+  return ["dev", "ino", "mode", "nlink", "size", "uid", "gid", "mtimeNs"]
+    .every((name) => before[name] === after[name]);
+}
+
 async function createBoundaryLinks(directory, configuration, uid) {
   const dataLink = path.join(directory, "data");
   const overlayLink = path.join(directory, "compose.live.yaml");
@@ -608,14 +613,19 @@ async function normalizeAndVerifyTree(directory, inspection, configuration, uid)
         await walk(absolute, childRelative);
       } else if (entry.isFile()) {
         const expected = inspection.files.get(childRelative);
-        if (!expected || metadata.uid !== ownerUid || metadata.nlink !== 1 ||
-            (metadata.mode & 0o777) !== expected.mode || metadata.size !== expected.size) {
-          fail("invalid_staged_file");
-        }
         const contents = await open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
         try {
-          const sha256 = createHash("sha256").update(await contents.readFile()).digest("hex");
-          if (sha256 !== expected.sha256) fail("staged_file_digest_mismatch");
+          const before = await contents.stat({ bigint: true });
+          if (
+            !expected || !before.isFile() || Number(before.uid) !== ownerUid || before.nlink !== 1n ||
+            (Number(before.mode) & 0o777) !== expected.mode || before.size !== BigInt(expected.size)
+          ) fail("invalid_staged_file");
+          const fileContents = await contents.readFile();
+          const after = await contents.stat({ bigint: true });
+          if (
+            fileContents.length !== expected.size || !sameMetadata(before, after) ||
+            createHash("sha256").update(fileContents).digest("hex") !== expected.sha256
+          ) fail("staged_file_digest_mismatch");
         } finally {
           await contents.close();
         }

@@ -89,7 +89,7 @@ describe("browser-local pilot-gate manifest import", () => {
   it("requires exact canonical JSON presentation", async () => {
     const manifest = await manifestFixture("capacity_support");
     const canonical = canonicalJSON(manifest);
-    await expectFailure(canonical.replace("\n", "\r\n"), "capacity_support");
+    await expectFailure(canonical.replaceAll("\n", "\r\n"), "capacity_support");
     await expectFailure(JSON.stringify(manifest), "capacity_support");
     await expectFailure(`${canonical} `, "capacity_support");
   });

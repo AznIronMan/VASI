@@ -182,7 +182,7 @@ describe("pilot-gate evidence packages", () => {
     const fixture = await createFixture("capacity_support");
     await writeFile(
       fixture.descriptorFile,
-      pilotGateDescriptorJSON(fixture.descriptor).replace("\n", "\r\n"),
+      pilotGateDescriptorJSON(fixture.descriptor).replaceAll("\n", "\r\n"),
       { mode: 0o600 },
     );
     await expect(createPilotGateEvidenceManifestFile(
@@ -198,7 +198,7 @@ describe("pilot-gate evidence packages", () => {
       fixture.manifestFile,
     );
     const canonical = await readFile(fixture.manifestFile, "utf8");
-    await writeFile(fixture.manifestFile, canonical.replace("\n", "\r\n"), { mode: 0o600 });
+    await writeFile(fixture.manifestFile, canonical.replaceAll("\n", "\r\n"), { mode: 0o600 });
     await expect(verifyPilotGateEvidenceManifestFile(
       fixture.manifestFile,
       fixture.evidenceDirectory,
