@@ -593,32 +593,41 @@ async function normalizeAndVerifyTree(directory, inspection, configuration, uid)
   const seenDirectories = new Set([""]);
   const seenLinks = new Set();
   async function walk(current, relative = "") {
-    for (const entry of await readdir(current, { withFileTypes: true })) {
-      const childRelative = relative ? `${relative}/${entry.name}` : entry.name;
-      const absolute = path.join(current, entry.name);
-      const metadata = await lstat(absolute);
-      if (entry.isSymbolicLink()) {
-        const expectedTarget = childRelative === "data"
-          ? configuration.dataRoot
-          : configuration.overlayFile;
-        if (
-          !reservedPaths.has(childRelative) || metadata.uid !== ownerUid ||
-          await readlink(absolute) !== expectedTarget
-        ) fail("invalid_staged_link");
-        seenLinks.add(childRelative);
-      } else if (entry.isDirectory()) {
-        if (!inspection.directories.has(childRelative) || metadata.uid !== ownerUid ||
-            (metadata.mode & 0o777) !== 0o755) fail("invalid_staged_directory");
-        seenDirectories.add(childRelative);
-        await walk(absolute, childRelative);
-      } else {
-        const expected = inspection.files.get(childRelative);
-        const contents = await open(
+    for (const name of await readdir(current)) {
+      const childRelative = relative ? `${relative}/${name}` : name;
+      const absolute = path.join(current, name);
+      let contents;
+      try {
+        contents = await open(
           absolute,
           constants.O_RDONLY | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0),
         );
-        try {
-          const before = await contents.stat({ bigint: true });
+      } catch (error) {
+        if (error?.code !== "ELOOP") throw error;
+        const expectedTarget = childRelative === "data"
+          ? configuration.dataRoot
+          : configuration.overlayFile;
+        const target = await readlink(absolute);
+        const metadata = await lstat(absolute);
+        if (
+          !metadata.isSymbolicLink() || !reservedPaths.has(childRelative) ||
+          metadata.uid !== ownerUid || target !== expectedTarget
+        ) fail("invalid_staged_link");
+        seenLinks.add(childRelative);
+        continue;
+      }
+
+      let directoryEntry = false;
+      try {
+        const before = await contents.stat({ bigint: true });
+        if (before.isDirectory()) {
+          if (
+            !inspection.directories.has(childRelative) || Number(before.uid) !== ownerUid ||
+            (Number(before.mode) & 0o777) !== 0o755
+          ) fail("invalid_staged_directory");
+          directoryEntry = true;
+        } else {
+          const expected = inspection.files.get(childRelative);
           if (
             !expected || !before.isFile() || Number(before.uid) !== ownerUid || before.nlink !== 1n ||
             (Number(before.mode) & 0o777) !== expected.mode || before.size !== BigInt(expected.size)
@@ -629,10 +638,14 @@ async function normalizeAndVerifyTree(directory, inspection, configuration, uid)
             fileContents.length !== expected.size || !sameMetadata(before, after) ||
             createHash("sha256").update(fileContents).digest("hex") !== expected.sha256
           ) fail("staged_file_digest_mismatch");
-        } finally {
-          await contents.close();
+          seenFiles.add(childRelative);
         }
-        seenFiles.add(childRelative);
+      } finally {
+        await contents.close();
+      }
+      if (directoryEntry) {
+        seenDirectories.add(childRelative);
+        await walk(absolute, childRelative);
       }
     }
   }
